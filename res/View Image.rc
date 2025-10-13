@@ -1,0 +1,344 @@
+// Microsoft Visual C++ generated resource script.
+//
+#include "resource.h"
+
+#define APSTUDIO_READONLY_SYMBOLS
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 2 resource.
+//
+#include "winres.h"
+
+/////////////////////////////////////////////////////////////////////////////
+#undef APSTUDIO_READONLY_SYMBOLS
+
+/////////////////////////////////////////////////////////////////////////////
+// English (United States) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+
+#ifdef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// TEXTINCLUDE
+//
+
+1 TEXTINCLUDE 
+BEGIN
+    "resource.h\0"
+END
+
+2 TEXTINCLUDE 
+BEGIN
+    "#include ""winres.h""\r\n"
+    "\0"
+END
+
+3 TEXTINCLUDE 
+BEGIN
+    "\r\n"
+    "\0"
+END
+
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Icon
+//
+
+// Icon with lowest ID value placed first to ensure application icon
+// remains consistent on all systems.
+IDI_ICON1               ICON                    "sfbb_icon.ico"
+
+lockicon                ICON                    "lock_icon_i.ico"
+
+unlockicon1             ICON                    "unlockicon.ico"
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// PNG
+//
+
+FS_ICON                 PNG                     "fullscreen_icon.png"
+
+TOOLBAR_RES             PNG                     "iconbar_b.png"
+
+ICON_MAP                PNG                     "12iconmap.png"
+
+CROPICON                PNG                     "cropicon.png"
+
+MENUSHADOW              PNG                     "menu_shadow.png"
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Dialog
+//
+
+Resize DIALOGEX 0, 0, 145, 92
+STYLE DS_SYSMODAL | DS_SETFONT | DS_MODALFRAME | DS_SETFOREGROUND | DS_FIXEDSYS | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+EXSTYLE WS_EX_WINDOWEDGE
+CAPTION "Resize"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    DEFPUSHBUTTON   "Confirm",ConfirmBBox,26,65,50,14,BS_FLAT
+    PUSHBUTTON      "Cancel",CancelBBox,79,65,50,14,BS_FLAT
+    EDITTEXT        WidthPBox,45,24,63,12,ES_AUTOHSCROLL | NOT WS_BORDER,WS_EX_TRANSPARENT | WS_EX_STATICEDGE
+    LTEXT           "Width: ",IDC_STATIC,20,25,22,8
+    LTEXT           "Height: ",IDC_STATIC,19,40,26,8
+    EDITTEXT        HeightPBox,45,40,63,12,ES_AUTOHSCROLL | NOT WS_BORDER,WS_EX_TRANSPARENT | WS_EX_STATICEDGE
+    GROUPBOX        "",parameters_dialog_baba,14,10,117,52,BS_FLAT
+    CTEXT           "Parameters",ptxt,21,11,42,8
+    PUSHBUTTON      "",lockw,109,23,18,15,BS_ICON
+    PUSHBUTTON      "",lockh,109,39,18,15,BS_ICON
+END
+
+LoadingHalt DIALOGEX 0, 0, 137, 46
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | DS_CENTER | WS_POPUP | WS_SYSMENU
+FONT 8, "MS Shell Dlg", 400, 0, 0x1 
+BEGIN
+    LTEXT           "Please wait while undo processes",PL,15,19,107,8
+END
+
+BrightnessContrast DIALOGEX 0, 0, 187, 117
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Adjust Brightness/Contrast"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    DEFPUSHBUTTON   "OK",IDOK,67,89,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,120,89,50,14
+    LTEXT           "Brightness",IDC_STATIC,17,18,99,8
+    CONTROL         "",SLIDERBRIGHTNESS,"msctls_trackbar32",TBS_AUTOTICKS | TBS_BOTH | WS_TABSTOP,15,26,158,24
+    LTEXT           "Contrast",IDC_STATIC,17,52,29,8
+    CONTROL         "",SLIDERCONTRAST,"msctls_trackbar32",TBS_AUTOTICKS | TBS_BOTH | WS_TABSTOP,17,63,158,24
+END
+
+Gaussian DIALOGEX 0, 0, 187, 86
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Gaussian Blur"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    DEFPUSHBUTTON   "OK",IDOK,67,58,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,120,58,50,14
+    LTEXT           "Amount",-1,17,18,99,8
+    CONTROL         "",SLIDERGAUSSIAN,"msctls_trackbar32",TBS_AUTOTICKS | TBS_BOTH | WS_TABSTOP,15,26,158,24
+END
+
+DrawTextDialog DIALOGEX 0, 0, 309, 131
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Draw Text"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    DEFPUSHBUTTON   "Confirm",IDOK,186,103,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,239,103,50,14
+    LTEXT           "Text to draw",text_static_control_1,15,21,42,8
+    GROUPBOX        "Properties",IDC_STATIC,7,7,295,114
+    EDITTEXT        ActualDrawTextDialogBox,15,31,134,14,ES_AUTOHSCROLL | ES_NOHIDESEL
+    CONTROL         "",posXs,"msctls_trackbar32",TBS_BOTH | TBS_NOTICKS | WS_TABSTOP,25,60,122,15
+    CONTROL         "",posYs,"msctls_trackbar32",TBS_BOTH | TBS_NOTICKS | WS_TABSTOP,25,81,122,15
+    LTEXT           "X",Xe,21,64,8,8
+    LTEXT           "Y",IDC_STATIC,21,85,8,8
+    GROUPBOX        "Position",pos_x_6,15,49,136,52
+    GROUPBOX        "Font",IDC_STATIC,153,19,139,77
+    PUSHBUTTON      "Browse..",SelectFontButton,238,30,50,14
+    LTEXT           "",FontNameID,162,33,70,9
+    LTEXT           "",ColorTextBlock,186,52,15,14,WS_BORDER
+    PUSHBUTTON      "Choose..",ColorTextButton,203,52,50,14
+    CONTROL         "Treat operation as annotation",AffectDrawingErase,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,19,106,112,10
+    LTEXT           "Size:",IDC_STATIC,163,76,16,8
+    CONTROL         "",TextSizeSlider,"msctls_trackbar32",TBS_BOTH | TBS_NOTICKS | WS_TABSTOP,181,74,109,15
+    LTEXT           "Color:",IDC_STATIC,159,55,20,8
+    GROUPBOX        "",IDC_STATIC,182,46,76,24
+    GROUPBOX        "",IDC_STATIC,182,68,108,24
+    GROUPBOX        "",IDC_STATIC,157,27,78,17
+    GROUPBOX        "",IDC_STATIC,184,97,54,22
+END
+
+FontDialog DIALOGEX 0, 0, 217, 209
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+EXSTYLE WS_EX_WINDOWEDGE
+CAPTION "Load Font"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    DEFPUSHBUTTON   "Select",IDOK,153,167,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,153,184,50,14
+    LISTBOX         FontDialogListComponent,7,7,203,156,LBS_SORT | LBS_NOINTEGRALHEIGHT | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "Preview!",PreviewTXT,12,167,137,21,0,WS_EX_CLIENTEDGE
+    LTEXT           "* Not all font can be previewed *",IDC_STATIC,14,190,107,8
+END
+
+DrawTextDialogFuture DIALOGEX 0, 0, 309, 182
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Draw Text"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    DEFPUSHBUTTON   "OK",IDOK,185,158,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,237,158,50,14
+    LTEXT           "Text to draw",text_static_control_1,15,21,42,8
+    GROUPBOX        "Properties",IDC_STATIC,7,7,295,99
+    EDITTEXT        ActualDrawTextDialogBox,15,31,148,14,ES_AUTOHSCROLL | ES_NOHIDESEL
+    CONTROL         "",posXs,"msctls_trackbar32",TBS_BOTH | TBS_NOTICKS | WS_TABSTOP,25,60,132,15
+    CONTROL         "",posYs,"msctls_trackbar32",TBS_BOTH | TBS_NOTICKS | WS_TABSTOP,25,81,132,15
+    LTEXT           "X",Xe,21,64,8,8
+    LTEXT           "Y",IDC_STATIC,21,85,8,8
+    GROUPBOX        "Position",pos_x_6,15,49,145,52
+    GROUPBOX        "Font",IDC_STATIC,165,49,127,52
+    LTEXT           "Current Font:",IDC_STATIC,174,60,45,8
+    LTEXT           "Arial",IDC_STATIC,174,68,15,8
+    PUSHBUTTON      "Select Font",SelectFontButton,173,80,50,14
+    LTEXT           "Aa",Aa,231,60,54,35,SS_SUNKEN
+    GROUPBOX        "Attributes",IDC_STATIC,7,108,295,47
+    LTEXT           "Bevel Amount:",IDC_STATIC,17,122,48,8
+    CONTROL         "",BevelAmountSlider,"msctls_trackbar32",TBS_BOTH | TBS_NOTICKS | WS_TABSTOP,71,119,64,15
+    LTEXT           "Outline Amount:",IDC_STATIC,17,137,53,8
+    CONTROL         "",OutlineAmountSlider,"msctls_trackbar32",TBS_BOTH | TBS_NOTICKS | WS_TABSTOP,71,135,64,15
+    GROUPBOX        "Color Text",IDC_STATIC,137,113,80,29
+    LTEXT           "",ColorTextBlock,142,124,14,13,WS_BORDER
+    PUSHBUTTON      "Select",ColorTextButton,158,124,50,14
+    GROUPBOX        "Color Outline",IDC_STATIC,218,113,80,29
+    LTEXT           "",ColorOutlineBlock,223,124,14,13,WS_BORDER
+    PUSHBUTTON      "Select",ColorOutlineButton,239,124,50,14
+    CONTROL         "Apply to annotations layer",ApplyAnnotationsLayerCheckboxDT,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,15,160,101,10
+    LTEXT           "Size: ",IDC_STATIC,169,33,18,8
+    CONTROL         "",TextSizeSlider,"msctls_trackbar32",TBS_BOTH | TBS_NOTICKS | WS_TABSTOP,188,31,100,15
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// DESIGNINFO
+//
+
+#ifdef APSTUDIO_INVOKED
+GUIDELINES DESIGNINFO
+BEGIN
+    Resize, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 138
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 85
+    END
+
+    LoadingHalt, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 130
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 37
+    END
+
+    BrightnessContrast, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 181
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 110
+    END
+
+    Gaussian, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 181
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 79
+    END
+
+    DrawTextDialog, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 302
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 124
+    END
+
+    FontDialog, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 210
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 202
+    END
+
+    DrawTextDialogFuture, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 302
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 175
+    END
+END
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// AFX_DIALOG_LAYOUT
+//
+
+Resize AFX_DIALOG_LAYOUT
+BEGIN
+    0
+END
+
+LoadingHalt AFX_DIALOG_LAYOUT
+BEGIN
+    0
+END
+
+BrightnessContrast AFX_DIALOG_LAYOUT
+BEGIN
+    0
+END
+
+Gaussian AFX_DIALOG_LAYOUT
+BEGIN
+    0
+END
+
+DrawTextDialog AFX_DIALOG_LAYOUT
+BEGIN
+    0
+END
+
+FontDialog AFX_DIALOG_LAYOUT
+BEGIN
+    0
+END
+
+DrawTextDialogFuture AFX_DIALOG_LAYOUT
+BEGIN
+    0
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Cursor
+//
+
+IDC_CURSOR1             CURSOR                  "cursor1.cur"
+
+IDC_CURSOR2             CURSOR                  "cursor2.cur"
+
+#endif    // English (United States) resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+
+#ifndef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 3 resource.
+//
+
+
+/////////////////////////////////////////////////////////////////////////////
+#endif    // not APSTUDIO_INVOKED
+
