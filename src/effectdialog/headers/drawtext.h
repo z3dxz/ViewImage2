@@ -4,4 +4,5 @@
 #include "../../headers/ops.hpp"
 #include "fontdialog.h"
 
+void PerformDrawTextRealignment();
 int ShowDrawTextDialog(GlobalParams* m0);

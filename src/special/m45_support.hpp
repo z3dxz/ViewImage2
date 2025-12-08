@@ -16,3 +16,4 @@
 #include <vector>
 
 void* decode_m45(const char* filepath, int* imgwidth, int* imgheight);
+bool encodedata(void* idd, uint32_t iw, uint32_t ih, const char* filepath);

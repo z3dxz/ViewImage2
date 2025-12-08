@@ -12,19 +12,7 @@
 	((uint32_t*)start + (y * widthfactor) + x)\
 \
 
-const char* encodeimage(const char* filepath) {
-
-    printf("\n -- Converting File -- \n");
-
-    int imgwidth;
-    int imgheight;
-    int channels;
-    void* imgdata = stbi_load(filepath, &imgwidth, &imgheight, &channels, 4);
-
-    if (!imgdata) {
-        return "sorry, file is not a bitmap or failed to load for some reason";
-    }
-
+const char* encodesfbb(const char* out_path, void* imgdata, int imgwidth, int imgheight, int channels) {
 
     int imgByteSize = (imgwidth * imgheight * 4) + 2;
 
@@ -91,7 +79,7 @@ const char* encodeimage(const char* filepath) {
 
 
     char str_path[256];
-    strcpy(str_path, filepath);
+    strcpy(str_path, out_path);
 
     char* last_dot = strrchr(str_path, '.');
     if (last_dot != NULL) {
@@ -130,11 +118,9 @@ const char* encodeimage(const char* filepath) {
     // Close the handle once we don't need it.
     CloseHandle(hFile);
 
-    FreeData(imgdata);
     FreeData(data);
 
-    return 0;
-
+    return "success";
 }
 
 void* decodesfbb(const char* filepath, int* imgwidth, int* imgheight) {

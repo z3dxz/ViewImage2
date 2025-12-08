@@ -241,6 +241,172 @@ uint32_t findMeanColor16(uint32_t colors[16]) {
 	return combineRGB(averageRed, averageGreen, averageBlue);
 }
 
+// encoding
+
+bool encodefile(void* idd, uint32_t iw, uint32_t ih, const char* filepath, float aspect) {
+
+	if (ih % 2 == 1) ih--;
+	int imgByteSize = (((float)iw * (float)ih) + (((float)iw/8.0f)*((float)ih/2.0f))) + 5 + 2; // 2=intervals
+
+	void* data = malloc(imgByteSize);
+
+	if (!data) {
+		//no img data
+		return false;
+	}
+
+	if (iw > 65536 || ih > 65536) {
+		// image width or height too big
+		return false;
+		//return "sorry, image width or height is too big";
+	}
+
+
+	float* ptr_ = (float*)data;
+
+	*ptr_ = aspect;
+
+	byte* ptr = (byte*)data;
+	ptr += 4;
+	*ptr = 45;
+	ptr++;
+
+	for (int y = 0; y < ih/2; y++) {
+		for (int x = 0; x < iw; x++) {
+			uint32_t cc = (*GetMemoryLocation(idd, x, y*2, iw));
+			INT8 pix = rgbToHsv(cc).a;
+			if (pix == 0) { pix = 1; }
+			*ptr = pix;
+			ptr++;
+		}
+	}
+
+	*ptr = 0x00;
+	ptr += 1;
+
+	for (int y = 0; y < ih / 2; y++) {
+		for (int x = 0; x < iw; x++) {
+			uint32_t cc = (*GetMemoryLocation(idd, x, y * 2 + 1, iw));
+			INT8 pix = rgbToHsv(cc).a;
+			if (pix == 0) { pix = 1; }
+			*ptr = pix;
+			ptr++;
+		}
+	}
+
+	*ptr = 0x00;
+	ptr += 1;
+
+
+	for (int y = 0; y < ih/2; y++) {
+		for (int x = 0; x < iw/8; x++) {
+			uint32_t c0 = (*GetMemoryLocation(idd, x * 8    , y * 2, iw));
+			uint32_t c1 = (*GetMemoryLocation(idd, x * 8 + 1, y * 2, iw));
+			uint32_t c2 = (*GetMemoryLocation(idd, x * 8 + 2, y * 2, iw));
+			uint32_t c3 = (*GetMemoryLocation(idd, x * 8 + 3, y * 2, iw));
+			uint32_t c4 = (*GetMemoryLocation(idd, x * 8 + 4, y * 2, iw));
+			uint32_t c5 = (*GetMemoryLocation(idd, x * 8 + 5, y * 2, iw));
+			uint32_t c6 = (*GetMemoryLocation(idd, x * 8 + 6, y * 2, iw));
+			uint32_t c7 = (*GetMemoryLocation(idd, x * 8 + 7, y * 2, iw));
+
+			uint32_t c0a = (*GetMemoryLocation(idd, x * 8, y * 2+1, iw));
+			uint32_t c1a = (*GetMemoryLocation(idd, x * 8 + 1, y * 2 + 1, iw));
+			uint32_t c2a = (*GetMemoryLocation(idd, x * 8 + 2, y * 2 + 1, iw));
+			uint32_t c3a = (*GetMemoryLocation(idd, x * 8 + 3, y * 2 + 1, iw));
+			uint32_t c4a = (*GetMemoryLocation(idd, x * 8 + 4, y * 2 + 1, iw));
+			uint32_t c5a = (*GetMemoryLocation(idd, x * 8 + 5, y * 2 + 1, iw));
+			uint32_t c6a = (*GetMemoryLocation(idd, x * 8 + 6, y * 2 + 1, iw));
+			uint32_t c7a = (*GetMemoryLocation(idd, x * 8 + 7, y * 2 + 1, iw));
+
+			uint32_t colors[16] = { c0,c1,c2,c3,c4,c5,c6,c7,c0a,c1a,c2a,c3a,c4a,c5a,c6a,c7a };
+			uint32_t f = findMeanColor16(colors);
+			INT8 pix = pack(rgbToHsv(f).b,rgbToHsv(f).c);
+			if (pix == 0) { pix = 1; }
+			*ptr = pix;
+			ptr++;
+		}
+	}
+
+	char str_path[256];
+	strcpy(str_path, filepath);
+
+	char* last_dot = strrchr(str_path, '.');
+	if (last_dot != NULL) {
+		*last_dot = '\0';
+	}
+
+	strcat(str_path, ".m45");
+
+	// write to a file
+	HANDLE hFile = CreateFile( str_path, GENERIC_WRITE, FILE_SHARE_WRITE | FILE_SHARE_READ | FILE_SHARE_DELETE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+
+	if (hFile == INVALID_HANDLE_VALUE)
+	{
+		return "sorry, no file handling";
+	}
+
+	// Write data to the file
+	DWORD bytesWritten;
+	WriteFile( hFile, data, imgByteSize, &bytesWritten, 0);         // Overlapped
+
+	// Close the handle once we don't need it.
+	CloseHandle(hFile);
+
+	free(data);
+
+	return true;
+}
+
+
+bool encodedata(void* idd, uint32_t iw, uint32_t ih, const char* filepath) {
+
+	if (!idd) {
+		return false;
+	}
+
+	int desired_width = 320;
+	int desired_height = 480;
+	int output_channels = 4; // Keep the same number of channels
+
+	// Allocate memory for the resized image
+	void* resized_image_data = malloc(desired_width * desired_height * output_channels);
+
+	stbir_resize_uint8_srgb((unsigned char*)idd, iw, ih, 0, (unsigned char*)resized_image_data, desired_width, desired_height, 0, STBIR_ARGB);
+
+	bool l = encodefile(resized_image_data, desired_width, desired_height, filepath, (float)iw/ (float)ih);
+
+	return l;
+}
+
+bool encodeimage(const char* filepath) {
+
+	int imgwidth;
+	int imgheight;
+	int channels;
+	void* imgdata2 = stbi_load(filepath, &imgwidth, &imgheight, &channels, 4);
+
+	if (!imgdata2) {
+		return false;
+	}
+
+	int desired_width = 320;
+	int desired_height = 480;
+	int output_channels = 4; // Keep the same number of channels
+
+	// Allocate memory for the resized image
+	void* resized_image_data = malloc(desired_width * desired_height * output_channels);
+
+	stbir_resize_uint8_srgb((unsigned char*)imgdata2, imgwidth, imgheight, 0, (unsigned char*)resized_image_data, desired_width, desired_height, 0, STBIR_ARGB);
+
+	bool l = encodefile(resized_image_data, desired_width, desired_height, filepath, (float)imgwidth/ (float)imgheight);
+
+	free(imgdata2);
+
+	return l;
+
+}
+
+
 float HueLerp(float startHue, float endHue, float t) {
 	// Convert hues to RGB.
 	float startR, startG, startB;

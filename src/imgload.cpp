@@ -97,12 +97,12 @@ std::string OpenFileSaveDialog(GlobalParams* m, HWND hwnd) {
 	ofn.lpstrInitialDir = pa;
 	ofn.lStructSize = sizeof(OPENFILENAME);
 	ofn.hwndOwner = NULL;
-	ofn.lpstrFilter = "PNG Files (*.png)\0*.png\0All Files (*.*)\0*.*\0";
+	ofn.lpstrFilter = "PNG File (*.png)\0*.png\0BMP File\0*.bmp\0TGA File\0*.tga\0JPEG File\0*.jpg\0SFBB File\0*.sfbb\0M45 File\0*.m45\0All Files (*.*)\0*.*\0";
 	ofn.lpstrFile = szFileName;
 	ofn.nMaxFile = sizeof(szFileName);
 	ofn.nMaxFile = MAX_PATH;
 	ofn.lpstrDefExt = "png";
-	ofn.lpstrTitle = "Save as a PNG File | Warning: This will apply any draft annotations";
+	ofn.lpstrTitle = "Save Image | Warning: This will apply any draft annotations";
 	ofn.Flags = OFN_OVERWRITEPROMPT;
 
 	if (GetSaveFileName(&ofn)) {
@@ -114,22 +114,46 @@ std::string OpenFileSaveDialog(GlobalParams* m, HWND hwnd) {
 
 void PrepareSaveImage(GlobalParams* m) {
 	std::string res = OpenFileSaveDialog(m, m->hwnd);
+
+	int pos = res.find(".");
+	std::string ext = res.substr(pos+1);
+	std::transform(ext.begin(), ext.end(), ext.begin(),    [](unsigned char c){ return std::tolower(c); });
+
 	if (res != "Invalid") {
+
 
 		m->loading = true;
 		RedrawSurface(m);
 		//CombineBuffer(m, (uint32_t*)m->imgdata, (uint32_t*)m->imgannotate, m->imgwidth, m->imgheight, true);
+
 		InvertAllColorChannels((uint32_t*)m->imgdata, m->imgwidth, m->imgheight);
-		stbi_write_png(res.c_str(), m->imgwidth, m->imgheight, 4, m->imgdata, 0);
+
+		if(ext == "png") {
+			stbi_write_png(res.c_str(), m->imgwidth, m->imgheight, 4, m->imgdata, 0);
+		} else if (ext == "bmp") {
+			stbi_write_bmp(res.c_str(), m->imgwidth, m->imgheight, 4, m->imgdata);
+		} else if (ext == "tga") {
+			stbi_write_tga(res.c_str(), m->imgwidth, m->imgheight, 4, m->imgdata);
+		} else if (ext == "jpg" || ext == "jpeg") {
+			stbi_write_jpg(res.c_str(), m->imgwidth, m->imgheight, 4, m->imgdata, 85);
+		} else if(ext == "sfbb") {
+			encodesfbb(res.c_str(), m->imgdata, m->imgwidth, m->imgheight, 4);
+		} else if(ext == "m45") {
+			encodedata(m->imgdata, m->imgwidth, m->imgheight, res.c_str());
+		} else {
+			MessageBox(0, "Failed to save image due to insufficient format", "Failed to save image", MB_OK | MB_ICONERROR);
+		}
+
 		InvertAllColorChannels((uint32_t*)m->imgdata, m->imgwidth, m->imgheight);
+
 		//FreeCombineBuffer(m);
 		m->loading = false;
 		m->shouldSaveShutdown = false;
 		RedrawSurface(m);
 		OpenImageFromPath(m, res, false);
 	}
-
 }
+
 // the bool is whether or not we should continue or not
 bool doIFSave(GlobalParams* m) {
 	if (m->shouldSaveShutdown == true) {

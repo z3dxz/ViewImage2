@@ -12,41 +12,19 @@ FT_Face* currentFace;
 
 
 #define CanRenderToolbarMacro (((!m->fullscreen && m->height >= 250) || p.y < m->toolheight)&&!m->isInCropMode)
-void CircleGenerator(int circleDiameter, int locX, int locY, int outlineThickness, int smoothening, uint32_t* backgroundBuffer, uint32_t foregroundColor, float opacity, int backgroundWidth, int backgroundHeight) {
-	float circleD = (float)circleDiameter;
 
-	float circleR = circleD / 2;
+void CircleGenerator(int circleDiameter, int locX, int locY, uint32_t color, uint32_t* buffer, unsigned int width, unsigned int height) {
+	float radius = circleDiameter/2.0f;
+	float step = 1.0f/circleDiameter;
+	for(float i=0; i<2.0f*M_PI; i+= step) {
+		float locationX = radius*cos(i)+locX;
+		float locationY = radius*sin(i)+locY;
 
-	float smoothenings = (float)smoothening;
+		int ptX = (int)locationX;
+		int ptY = (int)locationY;
 
-	float circleBrushSize = (outlineThickness);
-
-	int margin = 5;
-	float margins = margin;
-	for (int y = 0; y < circleD + margins; y++) {
-		for (int x = 0; x < circleD + margins; x++) {
-			
-			float solution = pow(x - circleR - margins, 2) + pow(y - circleR - margins, 2);
-
-			float color = remap(solution, 0, pow(circleR, 2), 0, 1);
-
-			float min0 = remap(circleD - smoothenings, 0, circleD, 0, 1);
-			float max0 = remap(circleD, 0, circleD, 0, 1);
-
-			float min1 = remap(circleD - smoothenings - circleBrushSize, 0, circleD, 0, 1);
-			float max1 = remap(circleD - circleBrushSize, 0, circleD, 0, 1);
-
-			float color_outside = remap(color, min0, max0, 0, 1);
-			float color_inside = remap(color, min1, max1, 0, 1);
-
-			float fcolor = color_inside - color_outside;
-
-			int pixelX = x - margin - (int)circleR + locX;
-			int pixelY = y - margin - (int)circleR + locY;
-			if ((pixelX >= 0 && pixelX < backgroundWidth) && (pixelY >= 0 && pixelY < backgroundHeight)) {
-				uint32_t* backgroundLocation = GetMemoryLocation(backgroundBuffer, pixelX, pixelY, backgroundWidth, backgroundHeight);
-				*backgroundLocation = lerp(*backgroundLocation, foregroundColor, (fcolor*opacity));
-			}
+		if(ptX > 0 && ptX <= width && ptY > 0 && ptY <= height) {
+			*GetMemoryLocation(buffer, ptX, ptY, width, height) = color;
 		}
 	}
 }
@@ -81,7 +59,13 @@ void initfontfolder(GlobalParams* m) {
 	if (m->fontsfolder == "Fail") {
 		MessageBox(m->hwnd, "Fonts directory not found\n", "Error", MB_OK | MB_ICONERROR);
 	}
-	
+}
+
+std::string ExePath() {
+    char buffer[MAX_PATH] = { 0 };
+    GetModuleFileName( NULL, buffer, MAX_PATH );
+    std::string::size_type pos = std::string(buffer).find_last_of("\\/");
+    return std::string(buffer).substr(0, pos);
 }
 
 bool alreadyInit = false;
@@ -99,107 +83,62 @@ FT_Face LoadFont(GlobalParams* m, std::string fontA) {
 	}
 	std::string font_s = (m->fontsfolder + "\\" + fontA);
 	FT_Face k;
-	if (FT_New_Face(ft, font_s.c_str(), 0, &k)) {
-		std::string er = "Failed to load font: " + fontA + "\nYou may need to install this on your system";
-		MessageBox(m->hwnd, er.c_str(), "Error Loading Font", MB_OK | MB_ICONERROR);
-		return 0;
+	if (!(FT_New_Face(ft, font_s.c_str(), 0, &k))) {
+		return k;
 	}
-	return k;
+
+	// try again
+	std::string cdir = ExePath();
+	font_s = (cdir + "\\" + fontA);
+	if (!(FT_New_Face(ft, font_s.c_str(), 0, &k))) {
+		return k;
+	}
+
+	std::string er = "Failed to load font: " + fontA + "\nYou may need to install this on your system";
+	MessageBox(m->hwnd, er.c_str(), "Error Loading Font", MB_OK | MB_ICONERROR);
+	return 0;
 }
 
-/*
-bool InitFont(GlobalParams* m, std::string fontA, int size) {
-	
-	if (FT_Init_FreeType(&ft)) {
-		MessageBox(m->hwnd, "Failed to initialize FreeType library\n", "Error", MB_OK | MB_ICONERROR);
-		m->fontinit = false;
-		return false;
-	}
-	if (m->fontsfolder == "") {
-		initfontfolder(m);
-	}
-	std::string font_s = (m->fontsfolder + "\\" + fontA);
-	
-	if (FT_New_Face(ft, font_s.c_str(), 0, &face)) {
-		if (!isalreadyopened) {
-			std::string er = "Failed to load font: " + fontA;
-			MessageBox(m->hwnd, er.c_str(), "Error Loading Font", MB_OK | MB_ICONERROR);
-			isalreadyopened = true;
-		}
-		m->fontinit = false;
-		return false;
-	}
 
-	FT_Set_Pixel_Sizes(face, 0, size);
-	m->fontinit = true;
-	return true;
-}
-*/
-
-
-/*
-
-const char* strtable[] {
-	"Open Image (F)",
-	"Save as PNG (CTRL+S)",
-	"Zoom In",
-	"Zoom Out",
-	"Zoom Auto",
-	"Zoom 1:1 (100%)",
-	"Rotate",
-	"Annotate (G)",
-	"DELETE image",
-	"Print",
-	"Copy Image",
-	"Information"
-};
-
-
-*/
 void SwitchFont(FT_Face& font) {
 	currentFace = &font;
 }
 
 int ActuallyPlaceString(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, void* mem, int bufwidth, int bufheight, void* fromBuffer) {
+	
+	locY = bufheight - locY-size; // compensate for negative Y
+
+
 	if (!*currentFace) {
 		return 0;
 	}
+
 	FT_Set_Pixel_Sizes(*currentFace, 0, size);
 
-	if (bufwidth < 100) return 0;
-	const char* text = inputstr;
-
-	FT_GlyphSlot g = (*currentFace)->glyph;
-	int penX = 0;
-	int spacing = 0; // Variable to track spacing between characters
-
-	// Calculate the base Y-position using ascender value
-	int baseY = locY + ((*currentFace)->size->metrics.ascender >> 6);
-
-	for (const char* p = text; *p; ++p) {
-		if (FT_Load_Char((*currentFace), *p, FT_LOAD_RENDER))
-			continue;
-
-		FT_Bitmap* bitmap = &g->bitmap;
-
-		int maxGlyphHeight = 0;
-		int maxDescender = 0;
+    const FT_GlyphSlot glyph = (*currentFace)->glyph;
+	
+	for (const char* p = inputstr; *p; p++) {
 		
-		int yOffset = (g->metrics.horiBearingY - g->bitmap_top) >> 6;
+		if (FT_Load_Char((*currentFace), *p, FT_LOAD_RENDER) != 0)
+			continue;
+		
+		// width of char: glyph->bitmap.width
+		// height of char: glyph->bitmap.rows
 
-		if (g->bitmap.rows > maxGlyphHeight)
-			maxGlyphHeight = g->bitmap.rows;
+        const float vx = locX + glyph->bitmap_left * 1;
+        const float vy = locY + glyph->bitmap_top * 1;
+        const float w = glyph->bitmap.width * 1;
+        const float h = glyph->bitmap.rows * 1;
 
-		int descender = (g->metrics.height >> 6) - yOffset;
-		if (descender > maxDescender)
-			maxDescender = descender;
+		// render
+		for (int y = 0; y < glyph->bitmap.rows; ++y) {
+			for (int x = 0; x < glyph->bitmap.width; ++x) {
+				unsigned char pixelValue = glyph->bitmap.buffer[y * glyph->bitmap.width + x];
+				
+				uint32_t ptx = vx + x;
+				uint32_t pty = vy-y;
 
-		for (int y = 0; y < bitmap->rows; ++y) {
-			for (int x = 0; x < bitmap->width; ++x) {
-				int pixelIndex = (y)*bufwidth + (penX + x);
-				unsigned char pixelValue = bitmap->buffer[y * bitmap->width + x];
-				uint32_t ptx = locX + penX + x;
-				uint32_t pty = baseY - (bitmap->rows - y) + maxDescender; // Adjusted Y-position calculation
+				pty = bufheight - pty; // compensate for negative Y
 
 				uint32_t* memoryPath = GetMemoryLocation(mem, ptx, pty, bufwidth, bufheight);
 				uint32_t* memoryPathFrom = GetMemoryLocation(fromBuffer, ptx, pty, bufwidth, bufheight);
@@ -210,14 +149,52 @@ int ActuallyPlaceString(GlobalParams* m, int size, const char* inputstr, uint32_
 			}
 		}
 
-		// Calculate actual character width
-		int characterWidth = (g->metrics.horiAdvance >> 6) - (g->metrics.horiBearingX >> 6);
+        locX += (glyph->advance.x >> 6) * 1;
+        locY += (glyph->advance.y >> 6) * 1;
+		
+	}
+	return 1;
+}
 
-		// Update penX position with character width and spacing
-		penX += characterWidth + spacing;
+
+int PlaceStringShadowObject(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, void* mem, double sigma, int passes) {
+	int clearance = 10;
+	unsigned int approx_textwidth = std::string(inputstr).length()*size;
+
+	unsigned int tempbuffer_width = approx_textwidth+clearance*2;
+	unsigned int tempbuffer_height = size+clearance*2;
+
+
+	size_t memcount = tempbuffer_width*tempbuffer_height;
+	size_t memsize = memcount*4;
+
+	uint32_t temp_buffer[memcount];
+	memset(temp_buffer, 0xFF, memsize);
+
+	bool e = ActuallyPlaceString(m, size, inputstr, clearance, clearance, 0x000000, temp_buffer, tempbuffer_width, tempbuffer_height, temp_buffer);
+	if(!e) {
+		return e;
+	}
+	// blur
+	gaussian_blur_B(temp_buffer, temp_buffer, tempbuffer_width, tempbuffer_height, sigma, tempbuffer_width, tempbuffer_height, 0, 0);
+
+	for(int i=0; i<passes; i++) {
+		for(int y=0; y<tempbuffer_height; y++) {
+			for(int x=0; x<tempbuffer_width; x++) {
+				// render temp
+				uint32_t putX = locX+x-clearance;
+				uint32_t putY = locY+y-clearance;
+				if(putX > 0 && putX <= m->width && putY > 0 && putY <= m->height) {
+					uint32_t* scrbuf = GetMemoryLocation(mem, putX, putY, m->width, m->height);
+					int from = (*GetMemoryLocation(temp_buffer, x, y, tempbuffer_width, tempbuffer_height) >> 24) & 0xFF;
+					float factor = 1.0f-((float)from / 255.0f);
+					*scrbuf = lerp(*scrbuf, 0x000000, factor);
+				}
+			}
+		}
 	}
 
-	return 1;
+	return e;
 }
 
 int PlaceString(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, void* mem) {
@@ -230,11 +207,20 @@ int PlaceString(GlobalParams* m, int size, const char* inputstr, uint32_t locX, 
 	return e;
 }
 
-int PlaceStringShadow(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, void* mem, int shadowY, int shadowX = 0) {
+int PlaceStringLegacyShadow(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, void* mem, int shadowY, int shadowX = 0) {
 	bool b = ActuallyPlaceString(m, size, inputstr, locX+shadowX, locY + shadowY, 0x000000, mem, m->width, m->height, mem);
 	bool e = ActuallyPlaceString(m, size, inputstr, locX, locY, color, mem, m->width, m->height, mem);
+
 	return e && b;
 }
+
+int PlaceStringShadow(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, void* mem, float sigma, int shadowOffsetX, int shadowOffsetY, int passes) {
+	bool b = PlaceStringShadowObject(m, size, inputstr, locX+shadowOffsetX, locY+shadowOffsetY, color, mem, sigma, passes);
+	bool e = ActuallyPlaceString(m, size, inputstr, locX, locY, color, mem, m->width, m->height, mem);
+
+	return e && b;
+}
+
 
 
 
@@ -483,14 +469,12 @@ void RenderToolbarIcon(GlobalParams* m, int index, int locationX, void* data, ui
 				targetColor = selectedColor;
 			}
 
-			
-
 			*memoryPath = lerp(*memoryPath, multiplyColor(targetColor, valueM), alphaM);
 		}
 	}
 	if (item->isSeperator) {
-		int location = locationX + (m->iconSize - 1)+5;
-		for (int y = 0; y < m->toolheight-24; y++) {
+		int location = locationX + (m->iconSize)+4;
+		for (int y = 0; y < m->toolheight-25; y++) {
 			uint32_t* memoryPath = GetMemoryLocation(m->scrdata, location, y + 12, m->width, m->height);
 			*memoryPath = lerp(*memoryPath, 0xFFFFFF, 0.3f);
 		}
@@ -498,9 +482,12 @@ void RenderToolbarIcon(GlobalParams* m, int index, int locationX, void* data, ui
 }
 
 void RenderToolbarButtons(GlobalParams* m, void* data, uint32_t color, uint32_t selectedColor) {
-	int p = 5;
-	for (size_t i = 0; i < m->toolbartable.size(); ++i) {
-		RenderToolbarIcon(m, i, p, data, color, selectedColor);
+	// GetLocationFromButton, RenderToolbarButtons, getXbuttonID
+	// Make sure they are all synced
+
+	int p = m->starttoolbarloc;
+	for (size_t i = 0; i < m->toolbartable.size(); i++) {
+		RenderToolbarIcon(m, i, p+2, data, color, selectedColor);
 		//p += m->iconSize + 5 + (m->toolbartable[i].isSeperator * 4);
 		p += GetIndividualButtonPush(m, i);
 		if (m->imgwidth < 1) {
@@ -512,63 +499,6 @@ void RenderToolbarButtons(GlobalParams* m, void* data, uint32_t color, uint32_t 
 	}
 }
 
-void RenderMainToolbarButtons(GlobalParams* m, void* data, int maxButtons, uint32_t color, float opacity, uint32_t selectedColor, float selectedOpacity) {
-	int p = 5;
-	int k = 0;
-
-	for (int i = 0; i < maxButtons; i++) {
-		if ((p) > (m->width - (m->iconSize))) continue;
-		for (uint32_t y = 0; y < m->iconSize; y++) {
-			for (uint32_t x = 0; x < m->iconSize; x++) {
-
-				uint32_t l = (*GetMemoryLocation(data, x + k, y, m->widthos, m->heightos));
-				float alphaM = (float)((l >> 24) & 0xFF)/255.0f;
-				float valueM = (float)((l >> 16) & 0xFF)/255.0f;
-				uint32_t* memoryPath = GetMemoryLocation(m->scrdata, p + x, 6 + y, m->width, m->height);
-
-				uint32_t targetColor = color;
-				float targetOpacity = opacity;
-				if (i == m->selectedbutton) {
-					targetColor = selectedColor;
-					targetOpacity = selectedOpacity;
-				}
-
-				*memoryPath = lerp(*memoryPath, multiplyColor(targetColor, valueM), alphaM * targetOpacity);
-
-			}
-		}
-		p += m->iconSize + 5; k += m->iconSize + 1;
-	}
-}
-/*
-
-void RenderToolbarButtonShadow(GlobalParams* m, void* data, int maxButtons, uint32_t color, float opacity, uint32_t selectedColor, float selectedOpacity) {
-	int p = 5;
-	int k = 0;
-
-	for (int i = 0; i < maxButtons; i++) {
-		if ((p) > (m->width - (m->iconSize))) continue;
-		for (uint32_t y = 0; y < m->iconSize; y++) {
-			for (uint32_t x = 0; x < m->iconSize; x++) {
-
-
-				uint32_t l = 255-(*GetMemoryLocation(data, x + k, y, m->widthos, m->heightos));
-				int l0 = ((l & 0x00FF0000) >> 16);
-				float ll = (float)l0 / 255.0f;
-				uint32_t* memoryPath = GetMemoryLocation(m->scrdata, p + x, 6 + y, m->width, m->height);
-					if (i != m->selectedbutton) {
-						*memoryPath = lerp(*memoryPath, color, ll * opacity); // transparency
-					}
-					else {
-						*memoryPath = lerp(*memoryPath, selectedColor, ll * selectedOpacity); // transparency
-					}
-			}
-		}
-		p += m->iconSize + 5; k += m->iconSize + 1;
-	}
-}
-
-*/
 void RenderToolbar(GlobalParams* m) {
 		
 		
@@ -577,7 +507,7 @@ void RenderToolbar(GlobalParams* m) {
 		//BLUR FOR TOOLBAR
 		
 		if (m->CoordTop <= m->toolheight) {
-			gaussian_blur_toolbar(m, (uint32_t*)m->scrdata);
+			blur_toolbar(m, (uint32_t*)m->scrdata);
 		}
 
 		// TOOLBAR CONTAINER
@@ -596,7 +526,7 @@ void RenderToolbar(GlobalParams* m) {
 		}
 
 		for (uint32_t x = 0; x < m->width; x++) { 
-			uint32_t y = m->toolheight-2; uint32_t color = 0xFFFFFF; float opacity = 0.15f;
+			uint32_t y = m->toolheight-2; uint32_t color = 0xFFFFFF; float opacity = 0.2f;
 			uint32_t* memoryPath = GetMemoryLocation(m->scrdata, x, y, m->width, m->height);
 			*memoryPath = lerp(*memoryPath, color, opacity); // transparency
 		}
@@ -606,7 +536,7 @@ void RenderToolbar(GlobalParams* m) {
 			*memoryPath = lerp(*memoryPath, color, opacity); // transparency
 		}
 		for (uint32_t x = 0; x < m->width; x++) { 
-			uint32_t y = 0; uint32_t color = 0xFFFFFF; float opacity = 0.15f;
+			uint32_t y = 0; uint32_t color = 0xFFFFFF; float opacity = 0.2f;
 			uint32_t* memoryPath = GetMemoryLocation(m->scrdata, x, y, m->width, m->height);
 			*memoryPath = lerp(*memoryPath, color, opacity); // transparency
 		}
@@ -630,10 +560,10 @@ void RenderToolbar(GlobalParams* m) {
 		// version
 		SwitchFont(m->OCRAExt);
 		if (m->width > 540) {
-			PlaceString(m, 13, REAL_BIG_VERSION_BOOLEAN, m->width - 72-14, 16, 0x909090, m->scrdata);
+			PlaceString(m, 13, REAL_BIG_VERSION, m->width - 71, 15, 0xB0B0B0, m->scrdata);
 		}
 		else {
-			PlaceString(m, 13, REAL_BIG_VERSION_BOOLEAN, m->width - 50-14, m->toolheight + 4, 0x909090, m->scrdata);
+			PlaceString(m, 13, REAL_BIG_VERSION, m->width - 71, m->toolheight + 4, 0xB0B0B0, m->scrdata);
 		}
 
 		// tooltips AND OUTLINE FOR THE BUTTONS (basically stuff when its selected)
@@ -642,23 +572,23 @@ void RenderToolbar(GlobalParams* m) {
 		//-- The border when selecting annotate
 		if (m->drawmode) {
 			// 7 means draw
-			dDrawRoundedRectangle(m->scrdata, m->width, m->height, (GetLocationFromButton(m, 7) + 2), 4, m->iconSize+5, m->toolheight - 8, 0xFFFFFF, 0.2f);
-			dDrawRoundedRectangle(m->scrdata, m->width, m->height, (GetLocationFromButton(m, 7) + 2) - 1, 3, m->iconSize+5 + 2, m->toolheight - 6, 0x000000, 1.0f);
+			dDrawRoundedRectangle(m->scrdata, m->width, m->height, GetLocationFromButton(m, 7), 4, m->iconSize+4, m->toolheight - 8, 0xFFFFFF, 0.2f);
+			dDrawRoundedRectangle(m->scrdata, m->width, m->height, GetLocationFromButton(m, 7)-1, 3, m->iconSize+4 + 2, m->toolheight - 6, 0x000000, 1.0f);
 		}
+		
 		RenderToolbarButtons(m, m->toolbarData, 0xFFFFFF, 0xFFE0E0);
 
 		if (m->selectedbutton >= 0 && m->selectedbutton < m->toolbartable.size()) {
 			// rounded corners: split hover thing into three things
 			int in = m->selectedbutton;
 
+			dDrawRoundedFilledRectangle(m->scrdata, m->width, m->height, GetLocationFromButton(m, in), 4, m->iconSize+4, m->toolheight - 8, 0xFF8080, 0.3f);
 			//-- The fill when selecting the buttons
-			dDrawFilledRectangle(m->scrdata, m->width, m->height, (GetLocationFromButton(m, in) + 2) + 1, 4, m->iconSize+5 - 2, 1, 0xFF8080, 0.3f);
-			dDrawFilledRectangle(m->scrdata, m->width, m->height, (GetLocationFromButton(m, in) + 2), 5, m->iconSize+5, m->toolheight - 10, 0xFF8080, 0.3f);
-			dDrawFilledRectangle(m->scrdata, m->width, m->height, (GetLocationFromButton(m, in) + 2) + 1, (m->toolheight - 5), m->iconSize - 2, 1, 0xFF8080, 0.3f);
 			
 			//-- The outline wb border when selecting the buttons
-			dDrawRoundedRectangle(m->scrdata, m->width, m->height, (GetLocationFromButton(m, in) +2), 4, m->iconSize+5, m->toolheight - 8, 0xFFFFFF, 0.2f);
-			dDrawRoundedRectangle(m->scrdata, m->width, m->height, (GetLocationFromButton(m, in) + 2)-1, 3, m->iconSize+5 +2, m->toolheight - 6, 0x000000, 1.0f);
+			dDrawRoundedRectangle(m->scrdata, m->width, m->height, GetLocationFromButton(m, in), 4, m->iconSize+4, m->toolheight - 8, 0xFFFFFF, 0.3f);
+			dDrawRoundedRectangle(m->scrdata, m->width, m->height, GetLocationFromButton(m, in)-1, 3, m->iconSize+4 +2, m->toolheight - 6, 0x000000, 1.0f);
+			
 
 			
 
@@ -669,12 +599,16 @@ void RenderToolbar(GlobalParams* m) {
 
 			// tooltips
 			if (!m->isMenuState) {
-				int loc = 1 + (GetLocationFromButton(m, in) + 2);
-				dDrawFilledRectangle(m->scrdata, m->width, m->height, loc, m->toolheight + 5, (txt.length() * 8) + 10, 18, 0x000000, 0.8f);
-				dDrawRoundedRectangle(m->scrdata, m->width, m->height, loc - 1, m->toolheight + 4, (txt.length() * 8) + 12, 20, 0x808080, 0.4f);
+				int loc = 1 + (GetLocationFromButton(m, in));
+				
+				gaussian_blur((uint32_t*)m->scrdata, (txt.length() * 8) + 12, 20, 4.0f, m->width, m->height, loc-1, m->toolheight+4);
+				
+				dDrawFilledRectangle(m->scrdata, m->width, m->height, loc-1, m->toolheight + 4, (txt.length() * 8) + 12, 20, 0x000000, 0.4f);
+				dDrawRoundedRectangle(m->scrdata, m->width, m->height, loc - 1, m->toolheight + 4, (txt.length() * 8) + 12, 20, 0xFFFFFF, 0.3f);
+				dDrawRoundedRectangle(m->scrdata, m->width, m->height, loc - 2, m->toolheight + 3, (txt.length() * 8) + 14, 22, 0x000000, 0.8f);
 
 				SwitchFont(m->OCRAExt);
-				PlaceString(m, 14, txt.c_str(), loc + 4, m->toolheight + 4, 0xFFFFFF, m->scrdata);
+				PlaceStringShadow(m, 14, txt.c_str(), loc + 3, m->toolheight + 4, 0xFFFFFF, m->scrdata, 0.34f, 1, 1, 1);
 			}
 			
 		}
@@ -698,10 +632,12 @@ void RenderToolbar(GlobalParams* m) {
 				SwitchFont(m->Tahoma);
 				//-- Fullscreen icon tooltip
 				if (m->fullscreen) {
-					PlaceString(m, 13, "Exit Fullscreen (F11)", m->width - 120, 48, 0xFFFFFF, m->scrdata);
+
+					PlaceStringShadow(m, 13, "Exit Fullscreen (F11)", m->width - 120, 48, 0xFFFFFF, m->scrdata, m->def_txt_shadow_softness, 1,1, 2);
 				}
 				else {
-					PlaceString(m, 13, "Fullscreen (F11)", m->width - 100, 48, 0xFFFFFF, m->scrdata);
+
+					PlaceStringShadow(m, 13, "Fullscreen (F11)", m->width - 100, 48, 0xFFFFFF, m->scrdata, m->def_txt_shadow_softness, 1,1, 2);
 				}
 
 			}
@@ -723,6 +659,7 @@ void RenderToolbar(GlobalParams* m) {
 
 void RenderToolbarShadow(GlobalParams *m) {
 	// drop shadow for the toolbar (not buttons)
+
 	for (uint32_t y = 0; y < 20; y++) {
 		for (uint32_t x = 0; x < m->width; x++) {
 			uint32_t color = 0x000000;
@@ -875,7 +812,7 @@ void DrawMenu(GlobalParams* m) { // render menu draw menu
 
 	gaussian_blur((uint32_t*)m->scrdata, miX-4, miY-4, 4.0f, m->width, m->height, posX+2, posY+2);
 	dDrawRoundedFilledRectangle(m->scrdata, m->width, m->height, posX, posY, miX, miY, 0x000000, 0.8f);
-	dDrawRoundedRectangle(m->scrdata, m->width, m->height, posX+1, posY+1, miX-2, miY-2, 0xFFFFFF, 0.15f);
+	dDrawRoundedRectangle(m->scrdata, m->width, m->height, posX+1, posY+1, miX-2, miY-2, 0xFFFFFF, 0.2f);
 	dDrawRoundedRectangle(m->scrdata, m->width, m->height, posX, posY, miX, miY, 0x000000, 1.0f);
 
 	POINT mp;
@@ -892,7 +829,7 @@ void DrawMenu(GlobalParams* m) { // render menu draw menu
 			int hoverSizeY = mH - 3;
 			// This is for hovering over your favorite menu button
 			dDrawRoundedFilledRectangle(m->scrdata, m->width, m->height, hoverLocX, hoverLocY, hoverSizeX, hoverSizeY, 0xFF8080, 0.3f);   // FILL
-			dDrawRoundedRectangle(m->scrdata, m->width, m->height, hoverLocX, hoverLocY, hoverSizeX, hoverSizeY, 0xFFFFFF, 0.2f);         // white
+			dDrawRoundedRectangle(m->scrdata, m->width, m->height, hoverLocX, hoverLocY, hoverSizeX, hoverSizeY, 0xFFFFFF, 0.3f);         // white
 			dDrawRoundedRectangle(m->scrdata, m->width, m->height, hoverLocX - 1, hoverLocY - 1, hoverSizeX + 2, hoverSizeY + 2, 0x000000, 1.0f); // black BORDER!
 		}
 	}
@@ -907,7 +844,7 @@ void DrawMenu(GlobalParams* m) { // render menu draw menu
 		}
 		DrawMenuIcon(m, posX + 10, (mH* i) + posY + 10, m->menuVector[i].atlasX, m->menuVector[i].atlasY);
 												// changed when adding icon
-		PlaceString(m, 12, mystr.c_str(), posX + 27, (mH * i) + posY + 7, 0xF0F0F0, m->scrdata);
+		PlaceString(m, 12, mystr.c_str(), posX + 26, (mH * i) + posY + 9, 0xF0F0F0, m->scrdata);
 		if (i == m->menuVector.size()-1) continue;
 
 		if (strstr(m->menuVector[i].name.c_str(), "{s}")) { // seperator
@@ -975,44 +912,80 @@ void RenderSlider(GlobalParams* m, int offsetX, int offsetY, int sizex, float po
 	dDrawRoundedRectangle(m->scrdata, m->width, m->height, pos, offsetY-5, 6, 17, 0x000000, 0.9f); // outline "knob"
 }
 
+void DrawBottomFakeToolbar(GlobalParams* m){
+
+	boxBlur(GetMemoryLocation(m->scrdata, 0, m->height - m->toolheight+1, m->width, m->height), m->width, m->toolheight-1, 15, 2);
+
+
+	// TOOLBAR CONTAINER
+	for (uint32_t y = 0; y < m->toolheight; y++) {
+		for (uint32_t x = 0; x < m->width; x++) {
+			uint32_t color = 0x050505;
+			float opacity = 0.65f;
+
+			if (y == 0) {color = 0x000000; opacity=1.0f;}
+			//if (y == 1) color = 0x000000;
+			uint32_t* memoryPath = GetMemoryLocation(m->scrdata, x, m->height-y, m->width, m->height);
+			*memoryPath = lerp(*memoryPath, color, opacity); // transparency
+		}
+	}
+
+	for (uint32_t x = 0; x < m->width; x++) { 
+		uint32_t y = m->toolheight-2; uint32_t color = 0xFFFFFF; float opacity = 0.2f;
+		uint32_t* memoryPath = GetMemoryLocation(m->scrdata, x, m->height-y, m->width, m->height);
+		*memoryPath = lerp(*memoryPath, color, opacity); // transparency
+	}
+	for (uint32_t x = 0; x < m->width; x++) { 
+		uint32_t y = m->toolheight-1; uint32_t color = 0x000000; float opacity = 1.0f;
+		uint32_t* memoryPath = GetMemoryLocation(m->scrdata, x, m->height-y, m->width, m->height);
+		*memoryPath = lerp(*memoryPath, color, opacity); // transparency
+	}
+	for (uint32_t x = 0; x < m->width; x++) { 
+		uint32_t y = 0; uint32_t color = 0xFFFFFF; float opacity = 0.2f;
+		uint32_t* memoryPath = GetMemoryLocation(m->scrdata, x, m->height-y, m->width, m->height);
+		*memoryPath = lerp(*memoryPath, color, opacity); // transparency
+	}
+}
 
 void DrawDrawModeMenu(GlobalParams* m){
 	//if (m->width < 620) { return; }
 	SwitchFont(m->SegoeUI);
-	m->drawMenuOffsetX = 440; // CHANGED WHEN ADDING SEPERATORS  // -------changed when added copy-----
+	m->drawMenuOffsetX = 439; // CHANGED WHEN ADDING SEPERATORS  // -------changed when added copy----- // changed when padded icon less
 	m->drawMenuOffsetY = 0;
 
-	int sizeCx = m->width-m->drawMenuOffsetX -90; // offset
-	if (sizeCx < 481) { // changed when added copy +31 // changed when adding hard/soft
+	int sizeCx = m->width-m->drawMenuOffsetX - 80; // offset
+	if (sizeCx < 490) { // changed when added copy +31 // changed when adding hard/soft
 		m->drawMenuOffsetX = 0;
-		m->drawMenuOffsetY = m->height - 40;
+		m->drawMenuOffsetY = m->height - 41;
 		sizeCx = m->width;
 		
-		boxBlur(GetMemoryLocation(m->scrdata, 0, m->height - 40, m->width, m->height), m->width, 40, 15, 2);
+		// bottom toolbar
+		DrawBottomFakeToolbar(m);
 	}
 
-
 	// draw outline
-	dDrawRectangle(m->scrdata, m->width, m->height, m->drawMenuOffsetX, m->drawMenuOffsetY, sizeCx, 42, 0xFFFFFF, 0.3f);
+	dDrawRoundedRectangle(m->scrdata, m->width, m->height, m->drawMenuOffsetX, m->drawMenuOffsetY+1, sizeCx, 40, 0x000000, 0.5f);
+	dDrawRoundedRectangle(m->scrdata, m->width, m->height, m->drawMenuOffsetX+1, m->drawMenuOffsetY+2, sizeCx-2, 38, 0xFFFFFF, 0.3f);
+
 	// draw main
-	dDrawFilledRectangle(m->scrdata, m->width, m->height, m->drawMenuOffsetX, m->drawMenuOffsetY, sizeCx, 42, 0x000000, 0.5f);
+	dDrawFilledRectangle(m->scrdata, m->width, m->height, m->drawMenuOffsetX+1, m->drawMenuOffsetY+2, sizeCx-2, 38, 0x0B0B0B, 0.5f);
 
 	// draw seperator
 	dDrawFilledRectangle(m->scrdata, m->width, m->height, m->drawMenuOffsetX+75, m->drawMenuOffsetY + 15, 1, 17, 0xFFFFFF, 0.3f);
-	dDrawFilledRectangle(m->scrdata, m->width, m->height, m->drawMenuOffsetX + 261, m->drawMenuOffsetY + 15, 1, 17, 0xFFFFFF, 0.3f);
+	dDrawFilledRectangle(m->scrdata, m->width, m->height, m->drawMenuOffsetX + 264, m->drawMenuOffsetY + 15, 1, 17, 0xFFFFFF, 0.3f);
 
 	// draw text
-	PlaceString(m, 14, "Color:", m->drawMenuOffsetX +11, m->drawMenuOffsetY + 10, 0xFFFFFF, m->scrdata);
-	PlaceString(m, 14, "Size:", m->drawMenuOffsetX +81, m->drawMenuOffsetY + 10, 0xFFFFFF, m->scrdata);
-	PlaceString(m, 14, "Opacity:", m->drawMenuOffsetX +270, m->drawMenuOffsetY + 10, 0xFFFFFF, m->scrdata);
+	PlaceString(m, 14, "Color", m->drawMenuOffsetX +11, m->drawMenuOffsetY + 13, 0xFFFFFF, m->scrdata);
+	PlaceString(m, 14, "Size", m->drawMenuOffsetX +83, m->drawMenuOffsetY + 13, 0xFFFFFF, m->scrdata);
+	PlaceString(m, 14, "Opacity", m->drawMenuOffsetX +270, m->drawMenuOffsetY + 13, 0xFFFFFF, m->scrdata);
 
 	char str[256];
 	sprintf(str, "%.1fpx", m->drawSize);
-	PlaceString(m, 14, str, m->drawMenuOffsetX + 217, m->drawMenuOffsetY + 10, 0xFFFFFF, m->scrdata);
+	PlaceString(m, 14, str, m->drawMenuOffsetX + 217, m->drawMenuOffsetY + 13, 0xFFFFFF, m->scrdata);
 
 	char str2[256];
-	sprintf(str2, "%.2fpx", m->a_opacity);
-	PlaceString(m, 14, str2, m->drawMenuOffsetX + 410, m->drawMenuOffsetY + 10, 0xFFFFFF, m->scrdata);
+	sprintf(str2, "%d%%", (int)round(m->a_opacity*100.0f));
+	PlaceString(m, 14, str2, m->drawMenuOffsetX + 414, m->drawMenuOffsetY + 13, 0xFFFFFF, m->scrdata);
 
 
 	// draw color square
@@ -1029,7 +1002,7 @@ void DrawDrawModeMenu(GlobalParams* m){
 		let = "S";
 	}
 
-	PlaceString(m, 14, let.c_str(), m->drawMenuOffsetX + 466, m->drawMenuOffsetY + 11, 0x808080, m->scrdata);
+	PlaceString(m, 14, let.c_str(), m->drawMenuOffsetX + 465, m->drawMenuOffsetY + 14, 0x808080, m->scrdata);
 
 
 	float sizeLeveler = sqrt(m->drawSize-1) / 10.0f; // I used ALGEBRA!
@@ -1260,6 +1233,18 @@ void RedrawSurface(GlobalParams* m, bool onlyImage, bool doesManualClip) {
 	//drawCircle(m->CoordLeft, m->CoordTop, 16, (uint32_t*)m->scrdata, m->width);
 	//drawCircle(m->CoordRight, m->CoordTop, 16, (uint32_t*)m->scrdata, m->width);
 
+
+	if (m->drawmode) {
+		SwitchFont(m->SegoeUI);
+		PlaceStringShadow(m, 12, "Draw Mode", 12, m->toolheight + 10, 0xFFFFFF, m->scrdata, 0.67f, 1,1, 2);
+		PlaceString(m, 10, "LEFT: Draw", 12, m->toolheight + 30, 0x808080, m->scrdata);
+		PlaceString(m, 10, "MIDDLE: Pan", 12, m->toolheight + 40, 0x808080, m->scrdata);
+		PlaceString(m, 10, "CTRL/RIGHT CLICK: Erase", 12, m->toolheight + 50, 0x808080, m->scrdata);
+		PlaceString(m, 10, "CTRL+SHIFT: Transparent", 12, m->toolheight + 60, 0x808080, m->scrdata);
+		PlaceString(m, 10, "SHIFT+Z: Eyedropper", 12, m->toolheight + 70, 0x808080, m->scrdata);
+	}
+
+
 	if ((CanRenderToolbarMacro) && (!onlyImage)) {
 		RenderToolbar(m);
 
@@ -1278,16 +1263,6 @@ void RedrawSurface(GlobalParams* m, bool onlyImage, bool doesManualClip) {
 
 
 
-	if (m->drawmode) {
-		SwitchFont(m->SegoeUI);
-		PlaceStringShadow(m, 12, "Draw Mode", 12, m->toolheight + 25, 0xFFFFFF, m->scrdata, 2);
-		PlaceStringShadow(m, 10, "LEFT: Draw", 12, m->toolheight + 40, 0xC0C0C0, m->scrdata, 1);
-		PlaceStringShadow(m, 10, "MIDDLE: Pan", 12, m->toolheight + 50, 0xC0C0C0, m->scrdata, 1);
-		PlaceStringShadow(m, 10, "CTRL/RIGHT CLICK: Erase", 12, m->toolheight + 60, 0xC0C0C0, m->scrdata, 1);
-		PlaceStringShadow(m, 10, "CTRL+SHIFT: Transparent", 12, m->toolheight + 70, 0xC0C0C0, m->scrdata, 1);
-		PlaceStringShadow(m, 10, "SHIFT+Z: Eyedropper", 12, m->toolheight + 80, 0xC0C0C0, m->scrdata, 1);
-	}
-
 
 
 	if (m->isInCropMode) {
@@ -1299,37 +1274,21 @@ void RedrawSurface(GlobalParams* m, bool onlyImage, bool doesManualClip) {
 		DrawMenu(m);
 	}
 	// draw test circle
-	/*
 	
-	if (m->isAnnotationCircleShown) {
-		CircleGenerator(m->drawSize * m->mscaler, p.x, p.y, 12, 4, (uint32_t*)m->scrdata, 0x000000, 1.0f, m->width, m->height);
-		CircleGenerator(m->drawSize * m->mscaler-2, p.x, p.y, 5, 4, (uint32_t*)m->scrdata, 0xFFFFFF, 0.5f, m->width, m->height);
-		
-	}
-	*/
 	
-	//InitFont(m->hwnd, "segoeui.TTF", 14); // why did I even put this here? it just causes a memory leak and does nothing
-	
-	 // FOR DEBUG
-	/*
-	
-	uint32_t randc = ((uint32_t)rand() << 16) | (uint32_t)rand();;
-		for (int y = 0; y < m->height; y++) {
-			for (int x = 0; x < m->width; x++) {
-				uint32_t* memloc = GetMemoryLocation(m->scrdata, x, y, m->width, m->height);
-				*memloc = lerp(*memloc, randc, 0.5f);
-			}
+	if (m->drawmode && m->drawSize > 0 && m->mscaler > 0) {
+		if(IsInImage(p, m) && (!IfInMenu(p, m) || !m->isMenuState) ) {
+			CircleGenerator(m->drawSize * m->mscaler-2, p.x, p.y, 0x808080, (uint32_t*)m->scrdata,  m->width, m->height);
 		}
-	*/
-	
-	
+	}
+
 	if (m->tint || m->deletingtemporaryfiles) {
 		Tint(m);
 	}
 
 	if (m->loading) {
 		SwitchFont(m->SegoeUI);
-		PlaceStringShadow(m, 20, "Loading", 10, m->toolheight + 10, 0xFFFFFF, m->scrdata, 2, 2);
+		PlaceStringShadow(m, 20, "Loading", 10, m->toolheight + 10, 0xFFFFFF, m->scrdata, m->def_txt_shadow_softness, 1,1, 2);
 	}
 
 	if (m->deletingtemporaryfiles) {

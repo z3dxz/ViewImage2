@@ -126,7 +126,7 @@ bool Initialization(GlobalParams* m, int argc, LPWSTR* argv) {
 	
 	m->toolbartable = {
 	   {0,   "Open Image (F)" , false},
-	   {31,  "Save as PNG (CTRL+S)", true},
+	   {31,  "Save Image (CTRL+S)", true},
 	   {62,  "Zoom In", false},
 	   {93,  "Zoom Out", false},
 	   {124, "Zoom Auto", false},
@@ -139,8 +139,6 @@ bool Initialization(GlobalParams* m, int argc, LPWSTR* argv) {
 	   {341, "Copy Image", true},
 	   {372, "Information", false}
 	};
-
-	
 
 	char buffer[MAX_PATH];
 	DWORD length = GetModuleFileName(nullptr, buffer, MAX_PATH);
@@ -224,32 +222,6 @@ bool Initialization(GlobalParams* m, int argc, LPWSTR* argv) {
 		return false;
 	}
 	
-	// END OF TEMP FILES
-
-
-	// load pathway image
-	
-		// turn arguments into path
-		/*
-		
-		int size_needed = WideCharToMultiByte(CP_UTF8, 0, argv[1], -1, NULL, 0, NULL, NULL);
-
-		
-		char* path = (char*)malloc(size_needed);
-		
-		WideCharToMultiByte(CP_UTF8, 0, argv[1], -1, path, size_needed, NULL, NULL);
-		
-		if (argc >= 2) {
-			if (!OpenImageFromPath(m, path, false)) {
-				MessageBox(m->hwnd, "Unable to open image", "Error", MB_OK | MB_ICONERROR);
-				exit(0);
-				return false;
-			}
-		}
-		else {
-			RedrawSurface(m);
-		}
-		*/
 
 	std::string cmdLine = std::string(GetCommandLineA());
 
@@ -276,19 +248,6 @@ bool Initialization(GlobalParams* m, int argc, LPWSTR* argv) {
 		}
 	}
 
-	/*
-	// init joystick
-	m->joyInfoEx.dwSize = sizeof(JOYINFOEX);
-	m->joyInfoEx.dwFlags = JOY_RETURNALL;
-
-	if (joyGetPosEx(m->joystickID, &m->joyInfoEx) != JOYERR_NOERROR) {
-		MessageBox(NULL, "Joystick not found!", "Error", MB_OK | MB_ICONERROR);
-	}
-	else {
-		m->isJoystick = true;
-	}
-	
-	*/
 	return true;
 }
 
@@ -491,7 +450,7 @@ void ShowMyInformation(GlobalParams* m) {
 		txt = m->fpath;
 	}
 
-	sprintf(str, "\nCurrently Loaded: \n%s\n\nAttributes (in memory):\nWidth: %d\nHeight: %d\n\nAbout:\nVisit cosine64.com for more quality software\nVersion: %s", txt.c_str(), m->imgwidth, m->imgheight, REAL_BIG_VERSION_BOOLEAN);
+	sprintf(str, "\nCurrently Loaded: \n%s\n\nAttributes (in memory):\nWidth: %d\nHeight: %d\n\nAbout:\nVisit cosine64.com for more quality software\nVersion: %s", txt.c_str(), m->imgwidth, m->imgheight, REAL_BIG_VERSION);
 
 	MessageBox(m->hwnd, str, "Information", MB_OK);
 }
@@ -761,7 +720,7 @@ void MouseDown(GlobalParams* m) {
 
 	CloseMenuWhenInactive(m, k);
 	
-	if (k.y > m->toolheight) {
+	if (k.y > m->toolheight && 	bottomtoolmacro(k, m)) {
 		if(!m->isMenuState)
 		m->mouseDown = true;
 	}
@@ -962,7 +921,7 @@ void placeDraw(GlobalParams* m, POINT* pos) {
 		}
 		FreeData(k2);
 
-		//Beep(500, 50);
+
 		m->lastMouseX = pos->x;
 		m->lastMouseY = pos->y;
 		m->SetLastMouseForWASDInputCaptureProtectionLock = false;
@@ -1156,7 +1115,7 @@ void MouseMove(GlobalParams* m, bool isCalledWhenMouseAcuallyMoved){
 			m->lock = true;
 			m->selectedbutton = getXbuttonID(m, pos);
 
-			HRGN rgn = CreateRectRgn(0, 0, m->width, m->toolheight+24);
+			HRGN rgn = CreateRectRgn(0, 0, m->width, m->toolheight+25);
 			SelectClipRgn(m->hdc, rgn);
 			RedrawSurface(m, false, true);
 
@@ -1196,12 +1155,20 @@ void MouseMove(GlobalParams* m, bool isCalledWhenMouseAcuallyMoved){
 		DeleteObject(rgn);
 	}
 
+	
+
 
 	SetCursor(cursor);
 	ShowCursor(TRUE);
 	//auto end = std::chrono::high_resolution_clock::now();
 		//std::chrono::duration<float, std::milli> duration = end - start;
 		//m->etime = duration.count();
+
+	ScreenToClient(m->hwnd, &pos);
+	// annotation circle
+	if (m->drawmode) {
+		RedrawSurface(m);
+	}
 	
 }
 GlobalParams* m_proc;
@@ -1472,57 +1439,6 @@ void zoomcycle(GlobalParams* m, float factor) {
 	}
 }
 
-// This was a really stupid idea
-/*
-void CheckKeys(GlobalParams* m, WPARAM wparam) {
-	// Check if the pressed key is W, A, S, or D
-	if (wparam == 'W' || wparam == 'A' || wparam == 'S' || wparam == 'D') {
-			LARGE_INTEGER frequency, previousTime, currentTime;
-			QueryPerformanceFrequency(&frequency);
-			QueryPerformanceCounter(&previousTime);
-
-			// Continuously check the key states as long as any of them are pressed
-			while (GetAsyncKeyState('W') & 0x8000 || GetAsyncKeyState('A') & 0x8000 || GetAsyncKeyState('S') & 0x8000 || GetAsyncKeyState('D') & 0x8000) {
-				MSG msg = { 0 };
-				while (PeekMessage(&msg, 0, 0, 0, PM_REMOVE)) {
-					TranslateMessage(&msg);
-					DispatchMessage(&msg);
-				}
-
-				QueryPerformanceCounter(&currentTime);
-				double deltaTime = static_cast<double>(currentTime.QuadPart - previousTime.QuadPart) / frequency.QuadPart;
-				previousTime = currentTime;
-
-				HWND activeWindow = GetActiveWindow();
-				if (activeWindow == m->hwnd) {
-					// Check and update for each key individually
-					if (GetAsyncKeyState('W') & 0x8000) {
-						//Beep(800, 50);
-						m->iLocY += static_cast<int>(deltaTime * 1000);
-					}
-					if (GetAsyncKeyState('S') & 0x8000) {
-						//Beep(1600, 50);
-						m->iLocY -= static_cast<int>(deltaTime * 1000);
-					}
-					if (GetAsyncKeyState('A') & 0x8000) {
-						//Beep(400, 50);
-						m->iLocX += static_cast<int>(deltaTime * 1000);
-					}
-					if (GetAsyncKeyState('D') & 0x8000) {
-						//Beep(200, 50);
-						m->iLocX -= static_cast<int>(deltaTime * 1000);
-					}
-					RedrawSurface(m);
-				}
-			}
-		// Clear the message queue events
-		MSG msg;
-		while (PeekMessage(&msg, nullptr, WM_KEYDOWN, WM_KEYDOWN, PM_REMOVE)) {}
-	}
-
-}
-*/
-
 
 void KeyDown(GlobalParams* m, WPARAM wparam, LPARAM lparam) {
 
@@ -1557,7 +1473,7 @@ void KeyDown(GlobalParams* m, WPARAM wparam, LPARAM lparam) {
 	// FOR KEYBOARD NAVIGATION
 	if (((GetKeyState(VK_CONTROL) & 0x8000) && (GetKeyState(VK_MENU) & 0x8000)) && (m->imgwidth >= 1)) { // ALSO FOUND IN REDRAW SURFACE TO DRAW TXT
 		RedrawSurface(m);
-		//Beep(1000, 400);
+
 		if (wparam >= '1' && wparam <= '9'){
 			PerformCasedBasedOperation(m, wparam - 0x31, false);
 		}
@@ -1592,6 +1508,13 @@ void KeyDown(GlobalParams* m, WPARAM wparam, LPARAM lparam) {
 		PrepareOpenImage(m);
 	}
 
+	if (wparam == 'V' && GetKeyState(VK_CONTROL) & 0x8000) {
+		
+		if (!PasteImageFromClipboard(m)) {
+			MessageBox(m->hwnd, "Error pasting the image from the clipboard. You used control+v.", "Bug Detected!", MB_OK | MB_ICONERROR);
+		}
+		
+	}
 
 	if (m->imgwidth < 1) {
 		return;
@@ -1664,15 +1587,7 @@ void KeyDown(GlobalParams* m, WPARAM wparam, LPARAM lparam) {
 		}
 	}
 
-	if (wparam == 'V' && GetKeyState(VK_CONTROL) & 0x8000) {
-		// paste NEXT VER 2.5 COMING UP
-		/*
-		
-		if (!PasteImageFromClipboard(m)) {
-			MessageBox(m->hwnd, "Error pasting the image from the clipboard. You used control+v.", "Bug Detected!", MB_OK | MB_ICONERROR);
-		}
-		*/
-	}
+	
 
 	if (wparam == 'S' && GetKeyState(VK_CONTROL) & 0x8000) {
 		// save
@@ -1695,20 +1610,6 @@ void KeyDown(GlobalParams* m, WPARAM wparam, LPARAM lparam) {
 		RedoBus(m);
 		RedrawSurface(m);
 	}
-
-
-
-	/*
-	* // weird blur thing
-	if (wparam == 'H' && GetKeyState(VK_CONTROL) & 0x8000) {
-		for (int y = 1000; y > 50; y -= 2) {
-			ResizeImageToSize(m, y,y);
-		}
-		
-		RedrawSurface(m);
-	}
-	*/
-	
 	
 	if (wparam == 'G') {
 		m->drawmode = !m->drawmode;
@@ -1777,7 +1678,7 @@ void MouseUp(GlobalParams* m) {
 					}
 				}
 
-				//Beep(selected *100, 100);
+
 			}
 		}
 		

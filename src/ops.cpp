@@ -4,6 +4,21 @@
 #include "../res/resource.h"
 #include "vendor/stb_image_resize2.h"
 
+
+// Helper function to clamp values between 0 and 255
+uint8_t clamp(int value) {
+	if (value < 0) return 0;
+	if (value > 255) return 255;
+	return (uint8_t)value;
+}
+
+int clampv(int value, int min, int max) {
+	if(value < min) { return min;}
+	if(value > max) {return max;}
+	return value;
+}
+
+
 uint8_t ivv = 0;
 uint32_t* GetMemoryLocation(void* start, uint32_t x, uint32_t y, uint32_t widthfactor, uint32_t heightfactor) {
 	if(mv->debugslow == true) {
@@ -305,7 +320,7 @@ void performResize(GlobalParams* m, void** memory, int owidth, int oheight, int 
 	//m->imgheight = nheight;
 
 	// do
-	stbir_resize_uint8_srgb((unsigned char*)tempOldBuffer, owidth, oheight, 0, (unsigned char*)*memory, nwidth, nheight, 0, STBIR_ARGB);
+	stbir_resize_uint8_linear((unsigned char*)tempOldBuffer, owidth, oheight, 0, (unsigned char*)*memory, nwidth, nheight, 0, STBIR_RGBA);
 
 	m->shouldSaveShutdown = true;
 
@@ -401,37 +416,45 @@ int GetButtonInterval(GlobalParams* m) {
 */
 
 int GetIndividualButtonPush(GlobalParams* m, int index) {
-	return m->iconSize + 5 + (m->toolbartable[index].isSeperator * 4);
+	return (m->iconSize + 4) + (m->toolbartable[index].isSeperator * 5);
 }
 
 int GetLocationFromButton(GlobalParams* m, int index) {
-	int p = 0;
-	for (size_t i = 0; i < m->toolbartable.size(); ++i) {
-		p += GetIndividualButtonPush(m, i);
-		if (i == index-1) {
+	// GetLocationFromButton, RenderToolbarButtons, getXbuttonID
+	// Make sure they are all synced
+	int p = m->starttoolbarloc;
+	for (size_t i = 0; i < m->toolbartable.size(); i++) {
+		if (i == index) {
 			return p;
 		}
 		if (m->imgwidth < 1) {
-			return 0;
+			return p;
 		}
 		if (m->drawmode && i == 11) {
-			return 0;
+			return p;
 		}
+		p += GetIndividualButtonPush(m, i);
 	}
-	return 0;
+	return p;
 }
 
 
 int getXbuttonID(GlobalParams* m, POINT mPos) {
+	// GetLocationFromButton, RenderToolbarButtons, getXbuttonID
+	// Make sure they are all synced
+
 	if (mPos.y > m->toolheight || mPos.y < 2 || mPos.x < 2) {
 		return -1;
 	}
 
-	int p = 0;
-	for (size_t i = 0; i < m->toolbartable.size(); ++i) {
-		p += GetIndividualButtonPush(m, i);
-		if (p > mPos.x) {
-			return i;
+	int p = m->starttoolbarloc;
+
+	for (size_t i = 0; i < m->toolbartable.size(); i++) {
+
+		if (mPos.x >= p) {
+			if (mPos.x <= (p+m->iconSize+4)) {
+				return i;
+			}
 		}
 		if (m->imgwidth < 1) {
 			return -1;
@@ -439,6 +462,7 @@ int getXbuttonID(GlobalParams* m, POINT mPos) {
 		if (m->drawmode && i == 11) {
 			return -1;
 		}
+		p += GetIndividualButtonPush(m, i);
 	}
 	return -1;
 	/*
@@ -626,6 +650,10 @@ void init_gamma_table(float gamma) {
 
 
 void AutoAdjustLevels(GlobalParams* m, uint32_t* buffer) {
+	// temporary blurred image buffer
+	uint32_t* tempd = (uint32_t*)malloc(m->imgwidth*m->imgheight*4);
+	gaussian_blur_B((uint32_t*)m->imgdata, tempd, m->imgwidth, m->imgheight, 2, m->imgwidth, m->imgheight, 0, 0);
+
 	m->isMenuState = false;
 	
 
@@ -641,9 +669,17 @@ void AutoAdjustLevels(GlobalParams* m, uint32_t* buffer) {
 	int maxG = 0;
 	int maxB = 0;
 
+	int minRo = 255;
+	int minGo = 255;
+	int minBo = 255;
+
+	int maxRo = 0;
+	int maxGo = 0;
+	int maxBo = 0;
+
 	for (int y = 0; y < height; y++) {
 		for (int x = 0; x < width; x++) {
-			uint32_t pxlColor = *GetMemoryLocation(m->imgdata, x, y, width, height);
+			uint32_t pxlColor = *GetMemoryLocation(tempd, x, y, width, height);
 			uint8_t a = (pxlColor >> 24) & 0xFF;
 			uint8_t r = (pxlColor >> 16) & 0xFF;
 			uint8_t g = (pxlColor >> 8) & 0xFF;
@@ -660,10 +696,16 @@ void AutoAdjustLevels(GlobalParams* m, uint32_t* buffer) {
 		}
 	}
 
+	free(tempd);
+
 	// fix division by zero
 	if (maxR == minR) { if (maxR < 255) { maxR++; } else { minR--; } }
 	if (maxG == minG) { if (maxG < 255) { maxG++; } else { minG--; } }
 	if (maxB == minB) { if (maxB < 255) { maxB++; } else { minB--; } }
+
+	//if (maxRo == minRo) { if (maxRo < 255) { maxRo++; } else { minRo--; } }
+	//if (maxGo == minGo) { if (maxGo < 255) { maxGo++; } else { minGo--; } }
+	//if (maxBo == minBo) { if (maxBo < 255) { maxBo++; } else { minBo--; } }
 
 	if (minR == 0 && minG == 0 && minB == 0 && maxR == 255 && maxG == 255 && maxB == 255) {
 		MessageBox(m->hwnd, "There is no adjustment needed", "Automatic Adjust", MB_OK);
@@ -683,15 +725,19 @@ void AutoAdjustLevels(GlobalParams* m, uint32_t* buffer) {
 			uint32_t g = (pxlColor >> 8) & 0xFF;
 			uint32_t b = (pxlColor) & 0xFF;
 
-			uint8_t newR = ((r - minR) * (255) / (maxR - minR));
-			uint8_t newG = ((g - minG) * (255) / (maxG - minG));
-			uint8_t newB = ((b - minB) * (255) / (maxB - minB));
+			int newR = (clampv(r - minR, 0, 255) * (255) / (maxR - minR));
+			int newG = (clampv(g - minG, 0, 255) * (255) / (maxG - minG));
+			int newB = (clampv(b - minB, 0, 255) * (255) / (maxB - minB));
 
-			*GetMemoryLocation(m->imgdata, x, y, width, height) = change_alpha(RGB(newB, newG, newR), a);
+			uint8_t nR = clamp(newR);
+			uint8_t nG = clamp(newG);
+			uint8_t nB = clamp(newB);
+
+			*GetMemoryLocation(m->imgdata, x, y, width, height) = change_alpha(RGB(nB, nG, nR), a);
 		}
 	}
 
-	Beep(2000, 30);
+	Beep(4000, 40);
 
 	RedrawSurface(m);
 }
@@ -961,13 +1007,6 @@ uint32_t multiplyColor(uint32_t color, float multiplier) {
 #include <stdlib.h>
 #include <string.h>
 
-// Helper function to clamp values between 0 and 255
-static inline uint8_t clamp(int value) {
-	if (value < 0) return 0;
-	if (value > 255) return 255;
-	return (uint8_t)value;
-}
-
 // Compute integral image for a single channel
 void compute_integral_image(const uint8_t* input, int width, int height, uint32_t* integral_image) {
 	for (int y = 0; y < height; ++y) {
@@ -1200,7 +1239,7 @@ void gaussian_blur(uint32_t* pixels, int lW, int lH, double sigma, uint32_t widt
 
 #include <stdint.h>
 
-void gaussian_blur_toolbar(GlobalParams* m, uint32_t* pixels) {
+void blur_toolbar(GlobalParams* m, uint32_t* pixels) {
 
 
 	unsigned char* px = (unsigned char*)pixels;
@@ -1211,10 +1250,8 @@ void gaussian_blur_toolbar(GlobalParams* m, uint32_t* pixels) {
 }
 
 double remap(double value, double fromLow, double fromHigh, double toLow, double toHigh) {
-	// Check for invalid input ranges
 	if (fromLow == fromHigh) {
-		std::cerr << "Error: 'from' range is degenerate (fromLow == fromHigh)" << std::endl;
-		return value;  // Return the input value unchanged
+		return value;
 	}
 
 	// Map the value from the 'from' range to the 'to' range
@@ -1276,7 +1313,7 @@ uint32_t* GetImageFromClipboard(int& width, int& height) {
 			BITMAPINFO bmi = { 0 };
 			bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
 			bmi.bmiHeader.biWidth = bmp.bmWidth;
-			bmi.bmiHeader.biHeight = bmp.bmHeight;
+			bmi.bmiHeader.biHeight = -bmp.bmHeight;
 			bmi.bmiHeader.biPlanes = 1;
 			bmi.bmiHeader.biBitCount = 32;
 			bmi.bmiHeader.biCompression = BI_RGB;
@@ -1306,28 +1343,49 @@ uint32_t* GetImageFromClipboard(int& width, int& height) {
 }
 
 bool PasteImageFromClipboard(GlobalParams* m) {
+
+	if(!m->imgdata) {
+		AllocateBlankImage(m, 0x00000000);
+	}
+
 	createUndoStep(m, false);
+
 	int w, h;
 	uint32_t* d = GetImageFromClipboard(w, h);
+	uint32_t mh = h-1;
+
+	
+
 	if (d) {
 		if (m->imgdata) {
 			FreeData(m->imgdata);
 		}
 		Beep(4000, 40);
+
+		if(m->imgoriginaldata) {
+			FreeData(m->imgoriginaldata);
+		}
+
 		m->imgdata = d;
 		m->imgwidth = w;
 		m->imgheight = h;
+
+		void* l = malloc(m->imgwidth*m->imgheight*4);
+		memcpy(l, m->imgdata, m->imgwidth*m->imgheight*4);
+		m->imgoriginaldata = l;
+
+		autozoom(m);
 	}
 	else {
-		Beep(2000, 90);
+		Beep(300, 90);
 	}
+
 
 	return true;
 }
 
-bool CopyImageToClipboard(GlobalParams* m, void* imageData, int width, int height){ // USED CHATGPT BECAUSE I DONT WANT TO REINVENT THE WHEEL WHEN USING THIS STUPID API
-	Beep(500, 20);
-	Beep(500, 20);
+bool CopyImageToClipboard(GlobalParams* m, void* imageData, int width, int height){
+	Beep(3000, 40);
 
 	// Initialize COM for clipboard operations
 	if (FAILED(OleInitialize(NULL)))

@@ -49,7 +49,6 @@ Thank you Sean T. Barrett for making stb_image(_resize/_write) and this entire i
 
 int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nShowCmd) {
 
-
 	// get argument info
 	int argc;
 	LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
@@ -69,7 +68,7 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 	RegisterClassEx(&wc);
 
 	RECT ws = { 0, 0, gp.width, gp.height };
-	AdjustWindowRectEx(&ws, WS_OVERLAPPEDWINDOW, FALSE, NULL);
+	AdjustWindowRectEx(&ws, WS_OVERLAPPEDWINDOW, FALSE, 0);
 	int w_width = ws.right - ws.left;
 	int w_height = ws.bottom - ws.top;
 	 
@@ -98,19 +97,110 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 	SetTimer(gp.hwnd, 1, 12, NULL);
 
 	MSG msg{};
+
 	while (GetMessage(&msg, 0, 0, 0)) {
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
+		
 	}
 	return 0;
 }
 
 
-
-
+LRESULT CALLBACK WndProcNormal(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
+LRESULT CALLBACK WndProcDialogDrawText(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
 
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
+	LRESULT retv = 0;
+	if(!gp.drawtext_access_dialog_hwnd) {
+		retv = WndProcNormal(hwnd, msg, wparam, lparam);
+	} else {
+		retv = WndProcDialogDrawText(hwnd, msg, wparam, lparam);
+	}
+	return retv;
+}
+
+
+#define CheckEssential(hwnd, msg, wparam, lparam) \
+\
+		case WM_GETMINMAXINFO:\
+		{\
+			LPMINMAXINFO lpMMI = (LPMINMAXINFO)lparam;\
+			lpMMI->ptMinTrackSize.x = 505;\
+			lpMMI->ptMinTrackSize.y = 220;\
+\
+\
+			break;\
+		}\
+		case WM_SIZE: {\
+			Size(&gp);\
+\
+			break;\
+		}\
+		case WM_CLOSE: {\
+			if (doIFSave(&gp)) {\
+				gp.loading = true;\
+				RedrawSurface(&gp);\
+				DeleteTempFiles(&gp);\
+				DestroyWindow(hwnd);\
+			}\
+			break;\
+		}\
+		case WM_DESTROY: {\
+			PostQuitMessage(0);\
+			return 0;\
+		}\
+		case WM_PAINT: {\
+			UpdateBuffer(&gp);\
+			return DefWindowProc(hwnd, msg, wparam, lparam);\
+		}\
+		case WM_SETFOCUS: {\
+			gp.sleepmode = false;\
+			if (gp.scrdata && gp.width > 1) {\
+				RedrawSurface(&gp);\
+			}\
+			break;\
+		}\
+		case WM_KILLFOCUS: {\
+\
+			gp.sleepmode = true;\
+			for (int i = 0; i < 50; i++) {\
+				ShowCursor(500);\
+			}\
+			break;\
+		}\
+
+bool md_dt = false;
+LRESULT CALLBACK WndProcDialogDrawText(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
+	switch(msg) {
+		case WM_LBUTTONDOWN: {
+			PerformDrawTextRealignment();
+			md_dt = true;
+			break;
+		}
+		case WM_LBUTTONUP: {
+			md_dt = false;
+			break;
+		}
+		case WM_MOUSEMOVE: {
+			SetCursor(LoadCursor(NULL, IDC_SIZEALL));
+			if(md_dt) {
+				PerformDrawTextRealignment();
+			}
+			ShowCursor(1);
+			break;
+		}
+		CheckEssential(hwnd, msg, wparam, lparam)
+		default: {
+			return DefWindowProc(hwnd, msg, wparam, lparam);
+		}
+		
+	}
+	return 0;
+}
+
+LRESULT CALLBACK WndProcNormal(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 
 
 	switch (msg) {
@@ -132,15 +222,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 
 		break;
 	}
-	case WM_GETMINMAXINFO:
-	{
-		LPMINMAXINFO lpMMI = (LPMINMAXINFO)lparam;
-		lpMMI->ptMinTrackSize.x = 505;
-		lpMMI->ptMinTrackSize.y = 220;
-
-
-		break;
-	}
+	
 	case WM_LBUTTONDOWN:
 	{
 		if (!ToolbarMouseDown(&gp)) {
@@ -148,6 +230,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 		}
 	}
 	case WM_MBUTTONDOWN: {
+
 		MouseDown(&gp);
 		break;
 	}
@@ -163,7 +246,9 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 		break;
 	}
 	case WM_RBUTTONDOWN: {
-		RightDown(&gp);
+		if(!gp.drawtext_access_dialog_hwnd) {
+			RightDown(&gp);
+		}
 		break;
 	}
 	case WM_MOUSEMOVE: {
@@ -176,11 +261,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 		break;
 	}
 
-	case WM_SIZE: {
-		Size(&gp);
-
-		break;
-	}
+	
 	case WM_KEYUP: {
 		RedrawSurface(&gp);
 		break;
@@ -189,41 +270,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 		MouseWheel(&gp, wparam, lparam);
 		break;
 	}
-	case WM_CLOSE: {
-		if (doIFSave(&gp)) {
-			gp.loading = true;
-			RedrawSurface(&gp);
-			DeleteTempFiles(&gp);
-			DestroyWindow(hwnd);
-		}
-		break;
-	}
-	case WM_DESTROY: {
-		PostQuitMessage(0);
-		return 0;
-	}
-	//case WM_ACTIVATEAPP: {
-	//	return 0;
-	//}
-	case WM_PAINT: {
-		UpdateBuffer(&gp);
-		return DefWindowProc(hwnd, msg, wparam, lparam);
-	}
-	case WM_SETFOCUS: {
-		gp.sleepmode = false;
-		if (gp.scrdata && gp.width > 1) {
-			RedrawSurface(&gp);
-		}
-		break;
-	}
-	case WM_KILLFOCUS: {
-
-		gp.sleepmode = true;
-		for (int i = 0; i < 50; i++) {
-			ShowCursor(500);
-		}
-		break;
-	}
+	
+	CheckEssential(hwnd, msg, wparam, lparam)
 	default: {
 		return DefWindowProc(hwnd, msg, wparam, lparam);
 	}

@@ -29,8 +29,9 @@ bool DeleteDirectory(const char* directoryPath);
 #define IfInMenu(pos, m) \
 	((pos.x > m->actmenuX && pos.y > m->actmenuY && pos.x < (m->actmenuX + m->menuSX) && pos.y < (m->actmenuY + m->menuSY)))
 
+#define bottomtoolmacro(mPP, m) ((!m->drawMenuOffsetY > m->toolheight) || mPP.y < m->height-m->toolheight)
 #define IsInImage(mPP, m) \
-	(mPP.y > m->toolheight && mPP.x >= m->CoordLeft && mPP.y > m->CoordTop && mPP.x < m->CoordRight && mPP.y < m->CoordBottom)
+	((mPP.y > m->toolheight && mPP.x >= m->CoordLeft && mPP.y > m->CoordTop && mPP.x < m->CoordRight && mPP.y < m->CoordBottom) && bottomtoolmacro(mPP, m))
 
 #define CheckIfMouseInSlider1(mPP, m, slider1begin, slider1end, sliderYb, sliderYe) \
 	((mPP.x > slider1begin && mPP.x < slider1end) && (mPP.y > sliderYb && mPP.y < sliderYe))
@@ -105,11 +106,10 @@ void boxBlur(uint32_t* mem, uint32_t width, uint32_t height, uint32_t kernelSize
 // Gaussian blur function
 void gaussian_blur(uint32_t* pixels, int lW, int lH, double sigma, uint32_t width, uint32_t height, uint32_t offX = 0, uint32_t offY = 0);
 
-void gaussian_blur_toolbar(GlobalParams* m, uint32_t* pixels);
+void blur_toolbar(GlobalParams* m, uint32_t* pixels);
 #pragma endregion
 
 void gaussian_blur_B(uint32_t* input_buffer, uint32_t* output_buffer, int lW, int lH, double sigma, uint32_t width, uint32_t height, uint32_t offX, uint32_t offY);
-void gaussianBlurFFT(uint32_t* image, int height, int width, int kernelSize, double* kernel);
 
 uint32_t multiplyColor(uint32_t color, float multiplier);
 

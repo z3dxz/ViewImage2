@@ -27,7 +27,7 @@ struct UndoDataStruct {
 	int height;
 };
 
-#define REAL_BIG_VERSION_BOOLEAN "v2.6cm"
+#define REAL_BIG_VERSION "2.61"
 
 struct GlobalParams {
 	std::vector<ToolbarButtonItem> toolbartable;
@@ -88,9 +88,9 @@ struct GlobalParams {
 	int menu_atlas_SizeY;
 
 	// settings
-	const int iconSize = 30; // the real width is 31 because 1 px divider
+	const int iconSize = 30; // the real width is 31 because 1 px divider in memory
 	int toolheight = 43;
-
+	int starttoolbarloc = 3;
 	// current state
 
 	bool shouldSaveShutdown = false;
@@ -231,7 +231,13 @@ struct GlobalParams {
 	JOYINFOEX joyInfoEx;
 	UINT joystickID = JOYSTICKID1;
 
-};
+	HWND drawtext_access_dialog_hwnd;
+	int locationXtextvar = 0;
+	int locationYtextvar = 0;
+	int sizetextvar = 32;
+
+	double def_txt_shadow_softness = 0.34f;
+};	
 
 
 // mod list

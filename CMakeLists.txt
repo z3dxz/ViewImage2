@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.24)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-project(viewimage VERSION 2.6)
+project(viewimage VERSION 2.61)
 
 
 set(BUILD_SHARED_LIBS OFF)
@@ -32,10 +32,16 @@ find_library(WINMM winmm)
 find_package(Freetype REQUIRED)
 
 
+
 find_package(TBB REQUIRED)
 
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+add_executable(viewimage ${SRC_FILES} )
+else ()
 add_executable(viewimage WIN32 ${SRC_FILES} )
-set_target_properties(viewimage PROPERTIES OUTPUT_NAME "viewimage-2.5-x64-cm")
+endif ()
+
+set_target_properties(viewimage PROPERTIES OUTPUT_NAME "viewimage-x64")
 
 # Link the library to the target
 target_link_libraries(viewimage PRIVATE ${COMCTL32_LIB} ${UXTHEME_LIB} ${SHLWAPI_LIB} ${WINMM} TBB::tbb Freetype::Freetype  lunasvg)
