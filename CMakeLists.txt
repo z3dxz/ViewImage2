@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.24)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-project(viewimage VERSION 2.61)
+project(viewimage VERSION 2.62)
 
 
 set(BUILD_SHARED_LIBS OFF)
@@ -31,9 +31,9 @@ find_library(WINMM winmm)
 
 find_package(Freetype REQUIRED)
 
-
-
 find_package(TBB REQUIRED)
+
+
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 add_executable(viewimage ${SRC_FILES} )

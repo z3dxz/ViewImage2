@@ -6,6 +6,7 @@
 #include "../special/sfbb_support.hpp"
 #include "../special/m45_support.hpp"
 #include "../special/svg_support.hpp"
+#include "../special/irbo_support.hpp"
 
 
 //void CombineBuffer(GlobalParams* m, uint32_t* first, uint32_t* second, int width, int height, bool invert);
@@ -13,5 +14,7 @@
 bool doIFSave(GlobalParams* m);
 bool OpenImageFromPath(GlobalParams* m, std::string kpath, bool isLeftRight);
 void PrepareOpenImage(GlobalParams* m);
+
+void ActuallySaveImage(GlobalParams* m, std::string res);
 void PrepareSaveImage(GlobalParams* m);
 bool AllocateBlankImage(GlobalParams* m, uint32_t color);

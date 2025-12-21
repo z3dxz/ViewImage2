@@ -65,13 +65,20 @@ std::string ReplaceBitmapAndMetrics(GlobalParams* m, void*& buffer, const char* 
 			}
 			InvertAllColorChannels((uint32_t*)buffer, *w, *h);
 		}
+		else if (isFile(standardPath, ".irbo")) {
+			buffer = decodeirbo(standardPath, w, h);
+
+			if (!buffer) {
+				buffer = 0;
+				return "Error loading IRBO image data";
+			}
+			InvertAllColorChannels((uint32_t*)buffer, *w, *h);
+		}
 		else {
 			return "File is in an unsupported format";
 		}
 	}
-	ConvertToPremultipliedAlpha((uint32_t*)buffer, *w, *h);
-	
-	
+	//ConvertToPremultipliedAlpha((uint32_t*)buffer, *w, *h);
 
 	return "Success";
 }
@@ -97,7 +104,7 @@ std::string OpenFileSaveDialog(GlobalParams* m, HWND hwnd) {
 	ofn.lpstrInitialDir = pa;
 	ofn.lStructSize = sizeof(OPENFILENAME);
 	ofn.hwndOwner = NULL;
-	ofn.lpstrFilter = "PNG File (*.png)\0*.png\0BMP File\0*.bmp\0TGA File\0*.tga\0JPEG File\0*.jpg\0SFBB File\0*.sfbb\0M45 File\0*.m45\0All Files (*.*)\0*.*\0";
+	ofn.lpstrFilter = "PNG File (*.png)\0*.png\0BMP File\0*.bmp\0TGA File\0*.tga\0JPEG File\0*.jpg\0SFBB File\0*.sfbb\0M45 File\0*.m45\0IRBO File\0*.irbo\0All Files (*.*)\0*.*\0";
 	ofn.lpstrFile = szFileName;
 	ofn.nMaxFile = sizeof(szFileName);
 	ofn.nMaxFile = MAX_PATH;
@@ -112,45 +119,51 @@ std::string OpenFileSaveDialog(GlobalParams* m, HWND hwnd) {
 	return "Invalid";
 }
 
-void PrepareSaveImage(GlobalParams* m) {
-	std::string res = OpenFileSaveDialog(m, m->hwnd);
+void ActuallySaveImage(GlobalParams* m, std::string res){
 
 	int pos = res.find(".");
 	std::string ext = res.substr(pos+1);
 	std::transform(ext.begin(), ext.end(), ext.begin(),    [](unsigned char c){ return std::tolower(c); });
 
+
+	m->loading = true;
+	RedrawSurface(m);
+	//CombineBuffer(m, (uint32_t*)m->imgdata, (uint32_t*)m->imgannotate, m->imgwidth, m->imgheight, true);
+
+	InvertAllColorChannels((uint32_t*)m->imgdata, m->imgwidth, m->imgheight);
+
+	if(ext == "png") {
+		stbi_write_png(res.c_str(), m->imgwidth, m->imgheight, 4, m->imgdata, 0);
+	} else if (ext == "bmp") {
+		stbi_write_bmp(res.c_str(), m->imgwidth, m->imgheight, 4, m->imgdata);
+	} else if (ext == "tga") {
+		stbi_write_tga(res.c_str(), m->imgwidth, m->imgheight, 4, m->imgdata);
+	} else if (ext == "jpg" || ext == "jpeg") {
+		stbi_write_jpg(res.c_str(), m->imgwidth, m->imgheight, 4, m->imgdata, 85);
+	} else if(ext == "sfbb") {
+		encodesfbb(res.c_str(), m->imgdata, m->imgwidth, m->imgheight, 4);
+	} else if(ext == "m45") {
+		encodedata(m->imgdata, m->imgwidth, m->imgheight, res.c_str());
+	} else if(ext == "irbo") {
+		encodeirbo(res.c_str(), m->imgdata, m->imgwidth, m->imgheight, 4);
+	} else {
+		MessageBox(0, "Failed to save image due to insufficient format", "Failed to save image", MB_OK | MB_ICONERROR);
+	}
+
+	InvertAllColorChannels((uint32_t*)m->imgdata, m->imgwidth, m->imgheight);
+
+	//FreeCombineBuffer(m);
+	m->loading = false;
+	m->shouldSaveShutdown = false;
+	RedrawSurface(m);
+	OpenImageFromPath(m, res, false);
+}
+
+void PrepareSaveImage(GlobalParams* m) {
+	std::string res = OpenFileSaveDialog(m, m->hwnd);
+
 	if (res != "Invalid") {
-
-
-		m->loading = true;
-		RedrawSurface(m);
-		//CombineBuffer(m, (uint32_t*)m->imgdata, (uint32_t*)m->imgannotate, m->imgwidth, m->imgheight, true);
-
-		InvertAllColorChannels((uint32_t*)m->imgdata, m->imgwidth, m->imgheight);
-
-		if(ext == "png") {
-			stbi_write_png(res.c_str(), m->imgwidth, m->imgheight, 4, m->imgdata, 0);
-		} else if (ext == "bmp") {
-			stbi_write_bmp(res.c_str(), m->imgwidth, m->imgheight, 4, m->imgdata);
-		} else if (ext == "tga") {
-			stbi_write_tga(res.c_str(), m->imgwidth, m->imgheight, 4, m->imgdata);
-		} else if (ext == "jpg" || ext == "jpeg") {
-			stbi_write_jpg(res.c_str(), m->imgwidth, m->imgheight, 4, m->imgdata, 85);
-		} else if(ext == "sfbb") {
-			encodesfbb(res.c_str(), m->imgdata, m->imgwidth, m->imgheight, 4);
-		} else if(ext == "m45") {
-			encodedata(m->imgdata, m->imgwidth, m->imgheight, res.c_str());
-		} else {
-			MessageBox(0, "Failed to save image due to insufficient format", "Failed to save image", MB_OK | MB_ICONERROR);
-		}
-
-		InvertAllColorChannels((uint32_t*)m->imgdata, m->imgwidth, m->imgheight);
-
-		//FreeCombineBuffer(m);
-		m->loading = false;
-		m->shouldSaveShutdown = false;
-		RedrawSurface(m);
-		OpenImageFromPath(m, res, false);
+		ActuallySaveImage(m, res);
 	}
 }
 
@@ -319,7 +332,7 @@ std::string OpenFileOpenDialog(HWND hwnd) {
 	ofn.hwndOwner = hwnd;
 	ofn.lpstrFile = szFile;
 	ofn.nMaxFile = sizeof(szFile);
-	ofn.lpstrFilter = "Supported Images (*.m45 *.svg *.sfbb *.jpeg *.jpg *.png *.tga *.bmp *.psd; .gif; .hdr; .pic; .pnm)\0*.m45;*.svg;*.sfbb;*.jpeg;*.jpg;*.png;*.tga;*.bmp;*.psd;*.gif;*.hdr;*.pic;*.pnm\0Every File\0*.*\0";
+	ofn.lpstrFilter = "Supported Images (*.m45 *.irbo *.svg *.sfbb *.jpeg *.jpg *.png *.tga *.bmp *.psd; .gif; .hdr; .pic; .pnm)\0*.m45;*.irbo;*.svg;*.sfbb;*.jpeg;*.jpg;*.png;*.tga;*.bmp;*.psd;*.gif;*.hdr;*.pic;*.pnm\0Every File\0*.*\0";
 	ofn.nFilterIndex = 1;
 	ofn.lpstrFileTitle = NULL;
 	ofn.nMaxFileTitle = 0;

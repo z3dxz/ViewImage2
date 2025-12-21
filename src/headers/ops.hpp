@@ -29,9 +29,11 @@ bool DeleteDirectory(const char* directoryPath);
 #define IfInMenu(pos, m) \
 	((pos.x > m->actmenuX && pos.y > m->actmenuY && pos.x < (m->actmenuX + m->menuSX) && pos.y < (m->actmenuY + m->menuSY)))
 
-#define bottomtoolmacro(mPP, m) ((!m->drawMenuOffsetY > m->toolheight) || mPP.y < m->height-m->toolheight)
+#define bottomtoolmacro(mPP, m) ((!(m->drawMenuOffsetY > m->toolheight)) || mPP.y < m->height-m->toolheight)
+#define dmguidemacro(mPP, m) (!(m->drawmode && mPP.x > m->dmguide_x && mPP.y > m->dmguide_y && mPP.x <= m->dmguide_x+m->dmguide_sx && mPP.y <= m->dmguide_y+m->dmguide_sy ))
+#define extracases(mPP, m) (bottomtoolmacro(mPP, m) && dmguidemacro(mPP, m))
 #define IsInImage(mPP, m) \
-	((mPP.y > m->toolheight && mPP.x >= m->CoordLeft && mPP.y > m->CoordTop && mPP.x < m->CoordRight && mPP.y < m->CoordBottom) && bottomtoolmacro(mPP, m))
+	((mPP.y > m->toolheight && mPP.x >= m->CoordLeft && mPP.y > m->CoordTop && mPP.x < m->CoordRight && mPP.y < m->CoordBottom) && extracases(mPP, m))
 
 #define CheckIfMouseInSlider1(mPP, m, slider1begin, slider1end, sliderYb, sliderYe) \
 	((mPP.x > slider1begin && mPP.x < slider1end) && (mPP.y > sliderYb && mPP.y < sliderYe))
@@ -121,4 +123,4 @@ bool PasteImageFromClipboard(GlobalParams* m);
 uint32_t change_alpha(uint32_t color, uint8_t new_alpha);
 void overlayBuffers(const uint32_t* background, const uint32_t* foreground, uint32_t* output, float opacity, size_t bufferSize);
 
-void AutoAdjustLevels(GlobalParams* m, uint32_t* buffer);
+bool AutoAdjustLevels(GlobalParams* m, uint32_t* buffer);

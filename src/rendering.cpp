@@ -188,7 +188,7 @@ int PlaceStringShadowObject(GlobalParams* m, int size, const char* inputstr, uin
 					uint32_t* scrbuf = GetMemoryLocation(mem, putX, putY, m->width, m->height);
 					int from = (*GetMemoryLocation(temp_buffer, x, y, tempbuffer_width, tempbuffer_height) >> 24) & 0xFF;
 					float factor = 1.0f-((float)from / 255.0f);
-					*scrbuf = lerp(*scrbuf, 0x000000, factor);
+					*scrbuf = lerp(*scrbuf, color, factor);
 				}
 			}
 		}
@@ -214,8 +214,8 @@ int PlaceStringLegacyShadow(GlobalParams* m, int size, const char* inputstr, uin
 	return e && b;
 }
 
-int PlaceStringShadow(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, void* mem, float sigma, int shadowOffsetX, int shadowOffsetY, int passes) {
-	bool b = PlaceStringShadowObject(m, size, inputstr, locX+shadowOffsetX, locY+shadowOffsetY, color, mem, sigma, passes);
+int PlaceStringShadow(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, void* mem, float sigma, int shadowOffsetX, int shadowOffsetY, int passes, uint32_t shadowColor = 0x000000) {
+	bool b = PlaceStringShadowObject(m, size, inputstr, locX+shadowOffsetX, locY+shadowOffsetY, shadowColor, mem, sigma, passes);
 	bool e = ActuallyPlaceString(m, size, inputstr, locX, locY, color, mem, m->width, m->height, mem);
 
 	return e && b;
@@ -513,7 +513,7 @@ void RenderToolbar(GlobalParams* m) {
 		// TOOLBAR CONTAINER
 		for (uint32_t y = 0; y < m->toolheight; y++) {
 			for (uint32_t x = 0; x < m->width; x++) {
-				uint32_t color = 0x050505;
+				uint32_t color = 0x0C0C0C;
 				float opacity = 0.65f;
 				//if (y == m->toolheight - 2) { color = 0xFFFFFF; opacity = 0.15f; }
 				//if (y == m->toolheight - 1) { color = 0x000000; opacity = 1.0f; }
@@ -600,15 +600,73 @@ void RenderToolbar(GlobalParams* m) {
 			// tooltips
 			if (!m->isMenuState) {
 				int loc = 1 + (GetLocationFromButton(m, in));
-				
-				gaussian_blur((uint32_t*)m->scrdata, (txt.length() * 8) + 12, 20, 4.0f, m->width, m->height, loc-1, m->toolheight+4);
-				
-				dDrawFilledRectangle(m->scrdata, m->width, m->height, loc-1, m->toolheight + 4, (txt.length() * 8) + 12, 20, 0x000000, 0.4f);
-				dDrawRoundedRectangle(m->scrdata, m->width, m->height, loc - 1, m->toolheight + 4, (txt.length() * 8) + 12, 20, 0xFFFFFF, 0.3f);
-				dDrawRoundedRectangle(m->scrdata, m->width, m->height, loc - 2, m->toolheight + 3, (txt.length() * 8) + 14, 22, 0x000000, 0.8f);
+				// draw guide
+				if(in == 7 && m->drawmode) {
+					int off = -20;
+					uint32_t shiftx = loc+2;
+					SwitchFont(m->Verdana);
 
-				SwitchFont(m->OCRAExt);
-				PlaceStringShadow(m, 14, txt.c_str(), loc + 3, m->toolheight + 4, 0xFFFFFF, m->scrdata, 0.34f, 1, 1, 1);
+					// sample points for contrast, something fun
+					uint32_t color1 = *GetMemoryLocation(m->scrdata, 276, 95, m->width, m->height);
+					uint32_t color2 = *GetMemoryLocation(m->scrdata, 379, 116, m->width, m->height);
+					uint32_t color3 = *GetMemoryLocation(m->scrdata, 287, 148, m->width, m->height);
+					int lum1 = (((color1>>16)&0xFF) + ((color1>>8)&0xFF) + (color1&0xFF))/3;
+					int lum2 = (((color2>>16)&0xFF) + ((color2>>8)&0xFF) + (color2&0xFF))/3;
+					int lum3 = (((color3>>16)&0xFF) + ((color3>>8)&0xFF) + (color3&0xFF))/3;
+
+					int lumc1 = lum1; int lumc2 = lum2; int lumc3 = lum3;
+
+					int max = std::max(std::max(lum1, lum2), lum3);
+					int min = std::min(std::min(lum1, lum2), lum3);
+					int adv = (max+min)/2;
+					if(adv<127) {
+						int diff = 255-max;
+						lumc1+=diff;
+						lumc2+=diff;
+						lumc3+=diff;
+					} else {
+						int diff = min;
+						lumc1-=diff;
+						lumc2-=diff;
+						lumc3-=diff;
+					}
+
+					int lum0 = (lumc1+lumc2+lumc3)/3;
+
+					// curved
+					int lum = round((float)(2.0f*(float)lum0-127.5f-(2.0f/255.0f)*((float)lum0-127.5f)*abs((float)lum0-127.5f)));
+
+					// absolutely
+					//int lum = -4.0f*(float)abs((float)lum0-63.5)+255.0f;
+					//if((float)lum0 > 127.5f) {
+					//	lum = 4.0f*(float)abs((float)lum0-191);
+					//}
+
+					uint32_t dcolor = change_alpha(RGB(lum, lum, lum), 255);
+					uint32_t shadow = change_alpha(RGB(255-lum, 255-lum, 255-lum), 255);
+
+					PlaceStringShadow(m, 12, "Annotate Shortcuts", shiftx, m->toolheight + 28+off, dcolor, m->scrdata, 0.34f, 1, 1, 1, shadow);
+					SwitchFont(m->OCRAExt);
+
+					PlaceStringShadow(m, 10, "Draw        Left Mouse", shiftx, m->toolheight + 43+off, dcolor, m->scrdata, 0.34f, 1, 1, 1, shadow);
+					PlaceStringShadow(m, 10, "Pan         Middle Mouse", shiftx, m->toolheight + 53+off, dcolor, m->scrdata, 0.34f, 1, 1, 1, shadow);
+					PlaceStringShadow(m, 10, "Erase       Ctrl", shiftx, m->toolheight + 63+off, dcolor, m->scrdata, 0.34f, 1, 1, 1, shadow);
+					PlaceStringShadow(m, 10, "Transparent Ctrl+Shift", shiftx, m->toolheight + 73+off, dcolor, m->scrdata, 0.34f, 1, 1, 1, shadow);
+					PlaceStringShadow(m, 10, "Eyedropper  Shift+Z", shiftx, m->toolheight + 83+off, dcolor, m->scrdata, 0.34f, 1, 1, 1, shadow);
+				} else {
+					// actual tooltips
+					gaussian_blur((uint32_t*)m->scrdata, (txt.length() * 8) + 12, 20, 4.0f, m->width, m->height, loc-1, m->toolheight+4);
+					
+					dDrawFilledRectangle(m->scrdata, m->width, m->height, loc-1, m->toolheight + 4, (txt.length() * 8) + 12, 20, 0x000000, 0.4f);
+					dDrawRoundedRectangle(m->scrdata, m->width, m->height, loc - 1, m->toolheight + 4, (txt.length() * 8) + 12, 20, 0xFFFFFF, 0.3f);
+					dDrawRoundedRectangle(m->scrdata, m->width, m->height, loc - 2, m->toolheight + 3, (txt.length() * 8) + 14, 22, 0x000000, 0.8f);
+
+					SwitchFont(m->OCRAExt);
+					PlaceStringShadow(m, 14, txt.c_str(), loc + 3, m->toolheight + 4, 0xFFFFFF, m->scrdata, 0.34f, 1, 1, 1);
+				}
+
+
+				
 			}
 			
 		}
@@ -847,11 +905,13 @@ void DrawMenu(GlobalParams* m) { // render menu draw menu
 		PlaceString(m, 12, mystr.c_str(), posX + 26, (mH * i) + posY + 9, 0xF0F0F0, m->scrdata);
 		if (i == m->menuVector.size()-1) continue;
 
+		dDrawFilledRectangle(m->scrdata, m->width, m->height, posX, posY + mH + (mH * i) + 2, miX, 1, 0xFFFFFF, 0);
+
 		if (strstr(m->menuVector[i].name.c_str(), "{s}")) { // seperator
 			dDrawFilledRectangle(m->scrdata, m->width, m->height, posX + 8, posY + mH + (mH * i) + 2, miX - 16, 1, 0xFFFFFF, 0.25f);
-		}
-		else {
-			dDrawFilledRectangle(m->scrdata, m->width, m->height, posX + 8, posY + mH + (mH * i) + 2, miX - 16, 1, 0xFFFFFF, 0.1f);
+		//}
+		//else {
+			//dDrawFilledRectangle(m->scrdata, m->width, m->height, posX + 8, posY + mH + (mH * i) + 2, miX - 16, 1, 0xFFFFFF, 0.1f);
 		}
 	}
 }
@@ -979,14 +1039,21 @@ void DrawDrawModeMenu(GlobalParams* m){
 	PlaceString(m, 14, "Size", m->drawMenuOffsetX +83, m->drawMenuOffsetY + 13, 0xFFFFFF, m->scrdata);
 	PlaceString(m, 14, "Opacity", m->drawMenuOffsetX +270, m->drawMenuOffsetY + 13, 0xFFFFFF, m->scrdata);
 
-	char str[256];
-	sprintf(str, "%.1fpx", m->drawSize);
-	PlaceString(m, 14, str, m->drawMenuOffsetX + 217, m->drawMenuOffsetY + 13, 0xFFFFFF, m->scrdata);
+	std::string drawstr = std::to_string((int)std::round(m->drawSize));
+
+	int off = 235;
+	if(m->drawSize>9.5f) {
+		off = 230;
+	}
+	if(m->drawSize>99.5f) {
+		off = 225;
+	}
+	
+	PlaceString(m, 14, drawstr.c_str(), m->drawMenuOffsetX + off, m->drawMenuOffsetY + 13, 0xFFFFFF, m->scrdata);
 
 	char str2[256];
 	sprintf(str2, "%d%%", (int)round(m->a_opacity*100.0f));
 	PlaceString(m, 14, str2, m->drawMenuOffsetX + 414, m->drawMenuOffsetY + 13, 0xFFFFFF, m->scrdata);
-
 
 	// draw color square
 	dDrawFilledRectangle(m->scrdata, m->width, m->height, m->drawMenuOffsetX + 51, m->drawMenuOffsetY + 14, 18, 18, m->a_drawColor, true); // actual color
@@ -1178,6 +1245,113 @@ void RenderCropGUI(GlobalParams* m) {
 
 }
 
+void RenderDrawModeGuide(GlobalParams* m){
+	SwitchFont(m->SegoeUI);
+
+	uint32_t x = m->dmguide_x;
+	uint32_t y = m->dmguide_y;
+	uint32_t sx = m->dmguide_sx;
+	uint32_t sy = m->dmguide_sy;
+
+	gaussian_blur((uint32_t*)m->scrdata, sx-2, sy-2, 4.0f, m->width, m->height, x+1, y+1);
+	
+	dDrawFilledRectangle(m->scrdata, m->width, m->height, x + 1, y + 1, sx-2, sy-2, 0x000000, 0.4f);
+	dDrawRoundedRectangle(m->scrdata, m->width, m->height, x + 1, y + 1, sx-2, sy-2, 0xFFFFFF, 0.3f);
+	dDrawRoundedRectangle(m->scrdata, m->width, m->height, x, y, sx, sy, 0x000000, 0.8f);
+
+	int ilocx = 5;
+	int ilocy = 47;
+	// icons
+	for(int y=0; y<164; y++) {
+		for(int x=0; x<41; x++) {
+			uint32_t* ontxt = GetMemoryLocation(m->dmguideIconData, x, y, 41, 164);
+			uint32_t* scr = GetMemoryLocation(m->scrdata, x+ilocx, y+ilocy, m->width, m->height);
+
+			uint8_t alpha = (*ontxt >> 24) & 0xFF;
+			
+			float falpha = (float)alpha/255.0f;
+			*scr = lerp(*scr, *ontxt, falpha);
+		}
+	}
+
+	// not hover, but selected
+
+	if ((GetKeyState(VK_CONTROL) & 0x8000 && GetKeyState(VK_SHIFT) & 0x8000) || m->drawtype == 3) {
+		// transparent
+		dDrawRoundedRectangle(m->scrdata, m->width, m->height, ilocx+2, ilocy+84, 37, 37, 0xFFFFFF, 0.4f);
+	}
+	else if (GetKeyState(VK_CONTROL) & 0x8000 || m->rightdown || (m->drawtype == 0)) {
+		// erase
+		dDrawRoundedRectangle(m->scrdata, m->width, m->height, ilocx+2, ilocy+43, 37, 37, 0xFFFFFF, 0.4f);
+	} else {
+		// pen
+		dDrawRoundedRectangle(m->scrdata, m->width, m->height, ilocx+2, ilocy+2, 37, 37, 0xFFFFFF, 0.4f);
+	}
+
+	if(m->eyedroppermode) {
+		dDrawRoundedRectangle(m->scrdata, m->width, m->height, ilocx+2, ilocy+125, 37, 37, 0xFFFFFF, 0.4f);
+	}
+
+	// hover
+	POINT mPP;
+	GetCursorPos(&mPP);
+	ScreenToClient(m->hwnd, &mPP);
+
+	// direct copy paste from events (toolbarmousedown)
+	// each draw call is also copy pasted with lower transparency
+
+	int button = -1;
+	if ((mPP.x > (m->dmguide_x) && mPP.x <= (m->dmguide_x+m->dmguide_sx))) {
+		if((mPP.y > (m->dmguide_y) && mPP.y <= (m->dmguide_y+43))) {
+			// pen
+			button = 0;
+
+		}
+		if((mPP.y > (m->dmguide_y+43) && mPP.y <= (m->dmguide_y+84))) {
+			// erase
+			button = 1;
+
+		}
+		if((mPP.y > (m->dmguide_y+84) && mPP.y <= (m->dmguide_y+125))) {
+			// transparent
+			button = 2;
+
+		}
+		if((mPP.y > (m->dmguide_y+125) && mPP.y <= (m->dmguide_y+168))) {
+			// eyedropper
+			button = 3;
+
+		}
+	}
+
+	int offsets[] = {2, 43, 84, 125};
+	std::string txts[] = {"Draw", "Erase", "Transparent", "Eyedropper"};
+
+	if(button != -1) {
+		dDrawRoundedRectangle(m->scrdata, m->width, m->height, ilocx+2, ilocy+offsets[button], 37, 37, 0xFFFFFF, 0.2f);
+
+		// tooltip
+
+		uint32_t loc = 60;
+		uint32_t yloc = offsets[button]+8;
+			
+		std::string txt = txts[button];
+		gaussian_blur((uint32_t*)m->scrdata, (txt.length() * 8) + 12, 20, 4.0f, m->width, m->height, loc-1, m->toolheight+4+yloc);
+						
+		dDrawFilledRectangle(m->scrdata, m->width, m->height, loc-1, m->toolheight + 4+yloc, (txt.length() * 8) + 12, 20, 0x000000, 0.4f);
+		dDrawRoundedRectangle(m->scrdata, m->width, m->height, loc - 1, m->toolheight + 4+yloc, (txt.length() * 8) + 12, 20, 0xFFFFFF, 0.3f);
+		dDrawRoundedRectangle(m->scrdata, m->width, m->height, loc - 2, m->toolheight + 3+yloc, (txt.length() * 8) + 14, 22, 0x000000, 0.8f);
+
+		SwitchFont(m->OCRAExt);
+		PlaceStringShadow(m, 14, txt.c_str(), loc + 3, m->toolheight + 4+yloc, 0xFFFFFF, m->scrdata, 0.34f, 1, 1, 1);
+		
+	}
+
+
+
+
+}
+
 void RedrawSurface(GlobalParams* m, bool onlyImage, bool doesManualClip) {
 
 	if (!doesManualClip) {
@@ -1235,13 +1409,7 @@ void RedrawSurface(GlobalParams* m, bool onlyImage, bool doesManualClip) {
 
 
 	if (m->drawmode) {
-		SwitchFont(m->SegoeUI);
-		PlaceStringShadow(m, 12, "Draw Mode", 12, m->toolheight + 10, 0xFFFFFF, m->scrdata, 0.67f, 1,1, 2);
-		PlaceString(m, 10, "LEFT: Draw", 12, m->toolheight + 30, 0x808080, m->scrdata);
-		PlaceString(m, 10, "MIDDLE: Pan", 12, m->toolheight + 40, 0x808080, m->scrdata);
-		PlaceString(m, 10, "CTRL/RIGHT CLICK: Erase", 12, m->toolheight + 50, 0x808080, m->scrdata);
-		PlaceString(m, 10, "CTRL+SHIFT: Transparent", 12, m->toolheight + 60, 0x808080, m->scrdata);
-		PlaceString(m, 10, "SHIFT+Z: Eyedropper", 12, m->toolheight + 70, 0x808080, m->scrdata);
+		RenderDrawModeGuide(m);
 	}
 
 
@@ -1273,12 +1441,26 @@ void RedrawSurface(GlobalParams* m, bool onlyImage, bool doesManualClip) {
 	if (m->isMenuState) {
 		DrawMenu(m);
 	}
-	// draw test circle
+
+
+	// draw annotation circle
+
+	// get nearest pixel coord and round
 	
+	// to image
+    int k = (int)((float)(p.x - m->CoordLeft) * (1.0f / m->mscaler));
+    int v = (int)((float)(p.y - m->CoordTop) * (1.0f / m->mscaler));
+
+	int realx = (float)m->CoordLeft + (((float)k+0.5f) * m->mscaler+0.5f);
+	int realy = (float)m->CoordTop + (((float)v+0.5f) * m->mscaler);
+
 	
-	if (m->drawmode && m->drawSize > 0 && m->mscaler > 0) {
+	if (m->drawmode && m->drawSize > 0 && m->mscaler > 0 && !m->eyedroppermode) {
 		if(IsInImage(p, m) && (!IfInMenu(p, m) || !m->isMenuState) ) {
-			CircleGenerator(m->drawSize * m->mscaler-2, p.x, p.y, 0x808080, (uint32_t*)m->scrdata,  m->width, m->height);
+			float dia = m->drawSize * m->mscaler-2;
+			if(dia > 4.0f) {
+				CircleGenerator(dia, realx, realy, 0x808080, (uint32_t*)m->scrdata,  m->width, m->height);
+			}
 		}
 	}
 
@@ -1320,13 +1502,13 @@ void RedrawSurface(GlobalParams* m, bool onlyImage, bool doesManualClip) {
 		aststring = "*";
 	}
 
-	char str[256];
-	if (!m->fpath.empty()) {
-		sprintf(str, "View Image | %s%s | %d\%%", m->fpath.c_str(), aststring.c_str(), (int)(m->mscaler * 100.0f));
+	std::string titlebar_string = "View Image";
+	if(!m->fpath.empty()) {
+		titlebar_string += " | " + m->fpath + aststring + " | " + std::to_string((int)(m->mscaler * 100.0f)) + "%";
 	}
-	else {
-		sprintf(str, "View Image");
+	if(m->drawmode) {
+		titlebar_string += " (Annotate)";
 	}
-	SetWindowText(m->hwnd, str);
 
+	SetWindowText(m->hwnd, titlebar_string.c_str());
 }

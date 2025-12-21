@@ -123,6 +123,9 @@ void parseCommandLine(const std::string& cmdLine, std::string& firstArg, std::st
 // initiz
 bool Initialization(GlobalParams* m, int argc, LPWSTR* argv) {
 	
+	char cd[256];
+	GetCurrentDirectory(256, cd);
+	m->current_directory = std::string(cd);
 	
 	m->toolbartable = {
 	   {0,   "Open Image (F)" , false},
@@ -174,6 +177,7 @@ bool Initialization(GlobalParams* m, int argc, LPWSTR* argv) {
 	// icons
 	m->menu_icon_atlas = LoadImageFromResource(ICON_MAP, m->menu_atlas_SizeX, m->menu_atlas_SizeY, m->dumpchannel);
 	m->fullscreenIconData = LoadImageFromResource(FS_ICON, null1, null2, null3);
+	m->dmguideIconData = LoadImageFromResource(DMGUIDEICON, null1, null2, null3);
 	m->cropImageData = LoadImageFromResource(CROPICON, null1, null2, null3);
 
 
@@ -241,6 +245,9 @@ bool Initialization(GlobalParams* m, int argc, LPWSTR* argv) {
 	}
 		
 	Size(m);
+
+	char work[256];
+	GetCurrentDirectory(256, work);
 
 	if (thirdArg != "") {
 		if (thirdArg == "--full") {
@@ -317,7 +324,7 @@ void PerformWASDMagic(GlobalParams* m) {
 				m->TransferWASDMoveMomentiumYIntArithmetic = -1.0f;
 			}
 
-			float speed = ((m->mscaler - 1.0f) / 4.0f) + 1.0f;
+			float speed = 1.0f; //((m->mscaler - 1.0f) / 4.0f) + 1.0f;
 			speed *= 0.75f;
 
 			MouseMove(m, false);
@@ -348,12 +355,17 @@ void OpenImageEffectsMenu(GlobalParams* m) {
 
 		{"Automatic Adjust",
 			[m]() -> bool {
-				AutoAdjustLevels(m, (uint32_t*)m->imgdata);
+				m->loading = true;
+				RedrawSurface(m);
+				bool did = AutoAdjustLevels(m, (uint32_t*)m->imgdata);
+
+				m->loading = false;
+				RedrawSurface(m);
 				return true;
 			},78,13
 		},
 
-		{"Brightness/Contrast",
+		{"Brightness/Contrast{s}",
 			[m]() -> bool {
 				m->isMenuState = false;
 				RedrawSurface(m);
@@ -389,7 +401,7 @@ void OpenImageEffectsMenu(GlobalParams* m) {
 		},
 
 
-		{"Gaussian Blur",
+		{"Gaussian Blur{s}",
 			[m]() -> bool {
 				m->isMenuState = false;
 				RedrawSurface(m);
@@ -398,7 +410,7 @@ void OpenImageEffectsMenu(GlobalParams* m) {
 			},91,0
 		},
 
-		{"Draw Text{s}",
+		{"Draw Text",
 			[m]() -> bool {
 
 				m->isMenuState = false;
@@ -408,7 +420,7 @@ void OpenImageEffectsMenu(GlobalParams* m) {
 			},0,13
 		},
 
-		{"Crop Image",
+		{"Crop Image{s}",
 			[m]() -> bool {
 				autozoom(m);
 				m->mscaler = m->mscaler * 0.8f;
@@ -421,19 +433,23 @@ void OpenImageEffectsMenu(GlobalParams* m) {
 			},52,13
 		},
 
-		{"Erase annotations",
+		
+		{"Apply annotations",
 			[m]() -> bool {
-			
-				int result = MessageBox(m->hwnd, "This will remove all annotations from the image, but keep its proportions", "Are You Sure?", MB_YESNO);
-				createUndoStep(m,false);
-				if (result == IDYES) {
-					memcpy(m->imgdata, m->imgoriginaldata, m->imgwidth * m->imgheight * 4);
-				}
 
+				createUndoStep(m, false);
+				
+				memcpy(m->imgoriginaldata, m->imgdata, m->imgwidth*m->imgheight*4);
+				Beep(2000, 50);
+
+				m->shouldSaveShutdown = true;
+				RedrawSurface(m);
 
 				return true;
-			},78,0
+			},91,13
 		},
+		
+
 
 	};
 
@@ -465,8 +481,20 @@ int PerformCasedBasedOperation(GlobalParams* m, uint32_t id, bool menustate) {
 		return 0;
 	case 1:
 		// save
+		
+		if (GetKeyState(VK_SHIFT) & 0x8000) {
+			
+			int pos = m->fpath.find(".");
+			std::string ext = m->fpath.substr(pos+1);
+			std::transform(ext.begin(), ext.end(), ext.begin(),    [](unsigned char c){ return std::tolower(c); });
 
-		PrepareSaveImage(m);
+			std::string name = m->current_directory + "\\Image" + std::to_string(rand()) + "." + ext;
+			
+
+			ActuallySaveImage(m, name);
+		} else {
+			PrepareSaveImage(m);
+		}
 
 		return 0;
 	case 2:
@@ -675,7 +703,6 @@ bool ToolbarMouseDown(GlobalParams* m) {
 	m->toolmouseDown = true;
 	if (m->drawmode) {
 		if (IsInImage(mPP, m)) {
-			m->drawtype = 1;
 			TurnOnDraw(m);
 			createUndoStep(m, true);
 		}
@@ -691,6 +718,31 @@ bool ToolbarMouseDown(GlobalParams* m) {
 
 			return 0;
 		}
+	}
+
+	// dmguide 
+	if(m->drawmode) {
+
+		if ((mPP.x > (m->dmguide_x) && mPP.x <= (m->dmguide_x+m->dmguide_sx))) {
+			if((mPP.y > (m->dmguide_y) && mPP.y <= (m->dmguide_y+43))) {
+				// pen
+				m->drawtype = 1;
+			}
+			if((mPP.y > (m->dmguide_y+43) && mPP.y <= (m->dmguide_y+84))) {
+				// erase
+				m->drawtype = 0;
+			}
+			if((mPP.y > (m->dmguide_y+84) && mPP.y <= (m->dmguide_y+125))) {
+				// transparent
+				m->drawtype = 3;
+			}
+			if((mPP.y > (m->dmguide_y+125) && mPP.y <= (m->dmguide_y+168))) {
+				// eyedropper
+				m->eyedroppermode = true;
+				RedrawSurface(m);
+			}
+		}
+
 	}
 
 
@@ -720,7 +772,7 @@ void MouseDown(GlobalParams* m) {
 
 	CloseMenuWhenInactive(m, k);
 	
-	if (k.y > m->toolheight && 	bottomtoolmacro(k, m)) {
+	if (k.y > m->toolheight && 	extracases(k, m)) {
 		if(!m->isMenuState)
 		m->mouseDown = true;
 	}
@@ -855,12 +907,12 @@ void placeDraw(GlobalParams* m, POINT* pos) {
 							uint32_t* memoryPath = GetMemoryLocation(m->imgdata, xloc, yloc, m->imgwidth, m->imgheight);
 							uint32_t* memoryPathOriginal = GetMemoryLocation(m->imgoriginaldata, xloc, yloc, m->imgwidth, m->imgheight);
 							uint32_t actualDrawColor = m->a_drawColor;
-
-							if (GetKeyState(VK_CONTROL) & 0x8000 || (m->drawtype == 0)) {
+							
+							if (GetKeyState(VK_CONTROL) & 0x8000 || m->rightdown || (m->drawtype == 0)) {
 								actualDrawColor = *memoryPathOriginal;
 							}
 
-							if (GetKeyState(VK_CONTROL) & 0x8000 && GetKeyState(VK_SHIFT) & 0x8000) {
+							if ((GetKeyState(VK_CONTROL) & 0x8000 && GetKeyState(VK_SHIFT) & 0x8000) || m->drawtype == 3) {
 								actualDrawColor = 0x00000000;
 							}
 							float transparency = 0.0f;
@@ -1165,7 +1217,8 @@ void MouseMove(GlobalParams* m, bool isCalledWhenMouseAcuallyMoved){
 		//m->etime = duration.count();
 
 	ScreenToClient(m->hwnd, &pos);
-	// annotation circle
+
+	// annotation circle redraw to prevent non-updating
 	if (m->drawmode) {
 		RedrawSurface(m);
 	}
@@ -1637,14 +1690,18 @@ void MouseUp(GlobalParams* m) {
 	POINT pos;
 	GetCursorPos(&pos);
 	ScreenToClient(m->hwnd, &pos);
-	if (m->eyedroppermode) {
+	// put check here
+
+
+	
+	bool whoops = ((pos.x > (m->dmguide_x) && pos.x <= (m->dmguide_x+m->dmguide_sx)) && (pos.y > (m->dmguide_y+125) && pos.y <= (m->dmguide_y+168))&& m->drawmode);
+	if (m->eyedroppermode && !whoops) {
 		// eyedropper here
 		bool smooth = m->smoothing;
 		m->smoothing = false;
 		RedrawSurface(m);
 		uint32_t color = *GetMemoryLocation(m->scrdata, pos.x, pos.y, m->width, m->height);
 		m->a_drawColor = color;
-
 		m->eyedroppermode = false;
 		MouseMove(m);
 		m->smoothing = smooth;
@@ -1687,6 +1744,7 @@ void MouseUp(GlobalParams* m) {
 }
 bool aot = false;
 void RightDown(GlobalParams* m) {
+	m->rightdown = true;
 	if (m->isInCropMode) {
 		return;
 	}
@@ -1711,7 +1769,7 @@ void RightDown(GlobalParams* m) {
 
 	if (m->drawmode) {
 		if (IsInImage(mPP, m)) {// NOW, im putting it in the right click menu up thing to not rendeeer menu ACTUALLLY its right down below
-			m->drawtype = 0;
+			// removed the draw type thing because now it is handled in realtime
 			TurnOnDraw(m);
 			createUndoStep(m, true);
 		}
@@ -1720,6 +1778,8 @@ void RightDown(GlobalParams* m) {
 
 
 void RightUp(GlobalParams* m) {
+	m->rightdown = false;
+	RedrawSurface(m);
 	if (m->isInCropMode) {
 		ConfirmCrop(m);
 		return;
@@ -1780,7 +1840,21 @@ void RightUp(GlobalParams* m) {
 				},39,0
 			},
 
-			{"Resize Image [CTRL+R]",
+			{"Erase annotations",
+				[m]() -> bool {
+				
+					int result = MessageBox(m->hwnd, "This will erase all unapplied annotations from the image", "Are You Sure?", MB_YESNO);
+					createUndoStep(m,false);
+					if (result == IDYES) {
+						memcpy(m->imgdata, m->imgoriginaldata, m->imgwidth * m->imgheight * 4);
+					}
+					m->shouldSaveShutdown = true;
+
+					return true;
+				},78,0
+			},
+
+			{"Resize Image [CTRL+R]{s}",
 				[m]() -> bool {
 					m->isMenuState = false;
 					RedrawSurface(m);
@@ -1789,12 +1863,7 @@ void RightUp(GlobalParams* m) {
 					return true;
 				},52,0
 			},
-			{"Information",
-				[m]() -> bool {
-					ShowMyInformation(m);
-					return true;
-				},13,13
-			},
+			
 
 			{"Set Always On Top",
 				[m]() -> bool {

@@ -371,7 +371,7 @@ bool encodedata(void* idd, uint32_t iw, uint32_t ih, const char* filepath) {
 	// Allocate memory for the resized image
 	void* resized_image_data = malloc(desired_width * desired_height * output_channels);
 
-	stbir_resize_uint8_srgb((unsigned char*)idd, iw, ih, 0, (unsigned char*)resized_image_data, desired_width, desired_height, 0, STBIR_ARGB);
+	stbir_resize_uint8_srgb((unsigned char*)idd, iw, ih, 0, (unsigned char*)resized_image_data, desired_width, desired_height, 0, STBIR_RGBA);
 
 	bool l = encodefile(resized_image_data, desired_width, desired_height, filepath, (float)iw/ (float)ih);
 
@@ -396,7 +396,7 @@ bool encodeimage(const char* filepath) {
 	// Allocate memory for the resized image
 	void* resized_image_data = malloc(desired_width * desired_height * output_channels);
 
-	stbir_resize_uint8_srgb((unsigned char*)imgdata2, imgwidth, imgheight, 0, (unsigned char*)resized_image_data, desired_width, desired_height, 0, STBIR_ARGB);
+	stbir_resize_uint8_srgb((unsigned char*)imgdata2, imgwidth, imgheight, 0, (unsigned char*)resized_image_data, desired_width, desired_height, 0, STBIR_RGBA);
 
 	bool l = encodefile(resized_image_data, desired_width, desired_height, filepath, (float)imgwidth/ (float)imgheight);
 
@@ -453,6 +453,7 @@ void* decode_m45(const char* filepath, int* imgwidth, int* imgheight) {
 
 	int sizeOfAllocation = fsize;
 	void* data = malloc(sizeOfAllocation);
+	memset(data, 0x00, sizeOfAllocation);
 	DWORD dwBytesRead = 0;
 	DWORD dwBytesWritten = 0;
 
@@ -476,6 +477,7 @@ void* decode_m45(const char* filepath, int* imgwidth, int* imgheight) {
 	int bitmapDataSize = numOfPixels * 4;
 
 	void* bitmapData = malloc(bitmapDataSize);
+	memset(bitmapData, 0x00, bitmapDataSize);
 
 	int* bmp_ptr = (int*)bitmapData;
 
@@ -556,20 +558,9 @@ void* decode_m45(const char* filepath, int* imgwidth, int* imgheight) {
 	*imgheight = desired_height;
 
 	void* resized_image_data = malloc(desired_width * desired_height * 4);
+	memset(resized_image_data, 0x00, desired_width * desired_height * 4);
 	srand(time(0));
-	stbir_resize_uint8_srgb((unsigned char*)bitmapData, width, height, 0, (unsigned char*)resized_image_data, desired_width, desired_height, 0, STBIR_ARGB);
-
-	char szFileName[200];
-
-	SYSTEMTIME systemTime;
-	GetLocalTime(&systemTime);
-
-	sprintf(szFileName, "D:\\render\\future_retro\\New folder\\IMG_saved %04d-%02d-%02d %02d%02d%02d%02d.png",
-		systemTime.wYear, systemTime.wMonth, systemTime.wDay,
-		systemTime.wHour % 24, systemTime.wMinute, systemTime.wSecond, systemTime.wMilliseconds);
-
-	std::string path = "D:\\render\\future_retro\\New folder\\" + std::to_string(rand() % 400) + ".png";
-	stbi_write_png(szFileName, desired_width, desired_height, 4, resized_image_data, 0);
+	stbir_resize_uint8_srgb((unsigned char*)bitmapData, width, height, 0, (unsigned char*)resized_image_data, desired_width, desired_height, 0, STBIR_RGBA);
 
 	return resized_image_data;
 }

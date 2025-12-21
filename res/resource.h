@@ -66,6 +66,7 @@
 #define AffectDrawingErase              1036
 #define FontNameID                      1037
 #define MENUSHADOW                      1038
+#define DMGUIDEICON                      1039
 
 // Next default values for new objects
 // 

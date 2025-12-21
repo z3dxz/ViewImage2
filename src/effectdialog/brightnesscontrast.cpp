@@ -27,35 +27,31 @@ int clamp(int value, int min, int max) {
 }
 
 static uint32_t AdjustBrightness(uint32_t color, int amount) {
-    // Extract ARGB components
     int alpha = (color >> 24) & 0xFF;
     int red = (color >> 16) & 0xFF;
     int green = (color >> 8) & 0xFF;
     int blue = color & 0xFF;
 
-    // Increase or decrease brightness for RGB components
     red = clamp(red + amount, 0, 255);
     green = clamp(green + amount, 0, 255);
     blue = clamp(blue + amount, 0, 255);
 
-    // Recombine into 32-bit ARGB color
     return (alpha << 24) | (red << 16) | (green << 8) | blue;
 }
 
 static uint32_t AdjustContrast(uint32_t color, float contrastFactor) {
-    // Extract ARGB components
+
     int alpha = (color >> 24) & 0xFF;
     int red = (color >> 16) & 0xFF;
     int green = (color >> 8) & 0xFF;
     int blue = color & 0xFF;
 
-    // Calculate contrast-adjusted RGB components
+
     float factor = (259.0f * (contrastFactor + 255.0f)) / (255.0f * (259.0f - contrastFactor));
     red = static_cast<int>(clamp(factor * (red - 128) + 128, 0.0f, 255.0f));
     green = static_cast<int>(clamp(factor * (green - 128) + 128, 0.0f, 255.0f));
     blue = static_cast<int>(clamp(factor * (blue - 128) + 128, 0.0f, 255.0f));
 
-    // Recombine into 32-bit ARGB color
     return (alpha << 24) | (red << 16) | (green << 8) | blue;
 }
 

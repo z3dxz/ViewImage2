@@ -27,7 +27,7 @@ struct UndoDataStruct {
 	int height;
 };
 
-#define REAL_BIG_VERSION "2.61"
+#define REAL_BIG_VERSION "2.62"
 
 struct GlobalParams {
 	std::vector<ToolbarButtonItem> toolbartable;
@@ -55,6 +55,7 @@ struct GlobalParams {
 	unsigned char* toolbarData;
 	unsigned char* im;
 	unsigned char* fullscreenIconData;
+	unsigned char* dmguideIconData;
 	unsigned char* cropImageData;
 	unsigned char* menu_icon_atlas;
 	unsigned char* menu_shadow;
@@ -71,7 +72,7 @@ struct GlobalParams {
 
 	// size integers
 	int width = 1024;
-	int height = 576;
+	int height = 563;
 	int imgwidth;
 	int imgheight;
 
@@ -101,9 +102,10 @@ struct GlobalParams {
 	bool halt = false;
 
 	bool mouseDown = false;
+	bool rightdown = false;
 	bool toolmouseDown = false;
 	bool drawmousedown = false;
-	int drawtype = 1; // 1 for draw: 0 for erase (override by control)
+	int drawtype = 1; // 1 for draw: 0 for erase: 3 for transparent
 
 	int selectedbutton = -1;
 
@@ -237,6 +239,13 @@ struct GlobalParams {
 	int sizetextvar = 32;
 
 	double def_txt_shadow_softness = 0.34f;
+
+	std::string current_directory;
+
+	int dmguide_x = 3;
+	int dmguide_y = 45;
+	int dmguide_sx = 45;
+	int dmguide_sy = 168;
 };	
 
 

@@ -42,7 +42,7 @@ std::string GetNextFilePath(const char* file_Path) {
 			 {
 				 std::string fileName = fileData.cFileName;
 				 std::string extension = fileName.substr(fileName.find_last_of(".") + 1);
-				 if (extension == "svg" || extension == "m45" || extension == "sfbb" || extension == "jpg" || extension == "jpeg" || extension == "png" || extension == "bmp" || extension == "gif")
+				 if (extension == "svg" || extension == "m45" || extension == "irbo" || extension == "sfbb" || extension == "jpg" || extension == "jpeg" || extension == "png" || extension == "bmp" || extension == "gif")
 				 {
 					 if (foundCurrentFile)
 					 {

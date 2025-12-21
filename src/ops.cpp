@@ -649,10 +649,10 @@ void init_gamma_table(float gamma) {
 }
 
 
-void AutoAdjustLevels(GlobalParams* m, uint32_t* buffer) {
+bool AutoAdjustLevels(GlobalParams* m, uint32_t* buffer) {
 	// temporary blurred image buffer
 	uint32_t* tempd = (uint32_t*)malloc(m->imgwidth*m->imgheight*4);
-	gaussian_blur_B((uint32_t*)m->imgdata, tempd, m->imgwidth, m->imgheight, 2, m->imgwidth, m->imgheight, 0, 0);
+	gaussian_blur_B((uint32_t*)buffer, tempd, m->imgwidth, m->imgheight, 2, m->imgwidth, m->imgheight, 0, 0);
 
 	m->isMenuState = false;
 	
@@ -709,7 +709,7 @@ void AutoAdjustLevels(GlobalParams* m, uint32_t* buffer) {
 
 	if (minR == 0 && minG == 0 && minB == 0 && maxR == 255 && maxG == 255 && maxB == 255) {
 		MessageBox(m->hwnd, "There is no adjustment needed", "Automatic Adjust", MB_OK);
-		return;
+		return false;
 	}
 
 	// modify
@@ -740,6 +740,7 @@ void AutoAdjustLevels(GlobalParams* m, uint32_t* buffer) {
 	Beep(4000, 40);
 
 	RedrawSurface(m);
+	return true;
 }
 
 uint32_t subtractColors(uint32_t color1, uint32_t color2) {
