@@ -333,16 +333,13 @@ void PerformWASDMagic(GlobalParams* m) {
     if (isA) ax -= acceleration;
     if (isD) ax += acceleration;
 	
-    // Apply acceleration → velocity
     m->wasdX += ax * dt;
     m->wasdY += ay * dt;
 
-    // Apply friction (time-based)
     float friction = expf(-damping * dt);
     m->wasdX *= friction;
     m->wasdY *= friction;
 
-    // Integrate position
     float moveX = m->wasdX * dt;
     float moveY = m->wasdY * dt;
 
