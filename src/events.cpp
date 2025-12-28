@@ -269,7 +269,7 @@ bool Initialization(GlobalParams* m, int argc, LPWSTR* argv) {
 	// timers
 	QueryPerformanceFrequency(&m->frequency);
 	QueryPerformanceCounter(&m->previousTime);
-
+	
 	// drag and drop
 	DragAcceptFiles(m->hwnd, TRUE);
 
@@ -309,7 +309,10 @@ void PerformWASDMagic(GlobalParams* m) {
 		return;
 	};
 
+	const float max_deltatime = 1.0f / 15.0f;
+
 	float dt = (float)dt0;
+	if (dt > max_deltatime) dt = max_deltatime;
 
 	HWND temp = GetActiveWindow();
 	if (temp != m->hwnd) {
@@ -336,11 +339,11 @@ void PerformWASDMagic(GlobalParams* m) {
     m->wasdX += ax * dt;
     m->wasdY += ay * dt;
 
-    //float friction = expf(-damping * dt);
-    m->wasdX += -damping*m->wasdX * dt; // differential equation
-    m->wasdY += -damping*m->wasdY * dt;
-	//m->wasdX *= friction;
-	//m->wasdY *= friction;
+    float friction = expf(-damping * dt);
+    //m->wasdX += -damping*m->wasdX * dt; // differential equation
+    //m->wasdY += -damping*m->wasdY * dt;
+	m->wasdX *= friction;
+	m->wasdY *= friction;
 
     float moveX = m->wasdX * dt;
     float moveY = m->wasdY * dt;
@@ -1029,6 +1032,7 @@ void GuidedRedrawSurface(GlobalParams* m) {
 			HRGN rgn = CreateRectRgn(0, m->toolheight, m->width, m->height);
 			SelectClipRgn(m->hdc, rgn);
 			RedrawSurface(m, true, true);
+			DeleteObject(rgn);
 		}
 	}
 	else {
@@ -1037,6 +1041,19 @@ void GuidedRedrawSurface(GlobalParams* m) {
 	}
 }
 
+void GuidedToolbarRedrawSurface(GlobalParams* m, int clip){
+	// the 25 represents the clip, the 30 represents the cutoff
+	if(m->full_redraw_surface_the_first_time) {
+		RedrawSurface(m);
+		m->full_redraw_surface_the_first_time = false;
+	}
+	else {
+		HRGN rgn = CreateRectRgn(0, 0, m->width, m->toolheight+clip);
+		SelectClipRgn(m->hdc, rgn);
+		RedrawSurface(m, false, true, false, m->toolheight+clip+5); // + 5 due to left dmguide toolbar blur mess up // def value : 25 : 30
+		DeleteObject(rgn);
+	}
+}
 
 void MouseMove(GlobalParams* m, bool isCalledWhenMouseAcuallyMoved){
 	if (isCalledWhenMouseAcuallyMoved) {
@@ -1046,7 +1063,7 @@ void MouseMove(GlobalParams* m, bool isCalledWhenMouseAcuallyMoved){
 	}
 	bool isAMouseButtonDown = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) || (GetAsyncKeyState(VK_MBUTTON) & 0x8000) || (GetAsyncKeyState(VK_RBUTTON) & 0x8000);
 	if ((!isAMouseButtonDown)&& test1) {
-		MouseUp(m);
+		MouseUp(m, false);
 		test1 = false;
 	}
 	//auto start = std::chrono::high_resolution_clock::now();
@@ -1055,7 +1072,7 @@ void MouseMove(GlobalParams* m, bool isCalledWhenMouseAcuallyMoved){
 	POINT pos = { 0 };
 	GetCursorPos(&pos);
 
-	bool endRedraw = true;
+	bool endRedraw = true; // optimize: don't redraw twice
 
 	// i would probably min this
 	if (m->isInCropMode) {
@@ -1151,7 +1168,10 @@ void MouseMove(GlobalParams* m, bool isCalledWhenMouseAcuallyMoved){
 		else {
 			m->drawSize = 1.0f;
 		}
-		RedrawSurface(m);
+		
+		GuidedToolbarRedrawSurface(m, 25);
+
+
 		endRedraw = false;
 	}
 	else if (m->slider2mousedown) {
@@ -1168,7 +1188,9 @@ void MouseMove(GlobalParams* m, bool isCalledWhenMouseAcuallyMoved){
 		else {
 			m->a_opacity = 1.0f;
 		}
-		RedrawSurface(m);
+
+		GuidedToolbarRedrawSurface(m, 25);
+
 		endRedraw = false;
 	}
 	else if (m->drawmousedown) {
@@ -1190,18 +1212,23 @@ void MouseMove(GlobalParams* m, bool isCalledWhenMouseAcuallyMoved){
 		
 	}
 	else {
+		// tooltips and hover stuff stuff on the events side
 		ScreenToClient(m->hwnd, &pos);
 
 		if (pos.y <= m->toolheight) {
 			m->lock = true;
+			int last = m->selectedbutton;
 			m->selectedbutton = getXbuttonID(m, pos);
+			int clip = 25;
 
-			HRGN rgn = CreateRectRgn(0, 0, m->width, m->toolheight+25);
-			SelectClipRgn(m->hdc, rgn);
-			RedrawSurface(m, false, true);
+			if(m->drawmode && m->selectedbutton == 7 || last == 7) { // 7 due to the annotate guide, needs "more" redraw surface
+				clip = 100;
+			}
+
+			GuidedToolbarRedrawSurface(m, clip);
+
 			endRedraw = false;
 
-			DeleteObject(rgn);
 		}
 		else {
 			if (m->lock) {
@@ -1233,10 +1260,9 @@ void MouseMove(GlobalParams* m, bool isCalledWhenMouseAcuallyMoved){
 	if (m->isMenuState) {
 		HRGN rgn = CreateRectRgn(m->actmenuX, m->actmenuY, m->actmenuX + m->menuSX, m->actmenuY + m->menuSY);
 		SelectClipRgn(m->hdc, rgn);
-		RedrawSurface(m,false, true);
-		endRedraw = false;
-
+		RedrawSurface(m, false, true, false, -2);
 		DeleteObject(rgn);
+		endRedraw = false;
 	}
 
 	
@@ -1706,7 +1732,7 @@ void KeyDown(GlobalParams* m, WPARAM wparam, LPARAM lparam) {
 	}
 }
 
-void MouseUp(GlobalParams* m) {
+void MouseUp(GlobalParams* m, bool shouldMenu) {
 	if (m->isInCropMode) {
 		m->isMovingTL = false;
 		m->isMovingTR = false;
@@ -1748,7 +1774,10 @@ void MouseUp(GlobalParams* m) {
 	m->slider3mousedown = false;
 	m->slider4mousedown = false; 
 
-
+	if(!shouldMenu) { // i had no idea what test1 is so I did this instead
+		RedrawSurface(m);
+		return;
+	}
 	if (m->isMenuState) {
 		// menu logic
 		if (m->IsLastMouseDownWhenOverMenu) { // prevent sliding mouse error (especially on effects) (semantics: not the draw sliders but when "sliding" your mouse cursor down)
@@ -1900,14 +1929,16 @@ void RightUp(GlobalParams* m) {
 				[m]() -> bool {
 					if (aot) {
 						SetWindowPos(m->hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+						Beep(1000, 100);
 						aot = false;
 					}
 					else {
 						SetWindowPos(m->hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+						Beep(2000, 100);
 						aot = true;
 					}
 					return true;
-				},26,13, &m->item_enabled, true // double tap bug
+				},26,13, &m->item_enabled, false // double tap bug
 			},
 
 		};

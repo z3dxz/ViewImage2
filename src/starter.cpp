@@ -177,12 +177,16 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 bool md_dt = false;
 LRESULT CALLBACK WndProcDialogDrawText(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 	switch(msg) {
+		case WM_RBUTTONDOWN:
+		case WM_MBUTTONDOWN:
 		case WM_LBUTTONDOWN: {
 			gp.drawtext_ghostmode = true;
 			PerformDrawTextRealignment();
 			md_dt = true;
 			break;
 		}
+		case WM_MBUTTONUP:
+		case WM_RBUTTONUP:
 		case WM_LBUTTONUP: {
 			gp.drawtext_ghostmode = false;
 			md_dt = false;
@@ -272,7 +276,7 @@ LRESULT CALLBACK WndProcNormal(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam
 	}
 	case WM_LBUTTONUP:
 	case WM_MBUTTONUP: {
-		MouseUp(&gp);
+		MouseUp(&gp, true);
 		break;
 	}
 	case WM_RBUTTONUP: {

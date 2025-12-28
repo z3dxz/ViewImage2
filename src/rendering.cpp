@@ -18,7 +18,7 @@ FT_Face* currentFace;
 
 #define CanRenderToolbarMacro (((!m->fullscreen && m->height >= 250) || p.y < m->toolheight)&&!m->isInCropMode)
 
-void CircleGenerator(int circleDiameter, int locX, int locY, uint32_t color, uint32_t* buffer, unsigned int width, unsigned int height) {
+void CircleGenerator(GlobalParams* m, int circleDiameter, int locX, int locY, uint32_t color, uint32_t* buffer, unsigned int width, unsigned int height, bool onlyUnderToolbar) {
 	float radius = circleDiameter/2.0f;
 	float step = 1.0f/circleDiameter;
 	for(float i=0; i<2.0f*3.141592f; i+= step) {
@@ -28,7 +28,7 @@ void CircleGenerator(int circleDiameter, int locX, int locY, uint32_t color, uin
 		int ptX = (int)locationX;
 		int ptY = (int)locationY;
 
-		if(ptX > 0 && ptX <= width && ptY > 0 && ptY <= height) {
+		if(ptX > 0 && ptX <= width && ptY > 0 && ptY <= height && (ptY>m->toolheight || !onlyUnderToolbar)) {
 			*GetMemoryLocation(buffer, ptX, ptY, width, height) = color;
 		}
 	}
@@ -402,7 +402,7 @@ void dDrawRoundedRectangle(void* mem, int kwidth, int kheight, int xloc, int ylo
 //*********************************************
 
 
-void PlaceImageNN(GlobalParams* m, void* memory, bool invert, POINT p) {
+void PlaceImageNN(GlobalParams* m, void* memory, bool invert, POINT p, int cutoff) {
 
 	const float inv_mscaler = 1.0f / m->mscaler;
 	const int32_t imgwidth = m->imgwidth;
@@ -410,6 +410,9 @@ void PlaceImageNN(GlobalParams* m, void* memory, bool invert, POINT p) {
 	const int margin = 2;
 
 	std::for_each(std::execution::par, m->itv.begin(), m->itv.end(), [&](uint32_t y) {
+		if(y > cutoff && cutoff != -1)
+			return; // return = continue for std::for_each
+
 		for (uint32_t x : m->ith) {
 
 			uint32_t bkc = 0x151515;
@@ -456,13 +459,10 @@ bool followsPattern(int number) {
 	return logBase2 == floor(logBase2);
 }
 
-void PlaceImageBI(GlobalParams* m, void* memory, bool invert, POINT p) {
-
-
-	//auto start = std::chrono::high_resolution_clock::now();
+void PlaceImageBI(GlobalParams* m, void* memory, bool invert, POINT p, int cutoff) {
 
 	if (followsPattern(m->mscaler * 100)) {
-		PlaceImageNN(m, memory, invert, p);
+		PlaceImageNN(m, memory, invert, p, cutoff);
 		return;
 	}
 
@@ -472,7 +472,16 @@ void PlaceImageBI(GlobalParams* m, void* memory, bool invert, POINT p) {
 	const int32_t imgheight_minus_1 = m->imgheight - 1;
 
 	std::for_each(std::execution::par, m->itv.begin(), m->itv.end(), [&](uint32_t y) {
+		if((int)y > cutoff && cutoff >0)
+			return; // return = continue for std::for_each
+		
 		for (uint32_t x : m->ith) {
+			if(cutoff == -2) {
+				POINT pv = {(int)x, (int)y};
+				if(!IfInMenu(pv, m)) {
+					continue;
+				}
+			}
 
 			uint32_t bkc = 0x151515;
 			// bkc
@@ -997,26 +1006,6 @@ void RenderBK(GlobalParams* m, const POINT& p) {
 	
 }
 
-void drawCircle(int x, int y, int radius, uint32_t* imageBuffer, int imageWidth) {
-	// Ensure non-negative radius
-	if (radius < 0) {
-		return;
-	}
-
-	for (int i = 0; i <= 360; ++i) {
-		double radians = i * 3.141592 / 180.0;
-
-		int circleX = static_cast<int>(x + radius * std::cos(radians));
-		int circleY = static_cast<int>(y + radius * std::sin(radians));
-
-		// Check if the calculated coordinates are within the image boundaries
-		if (circleX >= 0 && circleX < imageWidth && circleY >= 0) {
-			// Assuming the image is a linear buffer with each pixel represented by a uint32_t
-			imageBuffer[circleY * imageWidth + circleX] = 0xFFFFFFFF; // Set pixel color to white
-		}
-	}
-}
-
 void RenderSlider(GlobalParams* m, int offsetX, int offsetY, int sizex, float position, float highlightOpacity) {
 	// draw slider
 	
@@ -1408,10 +1397,11 @@ void RedrawSurfaceTextDialog(GlobalParams* m) {
 	RedrawSurface(m);
 }
 
-void RedrawSurface(GlobalParams* m, bool onlyImage, bool doesManualClip, bool bypassSleep) {
+void RedrawSurface(GlobalParams* m, bool onlyImage, bool doesManualClip, bool bypassSleep, int cutoff) {
 
 	if (!doesManualClip) {
 		SelectClipRgn(m->hdc, NULL);
+		m->full_redraw_surface_the_first_time = true;
 	}
 
 
@@ -1450,12 +1440,13 @@ void RedrawSurface(GlobalParams* m, bool onlyImage, bool doesManualClip, bool by
 		drawingbuffer = m->imagepreview;
 	}
 
+
 	if (drawingbuffer) {
 		if ((m->smoothing && ((!m->mouseDown) || m->drawmode)) && !m->isInCropMode) {
-			PlaceImageBI(m, drawingbuffer, true, p);
+			PlaceImageBI(m, drawingbuffer, true, p, cutoff);
 		}
 		else {
-			PlaceImageNN(m, drawingbuffer, true, p);
+			PlaceImageNN(m, drawingbuffer, true, p, cutoff);
 		}
 	}
 	else if (m->imgwidth > 1) {
@@ -1535,7 +1526,7 @@ void RedrawSurface(GlobalParams* m, bool onlyImage, bool doesManualClip, bool by
 		if(IsInImage(p, m) && (!IfInMenu(p, m) || !m->isMenuState) ) {
 			float dia = actdrawsize * m->mscaler-2;
 			if(dia > 4.0f) {
-				CircleGenerator(dia, realx, realy, 0x808080, (uint32_t*)m->scrdata,  m->width, m->height);
+				CircleGenerator(m, dia, realx, realy, 0x808080, (uint32_t*)m->scrdata,  m->width, m->height, true);
 			}
 		}
 	}
@@ -1555,6 +1546,26 @@ void RedrawSurface(GlobalParams* m, bool onlyImage, bool doesManualClip, bool by
 		PlaceString(m, 50, "Deleting temporary files", 33, 100, 0xFFFFFF, m->scrdata);
 	}
 
+	// move indicator for draw text
+	if(m->drawtext_access_dialog_hwnd) {
+		/*
+		
+		int iconSize = 12;
+		for (int y = 0; y < iconSize; y++) {
+			for (int x = 0; x < iconSize; x++) {
+				uint32_t* inAtlas = GetMemoryLocation(m->menu_icon_atlas, atlasX + x, atlasY + y, m->menu_atlas_SizeX, m->menu_atlas_SizeY);
+				uint32_t* inMem = GetMemoryLocation(m->scrdata, locationX + x, locationY + y, m->width, m->height);
+				float alphaM = ((float)((*inAtlas >> 24) & 0xFF) / 255.0f)*opacity;
+				//float valueM = (float)((*inAtlas >> 16) & 0xFF) / 255.0f;
+				*inMem = lerp(*inMem, 0xFF6060, alphaM);
+			}
+		}
+		*/
+		// from image to screen
+		int k =  m->mscaler*std::clamp(m->locationXtextvar, 0, m->imgwidth)+m->CoordLeft;
+		int v = m->mscaler*std::clamp(m->locationYtextvar, 0, m->imgheight)+m->CoordTop;
+		DrawMenuIcon(m, k-5, v-5, 0, 26, 1.0f);
+	}
 
 	// debug mode
 

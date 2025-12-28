@@ -269,6 +269,8 @@ struct GlobalParams {
 		
 	LARGE_INTEGER previousTime;
 	LARGE_INTEGER frequency; // for wasd magic
+
+	bool full_redraw_surface_the_first_time = true; // fully redraw the surface the first time mouse enters the toolbar to clear any changes present inside the image AKA annotation circle
 };	
 
 

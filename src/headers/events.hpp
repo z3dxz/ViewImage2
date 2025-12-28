@@ -19,7 +19,7 @@ bool ToolbarMouseDown(GlobalParams* m);
 void MouseDown(GlobalParams* m);
 void MouseMove(GlobalParams* m, bool isCalledWhenMouseAcuallyMoved = true);
 void KeyDown(GlobalParams* m, WPARAM wparam, LPARAM lparam);
-void MouseUp(GlobalParams* m);
+void MouseUp(GlobalParams* m, bool shouldMenu);
 void RightDown(GlobalParams* m);
 void RightUp(GlobalParams* m);
 void Size(GlobalParams* m);

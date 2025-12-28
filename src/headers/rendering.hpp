@@ -14,7 +14,7 @@ FT_Face LoadFont(GlobalParams* m, std::string fontA);
 
 void UpdateBuffer(GlobalParams* m);
 void RedrawSurfaceTextDialog(GlobalParams* m);
-void RedrawSurface(GlobalParams* m, bool onlyImage = false, bool doesManualClip = false, bool bypassSleep = false);
+void RedrawSurface(GlobalParams* m, bool onlyImage = false, bool doesManualClip = false, bool bypassSleep = false, int cutoff = -1);
 void CircleGenerator(int circleDiameter, int locX, int locY, uint32_t color, uint32_t* buffer, unsigned int width, unsigned int height);
 
 int PlaceString(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, void* mem);
