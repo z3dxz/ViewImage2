@@ -1,4 +1,5 @@
 #include "svg_support.hpp"
+#ifdef _SVG
 
 void* decodesvg(const char* filepath, int* imgwidth, int* imgheight) {
 
@@ -26,3 +27,5 @@ void* decodesvg(const char* filepath, int* imgwidth, int* imgheight) {
 	
 	return imgdata;
 }
+
+#endif // _SVG

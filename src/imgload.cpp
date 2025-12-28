@@ -5,6 +5,7 @@
 #include "headers/leftrightlogic.hpp"
 #include "headers/ops.hpp"
 #include <shlobj.h>
+#include <cctype>
 
 bool CheckIfStandardFile(const char* filepath) {
 	return (isFile(filepath, ".jpeg") || isFile(filepath, ".jpg") || isFile(filepath, ".png") ||
@@ -48,7 +49,12 @@ std::string ReplaceBitmapAndMetrics(GlobalParams* m, void*& buffer, const char* 
 
 		}
 		else if (isFile(standardPath, ".svg")) {
+#ifdef _SVG
 			buffer = decodesvg(standardPath, w, h);
+#else
+			MessageBox(0, "SVG Support is disabled on this build", "No SVG Support enabled", MB_OK);
+#endif
+
 
 			if (!buffer) {
 				buffer = 0;
@@ -153,10 +159,10 @@ void ActuallySaveImage(GlobalParams* m, std::string res){
 	InvertAllColorChannels((uint32_t*)m->imgdata, m->imgwidth, m->imgheight);
 
 	//FreeCombineBuffer(m);
-	m->loading = false;
 	m->shouldSaveShutdown = false;
-	RedrawSurface(m);
 	OpenImageFromPath(m, res, false);
+	m->loading = false;
+	RedrawSurface(m);
 }
 
 void PrepareSaveImage(GlobalParams* m) {
@@ -170,6 +176,7 @@ void PrepareSaveImage(GlobalParams* m) {
 // the bool is whether or not we should continue or not
 bool doIFSave(GlobalParams* m) {
 	if (m->shouldSaveShutdown == true) {
+		SetForegroundWindow(m->hwnd);
 		int msgboxID = MessageBox(m->hwnd, "Would you like to save changes to the image", "Are you sure?", MB_YESNOCANCEL);
 		if (msgboxID == IDYES) {
 			PrepareSaveImage(m);
@@ -220,13 +227,13 @@ bool AllocateBlankImage(GlobalParams* m, uint32_t color) {
 	int bimgw = 1280;
 	int bimgh = 720;
 	m->imgwidth = bimgw;
-	m->imgheight = 720;
-	m->imgdata = malloc(bimgw * 720 *4);
-	m->imgoriginaldata = malloc(bimgw * 720 *4);
-	for (int y = 0; y < 720; y++) {
+	m->imgheight = bimgh;
+	m->imgdata = malloc(bimgw * bimgh *4);
+	m->imgoriginaldata = malloc(bimgw * bimgh *4);
+	for (int y = 0; y < bimgh; y++) {
 		for (int x = 0; x < bimgw; x++) {
-			*GetMemoryLocation(m->imgdata, x, y, bimgw, 720) = color;
-			*GetMemoryLocation(m->imgoriginaldata, x, y, bimgw, 720) = color;
+			*GetMemoryLocation(m->imgdata, x, y, bimgw, bimgh) = color;
+			*GetMemoryLocation(m->imgoriginaldata, x, y, bimgw, bimgh) = color;
 		}
 	}
 	
@@ -356,7 +363,11 @@ void PrepareOpenImage(GlobalParams* m) {
 
 	if (res != "Invalid") {
 		//m->imgwidth = 0;
+		m->loading = true;
+		RedrawSurface(m);
 		OpenImageFromPath(m, res, false);
+		m->loading = false;
+		RedrawSurface(m);
 		m->shouldSaveShutdown = false;
 	} 
 }

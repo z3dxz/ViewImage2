@@ -6,6 +6,11 @@
 #include <shlwapi.h>
 #include <wincodec.h>
 
+
+
+#define max(a,b)            (((a) > (b)) ? (a) : (b))
+#define min(a,b)            (((a) < (b)) ? (a) : (b))
+
 // Freetype Globals
 FT_Library ft;
 FT_Face* currentFace;
@@ -16,7 +21,7 @@ FT_Face* currentFace;
 void CircleGenerator(int circleDiameter, int locX, int locY, uint32_t color, uint32_t* buffer, unsigned int width, unsigned int height) {
 	float radius = circleDiameter/2.0f;
 	float step = 1.0f/circleDiameter;
-	for(float i=0; i<2.0f*M_PI; i+= step) {
+	for(float i=0; i<2.0f*3.141592f; i+= step) {
 		float locationX = radius*cos(i)+locX;
 		float locationY = radius*sin(i)+locY;
 
@@ -75,6 +80,7 @@ FT_Face LoadFont(GlobalParams* m, std::string fontA) {
 			MessageBox(m->hwnd, "Failed to initialize FreeType library\n", "Error", MB_OK | MB_ICONERROR);
 			return 0;
 		}
+		FT_Library_SetLcdFilter(ft, FT_LCD_FILTER_MAX);
 		alreadyInit = true;
 	}
 	
@@ -104,10 +110,10 @@ void SwitchFont(FT_Face& font) {
 	currentFace = &font;
 }
 
-int ActuallyPlaceString(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, void* mem, int bufwidth, int bufheight, void* fromBuffer) {
+
+int PlaceStringGreyscale(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, void* mem, int bufwidth, int bufheight, void* fromBuffer) {
 	
 	locY = bufheight - locY-size; // compensate for negative Y
-
 
 	if (!*currentFace) {
 		return 0;
@@ -133,7 +139,7 @@ int ActuallyPlaceString(GlobalParams* m, int size, const char* inputstr, uint32_
 		// render
 		for (int y = 0; y < glyph->bitmap.rows; ++y) {
 			for (int x = 0; x < glyph->bitmap.width; ++x) {
-				unsigned char pixelValue = glyph->bitmap.buffer[y * glyph->bitmap.width + x];
+				unsigned char pixelValue = glyph->bitmap.buffer[y * glyph->bitmap.pitch + x];
 				
 				uint32_t ptx = vx + x;
 				uint32_t pty = vy-y;
@@ -156,6 +162,88 @@ int ActuallyPlaceString(GlobalParams* m, int size, const char* inputstr, uint32_
 	return 1;
 }
 
+int PlaceStringLCD(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, void* mem, int bufwidth, int bufheight, void* fromBuffer) {
+	
+	locY = bufheight - locY - size; // compensate for negative Y
+
+	if (!*currentFace) {
+		return false;
+	}
+
+	FT_Set_Pixel_Sizes(*currentFace, 0, size);
+	const FT_GlyphSlot glyph = (*currentFace)->glyph;
+
+	for (const char* p = inputstr; *p; p++) {
+		
+		if (FT_Load_Char((*currentFace), *p, FT_LOAD_RENDER | FT_LOAD_TARGET_LCD) != 0)
+			continue;
+
+		const int vx = locX + glyph->bitmap_left;
+		const int vy = locY + glyph->bitmap_top;
+
+		for (int y = 0; y < glyph->bitmap.rows; y++) {
+			for (int x = 0; x < glyph->bitmap.width / 3; x++) {
+
+				int i = y * glyph->bitmap.pitch + x * 3;
+
+				float cr = glyph->bitmap.buffer[i + 0] / 255.0f;
+				float cg = glyph->bitmap.buffer[i + 1] / 255.0f;
+				float cb = glyph->bitmap.buffer[i + 2] / 255.0f;
+
+				int ptx = vx + x;
+				int pty = bufheight - (vy - y);
+
+				if (ptx < 0 || pty < 0 || ptx >= bufwidth || pty >= bufheight)
+					continue;
+
+				uint32_t* dstPtr  = GetMemoryLocation(mem,        ptx, pty, bufwidth, bufheight);
+				uint32_t* srcPtr  = GetMemoryLocation(fromBuffer, ptx, pty, bufwidth, bufheight);
+				uint32_t dstColor = *srcPtr;
+
+				uint8_t dstR = (dstColor >> 16) & 0xFF;
+				uint8_t dstG = (dstColor >> 8)  & 0xFF;
+				uint8_t dstB =  dstColor        & 0xFF;
+				uint8_t dstA = (dstColor >> 24) & 0xFF;
+
+				uint8_t srcR = (color >> 16) & 0xFF;
+				uint8_t srcG = (color >> 8)  & 0xFF;
+				uint8_t srcB =  color        & 0xFF;
+				uint8_t srcA = (color >> 24) & 0xFF;
+
+				uint8_t outR = (uint8_t)(srcR * cr + dstR * (1.0f - cr));
+				uint8_t outG = (uint8_t)(srcG * cg + dstG * (1.0f - cg));
+				uint8_t outB = (uint8_t)(srcB * cb + dstB * (1.0f - cb));
+
+				float cov = cr;
+				if (cg > cov) cov = cg;
+				if (cb > cov) cov = cb;
+
+				uint8_t outA = dstA + (uint8_t)((255 - dstA) * cov * (srcA / 255.0f));
+
+				*dstPtr = (outA << 24) | (outR << 16) | (outG << 8) | outB;
+			}
+		}
+
+		locX += (glyph->advance.x >> 6);
+		locY += (glyph->advance.y >> 6);
+	}
+
+	return true;
+}
+
+
+int PlaceStringBuffer(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, void* mem, int bufwidth, int bufheight, void* fromBuffer) {
+	bool state = true;
+	if (m->lcd) {
+		state = state && PlaceStringLCD(m, size, inputstr, locX, locY, color, mem, bufwidth, bufheight, fromBuffer);
+	} else {
+		state = state && PlaceStringGreyscale(m, size, inputstr, locX, locY, color, mem, bufwidth, bufheight, fromBuffer);
+	}
+
+	return state;
+}
+
+
 
 int PlaceStringShadowObject(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, void* mem, double sigma, int passes) {
 	int clearance = 10;
@@ -168,13 +256,11 @@ int PlaceStringShadowObject(GlobalParams* m, int size, const char* inputstr, uin
 	size_t memcount = tempbuffer_width*tempbuffer_height;
 	size_t memsize = memcount*4;
 
-	uint32_t temp_buffer[memcount];
+	uint32_t* temp_buffer = (uint32_t*)malloc(memsize);
 	memset(temp_buffer, 0xFF, memsize);
 
-	bool e = ActuallyPlaceString(m, size, inputstr, clearance, clearance, 0x000000, temp_buffer, tempbuffer_width, tempbuffer_height, temp_buffer);
-	if(!e) {
-		return e;
-	}
+	int e = PlaceStringGreyscale(m, size, inputstr, clearance, clearance, 0x000000, temp_buffer, tempbuffer_width, tempbuffer_height, temp_buffer);
+
 	// blur
 	gaussian_blur_B(temp_buffer, temp_buffer, tempbuffer_width, tempbuffer_height, sigma, tempbuffer_width, tempbuffer_height, 0, 0);
 
@@ -186,7 +272,7 @@ int PlaceStringShadowObject(GlobalParams* m, int size, const char* inputstr, uin
 				uint32_t putY = locY+y-clearance;
 				if(putX > 0 && putX <= m->width && putY > 0 && putY <= m->height) {
 					uint32_t* scrbuf = GetMemoryLocation(mem, putX, putY, m->width, m->height);
-					int from = (*GetMemoryLocation(temp_buffer, x, y, tempbuffer_width, tempbuffer_height) >> 24) & 0xFF;
+					int from = (*GetMemoryLocation(temp_buffer, x, y, tempbuffer_width, tempbuffer_height) >> 8) & 0xFF;
 					float factor = 1.0f-((float)from / 255.0f);
 					*scrbuf = lerp(*scrbuf, color, factor);
 				}
@@ -194,29 +280,31 @@ int PlaceStringShadowObject(GlobalParams* m, int size, const char* inputstr, uin
 		}
 	}
 
+	free(temp_buffer);
+
 	return e;
 }
 
 int PlaceString(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, void* mem) {
-	bool e = ActuallyPlaceString(m, size, inputstr, locX, locY, color, mem, m->width, m->height, mem);
+	bool e = PlaceStringBuffer(m, size, inputstr, locX, locY, color, mem, m->width, m->height, mem);
 	return e;
 }
 
 int PlaceString(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, void* mem, int bufwidth, int bufheight, void* fromBuffer) {
-	bool e = ActuallyPlaceString(m, size, inputstr, locX, locY, color, mem, bufwidth, bufheight, fromBuffer);
+	bool e = PlaceStringBuffer(m, size, inputstr, locX, locY, color, mem, bufwidth, bufheight, fromBuffer);
 	return e;
 }
 
 int PlaceStringLegacyShadow(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, void* mem, int shadowY, int shadowX = 0) {
-	bool b = ActuallyPlaceString(m, size, inputstr, locX+shadowX, locY + shadowY, 0x000000, mem, m->width, m->height, mem);
-	bool e = ActuallyPlaceString(m, size, inputstr, locX, locY, color, mem, m->width, m->height, mem);
+	bool b = PlaceStringBuffer(m, size, inputstr, locX+shadowX, locY + shadowY, 0x000000, mem, m->width, m->height, mem);
+	bool e = PlaceStringBuffer(m, size, inputstr, locX, locY, color, mem, m->width, m->height, mem);
 
 	return e && b;
 }
 
 int PlaceStringShadow(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, void* mem, float sigma, int shadowOffsetX, int shadowOffsetY, int passes, uint32_t shadowColor = 0x000000) {
 	bool b = PlaceStringShadowObject(m, size, inputstr, locX+shadowOffsetX, locY+shadowOffsetY, shadowColor, mem, sigma, passes);
-	bool e = ActuallyPlaceString(m, size, inputstr, locX, locY, color, mem, m->width, m->height, mem);
+	bool e = PlaceStringBuffer(m, size, inputstr, locX, locY, color, mem, m->width, m->height, mem);
 
 	return e && b;
 }
@@ -368,16 +456,14 @@ bool followsPattern(int number) {
 	return logBase2 == floor(logBase2);
 }
 
-
-
 void PlaceImageBI(GlobalParams* m, void* memory, bool invert, POINT p) {
 
 
 	//auto start = std::chrono::high_resolution_clock::now();
 
-	bool doesfollow = false;
 	if (followsPattern(m->mscaler * 100)) {
-		doesfollow = true;
+		PlaceImageNN(m, memory, invert, p);
+		return;
 	}
 
 	const int margin = m->fullscreen ? 0 : 2;
@@ -400,16 +486,11 @@ void PlaceImageBI(GlobalParams* m, void* memory, bool invert, POINT p) {
 				}
 			}
 
-			int32_t offX = (((int32_t)m->width - (int32_t)(m->imgwidth * m->mscaler)) / 2) + m->iLocX;
-			int32_t offY = (((int32_t)m->height - (int32_t)(m->imgheight * m->mscaler)) / 2) + m->iLocY;
+			float offX = ((float)m->width  - ((float)m->imgwidth  * m->mscaler)) / 2.0f + m->iLocX;
+			float offY = ((float)m->height - ((float)m->imgheight * m->mscaler)) / 2.0f + m->iLocY;
 
-			float ptx = (x - offX) * inv_mscaler - 0.5f;
-			float pty = (y - offY) * inv_mscaler - 0.5f;
-
-			if (doesfollow) {
-				ptx = (x - offX) * inv_mscaler;
-				pty = (y - offY) * inv_mscaler;
-			}
+			float ptx = ((float)x - offX) * inv_mscaler - 0.5f;
+			float pty = ((float)y - offY) * inv_mscaler - 0.5f;
 
 			uint32_t doColor = bkc;
 
@@ -420,6 +501,7 @@ void PlaceImageBI(GlobalParams* m, void* memory, bool invert, POINT p) {
 				float pty_frac = pty - pty_int;
 
 				// Get the four nearest pixels
+				
 				uint32_t c00 = *GetMemoryLocation(memory, ptx_int, pty_int, m->imgwidth, m->imgheight);
 				uint32_t c01 = *GetMemoryLocation(memory, ptx_int + 1, pty_int, m->imgwidth, m->imgheight);
 				uint32_t c10 = *GetMemoryLocation(memory, ptx_int, pty_int + 1, m->imgwidth, m->imgheight);
@@ -443,13 +525,7 @@ void PlaceImageBI(GlobalParams* m, void* memory, bool invert, POINT p) {
 			*GetMemoryLocation(m->scrdata, x, y, m->width, m->height) = doColor;
 		}
 	});
-
-	//auto end = std::chrono::high_resolution_clock::now();
-	//std::chrono::duration<float, std::milli> duration = end - start;
-	//float etime = duration.count();
-	//m->etime = etime;
 }
-
 
 
 void RenderToolbarIcon(GlobalParams* m, int index, int locationX, void* data, uint32_t color, uint32_t selectedColor) {
@@ -606,7 +682,8 @@ void RenderToolbar(GlobalParams* m) {
 					uint32_t shiftx = loc+2;
 					SwitchFont(m->Verdana);
 
-					// sample points for contrast, something fun
+					// fun sampling
+					
 					uint32_t color1 = *GetMemoryLocation(m->scrdata, 276, 95, m->width, m->height);
 					uint32_t color2 = *GetMemoryLocation(m->scrdata, 379, 116, m->width, m->height);
 					uint32_t color3 = *GetMemoryLocation(m->scrdata, 287, 148, m->width, m->height);
@@ -614,45 +691,19 @@ void RenderToolbar(GlobalParams* m) {
 					int lum2 = (((color2>>16)&0xFF) + ((color2>>8)&0xFF) + (color2&0xFF))/3;
 					int lum3 = (((color3>>16)&0xFF) + ((color3>>8)&0xFF) + (color3&0xFF))/3;
 
-					int lumc1 = lum1; int lumc2 = lum2; int lumc3 = lum3;
+					int lum = (lum1+lum2+lum3)/3;
 
-					int max = std::max(std::max(lum1, lum2), lum3);
-					int min = std::min(std::min(lum1, lum2), lum3);
-					int adv = (max+min)/2;
-					if(adv<127) {
-						int diff = 255-max;
-						lumc1+=diff;
-						lumc2+=diff;
-						lumc3+=diff;
-					} else {
-						int diff = min;
-						lumc1-=diff;
-						lumc2-=diff;
-						lumc3-=diff;
-					}
+					float greyscale = (-2.0f/255.0f)*abs(lum-127)+1;
 
-					int lum0 = (lumc1+lumc2+lumc3)/3;
-
-					// curved
-					int lum = round((float)(2.0f*(float)lum0-127.5f-(2.0f/255.0f)*((float)lum0-127.5f)*abs((float)lum0-127.5f)));
-
-					// absolutely
-					//int lum = -4.0f*(float)abs((float)lum0-63.5)+255.0f;
-					//if((float)lum0 > 127.5f) {
-					//	lum = 4.0f*(float)abs((float)lum0-191);
-					//}
-
-					uint32_t dcolor = change_alpha(RGB(lum, lum, lum), 255);
-					uint32_t shadow = change_alpha(RGB(255-lum, 255-lum, 255-lum), 255);
-
-					PlaceStringShadow(m, 12, "Annotate Shortcuts", shiftx, m->toolheight + 28+off, dcolor, m->scrdata, 0.34f, 1, 1, 1, shadow);
+					uint32_t dcolor = lerp(0x808080, 0xFFFFFF, greyscale);
+					PlaceString(m, 12, "Annotate Shortcuts", shiftx, m->toolheight + 28+off, dcolor, m->scrdata);
 					SwitchFont(m->OCRAExt);
 
-					PlaceStringShadow(m, 10, "Draw        Left Mouse", shiftx, m->toolheight + 43+off, dcolor, m->scrdata, 0.34f, 1, 1, 1, shadow);
-					PlaceStringShadow(m, 10, "Pan         Middle Mouse", shiftx, m->toolheight + 53+off, dcolor, m->scrdata, 0.34f, 1, 1, 1, shadow);
-					PlaceStringShadow(m, 10, "Erase       Ctrl", shiftx, m->toolheight + 63+off, dcolor, m->scrdata, 0.34f, 1, 1, 1, shadow);
-					PlaceStringShadow(m, 10, "Transparent Ctrl+Shift", shiftx, m->toolheight + 73+off, dcolor, m->scrdata, 0.34f, 1, 1, 1, shadow);
-					PlaceStringShadow(m, 10, "Eyedropper  Shift+Z", shiftx, m->toolheight + 83+off, dcolor, m->scrdata, 0.34f, 1, 1, 1, shadow);
+					PlaceString(m, 10, "Draw        Left Mouse", shiftx, m->toolheight + 43+off, dcolor, m->scrdata);
+					PlaceString(m, 10, "Pan         Middle Mouse", shiftx, m->toolheight + 53+off, dcolor, m->scrdata);
+					PlaceString(m, 10, "Erase       Ctrl", shiftx, m->toolheight + 63+off, dcolor, m->scrdata);
+					PlaceString(m, 10, "Transparent Ctrl+Shift", shiftx, m->toolheight + 73+off, dcolor, m->scrdata);
+					PlaceString(m, 10, "Eyedropper  Shift+Z", shiftx, m->toolheight + 83+off, dcolor, m->scrdata);
 				} else {
 					// actual tooltips
 					gaussian_blur((uint32_t*)m->scrdata, (txt.length() * 8) + 12, 20, 4.0f, m->width, m->height, loc-1, m->toolheight+4);
@@ -687,7 +738,7 @@ void RenderToolbar(GlobalParams* m) {
 				dDrawRoundedRectangle(m->scrdata, m->width, m->height, m->width-36, 12, 24, 23, 0xFFFFFF, 0.2f);
 				dDrawRoundedRectangle(m->scrdata, m->width, m->height, m->width-37, 11, 26, 25, 0x000000, 1.0f);
 
-				SwitchFont(m->Tahoma);
+				SwitchFont(m->SegoeUI);
 				//-- Fullscreen icon tooltip
 				if (m->fullscreen) {
 
@@ -749,14 +800,14 @@ void ResetCoordinates(GlobalParams* m) {
 	}
 }
 
-void DrawMenuIcon(GlobalParams* m, int locationX, int locationY, int atlasX, int atlasY) {
+void DrawMenuIcon(GlobalParams* m, int locationX, int locationY, int atlasX, int atlasY, float opacity) {
 	// 12x12
 	int iconSize = 12;
 	for (int y = 0; y < iconSize; y++) {
 		for (int x = 0; x < iconSize; x++) {
 			uint32_t* inAtlas = GetMemoryLocation(m->menu_icon_atlas, atlasX + x, atlasY + y, m->menu_atlas_SizeX, m->menu_atlas_SizeY);
 			uint32_t* inMem = GetMemoryLocation(m->scrdata, locationX + x, locationY + y, m->width, m->height);
-			float alphaM = (float)((*inAtlas >> 24) & 0xFF) / 255.0f;
+			float alphaM = ((float)((*inAtlas >> 24) & 0xFF) / 255.0f)*opacity;
 			//float valueM = (float)((*inAtlas >> 16) & 0xFF) / 255.0f;
 			*inMem = lerp(*inMem, 0xFF6060, alphaM);
 		}
@@ -850,6 +901,7 @@ void DrawMenu_Shadow(GlobalParams* m, uint32_t posx, uint32_t posy, uint32_t siz
 
 }
 
+// rendermenu, placemenu
 void DrawMenu(GlobalParams* m) { // render menu draw menu
 
 	
@@ -878,40 +930,43 @@ void DrawMenu(GlobalParams* m) { // render menu draw menu
 	ScreenToClient(m->hwnd, &mp);
 
 	int selected = (mp.y-(posY+2))/mH;
-	if (selected < m->menuVector.size()) {
-		if (IfInMenu(mp, m)) {
-		//if (mp.x > m->actmenuX && mp.y > m->actmenuY && mp.x < (m->actmenuX + m->menuSX) && mp.y < (m->actmenuY + m->menuSY)) {
-			int hoverLocX = posX + 4;
-			int hoverLocY = posY + 4 + ((mH)*selected);
-			int hoverSizeX = miX - 8;
-			int hoverSizeY = mH - 3;
-			// This is for hovering over your favorite menu button
-			dDrawRoundedFilledRectangle(m->scrdata, m->width, m->height, hoverLocX, hoverLocY, hoverSizeX, hoverSizeY, 0xFF8080, 0.3f);   // FILL
-			dDrawRoundedRectangle(m->scrdata, m->width, m->height, hoverLocX, hoverLocY, hoverSizeX, hoverSizeY, 0xFFFFFF, 0.3f);         // white
-			dDrawRoundedRectangle(m->scrdata, m->width, m->height, hoverLocX - 1, hoverLocY - 1, hoverSizeX + 2, hoverSizeY + 2, 0x000000, 1.0f); // black BORDER!
-		}
+	if (selected < m->menuVector.size() && IfInMenu(mp, m) && *(m->menuVector[selected].enable_condition) ) {
+		int hoverLocX = posX + 4;
+		int hoverLocY = posY + 4 + ((mH)*selected);
+		int hoverSizeX = miX - 8;
+		int hoverSizeY = mH - 3;
+		// This is for hovering over your favorite menu button
+		dDrawRoundedFilledRectangle(m->scrdata, m->width, m->height, hoverLocX, hoverLocY, hoverSizeX, hoverSizeY, 0xFF8080, 0.3f);   // FILL
+		dDrawRoundedRectangle(m->scrdata, m->width, m->height, hoverLocX, hoverLocY, hoverSizeX, hoverSizeY, 0xFFFFFF, 0.3f);         // white
+		dDrawRoundedRectangle(m->scrdata, m->width, m->height, hoverLocX - 1, hoverLocY - 1, hoverSizeX + 2, hoverSizeY + 2, 0x000000, 1.0f); // black BORDER!
 	}
 	
 
 	SwitchFont(m->Verdana);
 	for (int i = 0; i < m->menuVector.size(); i++) {
-		 
+		bool enabled = *(m->menuVector[i].enable_condition);
+		
 		std::string mystr = m->menuVector[i].name;
 		if (mystr.length() >= 3 && mystr.substr(mystr.length() - 3) == "{s}") {
 			mystr = mystr.substr(0, mystr.length() - 3);
 		}
-		DrawMenuIcon(m, posX + 10, (mH* i) + posY + 10, m->menuVector[i].atlasX, m->menuVector[i].atlasY);
-												// changed when adding icon
-		PlaceString(m, 12, mystr.c_str(), posX + 26, (mH * i) + posY + 9, 0xF0F0F0, m->scrdata);
-		if (i == m->menuVector.size()-1) continue;
 
-		dDrawFilledRectangle(m->scrdata, m->width, m->height, posX, posY + mH + (mH * i) + 2, miX, 1, 0xFFFFFF, 0);
+		float opacity = 1.0f;
+		uint32_t txtcolor = 0xF0F0F0;
+		if(!enabled) {
+			opacity = 0.5f;
+			txtcolor = 0x808080;
+		}
+
+		DrawMenuIcon(m, posX + 10, (mH* i) + posY + 10, m->menuVector[i].atlasX, m->menuVector[i].atlasY, opacity);
+												// changed when adding icon
+
+
+		PlaceString(m, 12, mystr.c_str(), posX + 26, (mH * i) + posY + 9, txtcolor, m->scrdata);
+		if (i == m->menuVector.size()-1) continue;
 
 		if (strstr(m->menuVector[i].name.c_str(), "{s}")) { // seperator
 			dDrawFilledRectangle(m->scrdata, m->width, m->height, posX + 8, posY + mH + (mH * i) + 2, miX - 16, 1, 0xFFFFFF, 0.25f);
-		//}
-		//else {
-			//dDrawFilledRectangle(m->scrdata, m->width, m->height, posX + 8, posY + mH + (mH * i) + 2, miX - 16, 1, 0xFFFFFF, 0.1f);
 		}
 	}
 }
@@ -1226,9 +1281,6 @@ void RenderCropGUI(GlobalParams* m) {
 	uint32_t distLeft, distRight, distTop, distBottom;
 	GetCropCoordinates(m, &distLeft, &distRight, &distTop, &distBottom);
 
-
-
-
 	// render crop thingy
 	RenderCropButton(m, distLeft, distTop, false, false, m->CropHandleSelectTL);
 	RenderCropButton(m, distRight-16, distTop, true, false, m->CropHandleSelectTR);
@@ -1352,14 +1404,24 @@ void RenderDrawModeGuide(GlobalParams* m){
 
 }
 
-void RedrawSurface(GlobalParams* m, bool onlyImage, bool doesManualClip) {
+void RedrawSurfaceTextDialog(GlobalParams* m) {
+	RedrawSurface(m);
+}
+
+void RedrawSurface(GlobalParams* m, bool onlyImage, bool doesManualClip, bool bypassSleep) {
 
 	if (!doesManualClip) {
 		SelectClipRgn(m->hdc, NULL);
 	}
-	if (m->sleepmode && (!m->isImagePreview)) {
-		return;
+
+
+	if(!bypassSleep) {
+		if (m->sleepmode && (!m->isImagePreview)) {
+			return;
+		}
 	}
+	
+
 	if (m->width < 20) { return; }
 
 	POINT p;
@@ -1373,6 +1435,15 @@ void RedrawSurface(GlobalParams* m, bool onlyImage, bool doesManualClip) {
 		ResetCoordinates(m);
 	}
 
+	// update menu conditions
+	m->undo_menucondition = m->undoStep > 0;
+	m->redo_menucondition = (m->undoStep) < ((int)m->undoData.size() - 1); // got from RedoBus
+
+	//int s = m->undoStep;
+	//int step = m->undoData.size() - 1;
+	//if (s < step) {
+
+	m->isimage_menucondition = (m->imgwidth>0 && m->imgheight>0 && m->imgdata);
 
 	void* drawingbuffer = m->imgdata;
 	if (m->isImagePreview) {
@@ -1454,10 +1525,15 @@ void RedrawSurface(GlobalParams* m, bool onlyImage, bool doesManualClip) {
 	int realx = (float)m->CoordLeft + (((float)k+0.5f) * m->mscaler+0.5f);
 	int realy = (float)m->CoordTop + (((float)v+0.5f) * m->mscaler);
 
+	float actdrawsize = m->drawSize;
 	
-	if (m->drawmode && m->drawSize > 0 && m->mscaler > 0 && !m->eyedroppermode) {
+	if(m->drawtype == 0 && m->drawSize > 1.5f) {
+		actdrawsize *= 2.0f;
+	}
+
+	if (m->drawmode && actdrawsize > 0 && m->mscaler > 0 && !m->eyedroppermode) {
 		if(IsInImage(p, m) && (!IfInMenu(p, m) || !m->isMenuState) ) {
-			float dia = m->drawSize * m->mscaler-2;
+			float dia = actdrawsize * m->mscaler-2;
 			if(dia > 4.0f) {
 				CircleGenerator(dia, realx, realy, 0x808080, (uint32_t*)m->scrdata,  m->width, m->height);
 			}
@@ -1490,6 +1566,13 @@ void RedrawSurface(GlobalParams* m, bool onlyImage, bool doesManualClip) {
 
 	}
 
+	if(m->draw_updates_debug) {
+		uint32_t testc = 0xFF00FF;
+		if(rand()%2==0) {
+			testc = 0x00FF00;
+		}
+		dDrawFilledRectangle(m->scrdata, m->width, m->height, 0, 0, m->width, m->height, testc, 0.5f);
+	}
 
 	// update buffer
 	UpdateBuffer(m);
@@ -1502,13 +1585,12 @@ void RedrawSurface(GlobalParams* m, bool onlyImage, bool doesManualClip) {
 		aststring = "*";
 	}
 
-	std::string titlebar_string = "View Image";
+	std::string titlebar_string = m->name_full;
 	if(!m->fpath.empty()) {
 		titlebar_string += " | " + m->fpath + aststring + " | " + std::to_string((int)(m->mscaler * 100.0f)) + "%";
 	}
 	if(m->drawmode) {
 		titlebar_string += " (Annotate)";
 	}
-
 	SetWindowText(m->hwnd, titlebar_string.c_str());
 }

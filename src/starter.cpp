@@ -53,14 +53,14 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 	int argc;
 	LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
 
-	const char* CLASS_NAME = "ImageViewerClass";
-	const char* WINDOW_NAME = "View Image (Loading)";
+	std::string CLASS_NAME = gp.name_full + " Primary Class";
+	std::string WINDOW_NAME = gp.name_full + " (Loading)";
 
 	WNDCLASSEX wc = { 0 };
 
 	wc.cbSize = sizeof(WNDCLASSEX);
 	wc.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_ICON1));
-	wc.lpszClassName = CLASS_NAME;
+	wc.lpszClassName = CLASS_NAME.c_str();
 	wc.lpfnWndProc = WndProc;
 	//wc.hCursor = LoadCursor(NULL, IDC_ARROW);
 	wc.style = CS_HREDRAW | CS_VREDRAW;
@@ -81,9 +81,7 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 
 	// RIGHT HERE: WIDTH = 1024
 
-	gp.hwnd = CreateWindowEx(0, CLASS_NAME, WINDOW_NAME, WS_OVERLAPPEDWINDOW | WS_VISIBLE, px, py, w_width, w_height, NULL, NULL, NULL, NULL);
-
-
+	gp.hwnd = CreateWindowEx(0, CLASS_NAME.c_str(), WINDOW_NAME.c_str(), WS_OVERLAPPEDWINDOW | WS_VISIBLE, px, py, w_width, w_height, NULL, NULL, NULL, NULL);
 
 	// RIGHT HERE: WIDTH = 0
 
@@ -142,7 +140,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 			if (doIFSave(&gp)) {\
 				gp.loading = true;\
 				RedrawSurface(&gp);\
-				DeleteTempFiles(&gp);\
+				DeleteTempFiles(&gp, gp.undofolder);\
 				DestroyWindow(hwnd);\
 			}\
 			break;\
@@ -158,7 +156,12 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 		case WM_SETFOCUS: {\
 			gp.sleepmode = false;\
 			if (gp.scrdata && gp.width > 1) {\
-				RedrawSurface(&gp);\
+				if(gp.drawtext_access_dialog_hwnd) {\
+				RedrawSurfaceTextDialog(&gp);\
+				}\
+				else {\
+					RedrawSurface(&gp);\
+				}\
 			}\
 			break;\
 		}\
@@ -175,12 +178,20 @@ bool md_dt = false;
 LRESULT CALLBACK WndProcDialogDrawText(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 	switch(msg) {
 		case WM_LBUTTONDOWN: {
+			gp.drawtext_ghostmode = true;
 			PerformDrawTextRealignment();
 			md_dt = true;
 			break;
 		}
 		case WM_LBUTTONUP: {
+			gp.drawtext_ghostmode = false;
 			md_dt = false;
+			HWND dtd = gp.drawtext_access_dialog_hwnd;
+			if(dtd) {
+    			HWND adtdb = GetDlgItem(dtd, ActualDrawTextDialogBox);
+				SetFocus(adtdb);
+			}
+
 			break;
 		}
 		case WM_MOUSEMOVE: {
@@ -222,7 +233,32 @@ LRESULT CALLBACK WndProcNormal(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam
 
 		break;
 	}
-	
+	case WM_DROPFILES: {
+		// drag and drop, that was easy!
+
+		HDROP hDrop = (HDROP)wparam;
+		
+		UINT count = DragQueryFileA(hDrop, 0xFFFFFFFF, nullptr, 0);
+		if (count > 0)
+		{
+			char path[MAX_PATH];
+			if (DragQueryFileA(hDrop, 0, path, MAX_PATH))
+			{
+				gp.loading = true;
+				RedrawSurface(&gp);
+
+				OpenImageFromPath(&gp, path, false);
+
+				gp.loading = false;
+				RedrawSurface(&gp);
+				gp.shouldSaveShutdown = false;
+			}
+		}
+		
+		DragFinish(hDrop);
+		RedrawSurface(&gp, false, false, true);
+		return 0;
+	}
 	case WM_LBUTTONDOWN:
 	{
 		if (!ToolbarMouseDown(&gp)) {
@@ -256,6 +292,12 @@ LRESULT CALLBACK WndProcNormal(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam
 		break;
 	}
 
+	case WM_SYSKEYDOWN: { // fix alt stalling issue that has ALWAYS existed before 2.6, even in 1.0
+		return 0;
+	}
+	case WM_SYSKEYUP: {
+		return 0;
+	}
 	case WM_KEYDOWN: {
 		KeyDown(&gp, wparam, lparam);
 		break;

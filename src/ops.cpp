@@ -3,7 +3,8 @@
 #include "headers/imgload.hpp"
 #include "../res/resource.h"
 #include "vendor/stb_image_resize2.h"
-
+#define max(a,b)            (((a) > (b)) ? (a) : (b))
+#define min(a,b)            (((a) < (b)) ? (a) : (b))
 
 // Helper function to clamp values between 0 and 255
 uint8_t clamp(int value) {
@@ -20,19 +21,7 @@ int clampv(int value, int min, int max) {
 
 
 uint8_t ivv = 0;
-uint32_t* GetMemoryLocation(void* start, uint32_t x, uint32_t y, uint32_t widthfactor, uint32_t heightfactor) {
-	if(mv->debugslow == true) {
-		ivv++;
-		if(ivv > 250) {
-			if(mv != 0) {
-				UpdateBuffer(mv);
-			} 
-		}
-	}
-	
-	
-	return (( (((y) * (widthfactor)) + (x)) < (widthfactor*heightfactor) &&      ( (((y)*(widthfactor)) + (x)) > 0  )            ) ? ((uint32_t*)(start) + ((y) * (widthfactor)) + (x))  : ((uint32_t*)(start)) );
-}
+
 
 typedef HRESULT(WINAPI* DwmSetWindowAttribute_t)(HWND, DWORD, LPCVOID, DWORD);
 bool DwmDarken(HWND hwnd) {
@@ -72,11 +61,12 @@ bool DeleteDirectory(const char* directoryPath) {
 	return std::filesystem::remove_all(directoryPath);
 }
 
-void DeleteTempFiles(GlobalParams* m) {
-	if (!DeleteDirectory(m->undofolder.c_str())) {
+void DeleteTempFiles(GlobalParams* m, std::string folder) {
+	if (!DeleteDirectory(folder.c_str())) {
 		DWORD error = GetLastError();
 		std::string s = "Failed to remove temporary files: ERR CODE: " + std::to_string(error);
-		MessageBox(m->hwnd, "Failed to remove the temporary files for this application. You can manually remove them at AppData\\Local\\Temp, with all containing view image directories", s.c_str(), MB_OK | MB_ICONERROR);
+		std::string str = "Failed to remove the temporary files for " + m->name_full + ". You can manually remove them at AppData\\Local\\Temp\\"+m->name_full;
+		MessageBox(m->hwnd, str.c_str(), s.c_str(), MB_OK | MB_ICONERROR);
 	}
 }
 
@@ -637,6 +627,26 @@ uint32_t lerp(uint32_t color1, uint32_t color2, float alpha)
 }
 
 
+uint8_t lerp8(uint8_t d, uint8_t s, float a) {
+    return (uint8_t)(d + (s - d) * a);
+}
+
+uint32_t lerp_blend(uint32_t dst, uint32_t src, float aR, float aG, float aB) {
+    uint8_t dR = (dst >> 16) & 0xFF;
+    uint8_t dG = (dst >>  8) & 0xFF;
+    uint8_t dB = (dst >>  0) & 0xFF;
+
+    uint8_t sR = (src >> 16) & 0xFF;
+    uint8_t sG = (src >>  8) & 0xFF;
+    uint8_t sB = (src >>  0) & 0xFF;
+
+    uint8_t oR = lerp8(dR, sR, aR);
+    uint8_t oG = lerp8(dG, sG, aG);
+    uint8_t oB = lerp8(dB, sB, aB);
+
+    return (dst & 0xFF000000) | (oR << 16) | (oG << 8 ) |  (oB << 0 );
+}
+
 
 const int TABLE_SIZE = 256;
 
@@ -756,10 +766,10 @@ uint32_t subtractColors(uint32_t color1, uint32_t color2) {
 	uint8_t a2 = color2 & 0xFF;
 
 	// Subtract each channel
-	uint8_t r = std::max(0, static_cast<int>(r1) - static_cast<int>(r2));
-	uint8_t g = std::max(0, static_cast<int>(g1) - static_cast<int>(g2));
-	uint8_t b = std::max(0, static_cast<int>(b1) - static_cast<int>(b2));
-	uint8_t a = std::max(0, static_cast<int>(a1) - static_cast<int>(a2));
+	uint8_t r = max(0, static_cast<int>(r1) - static_cast<int>(r2));
+	uint8_t g = max(0, static_cast<int>(g1) - static_cast<int>(g2));
+	uint8_t b = max(0, static_cast<int>(b1) - static_cast<int>(b2));
+	uint8_t a = max(0, static_cast<int>(a1) - static_cast<int>(a2));
 
 	// Combine channels back into a single uint32_t
 	return (static_cast<uint32_t>(r) << 24) |
@@ -1284,195 +1294,6 @@ void ConvertToPremultipliedAlpha(uint32_t* imageData, int width, int height) {
 	}
 }
 
-// go back to this
-uint32_t* GetImageFromClipboard(int& width, int& height) {
-	uint32_t* imagePixels = nullptr;
-
-	if (OpenClipboard(nullptr)) {
-		// Get handle to clipboard data
-		HANDLE hData = GetClipboardData(CF_BITMAP);
-		if (hData != nullptr) {
-			// Convert handle to actual bitmap
-			HBITMAP hBitmap = (HBITMAP)hData;
-
-			// Get bitmap info
-			BITMAP bmp;
-			GetObject(hBitmap, sizeof(BITMAP), &bmp);
-
-			// Allocate memory for pixel data
-			int imageSize = bmp.bmWidth * bmp.bmHeight;
-			imagePixels = new uint32_t[imageSize];
-
-			// Get device context
-			HDC hdc = GetDC(nullptr);
-			HDC memDC = CreateCompatibleDC(hdc);
-
-			// Copy bitmap to memory DC
-			HBITMAP oldBitmap = (HBITMAP)SelectObject(memDC, hBitmap);
-
-			// Get DIB section to ensure proper handling of alpha channel
-			BITMAPINFO bmi = { 0 };
-			bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-			bmi.bmiHeader.biWidth = bmp.bmWidth;
-			bmi.bmiHeader.biHeight = -bmp.bmHeight;
-			bmi.bmiHeader.biPlanes = 1;
-			bmi.bmiHeader.biBitCount = 32;
-			bmi.bmiHeader.biCompression = BI_RGB;
-
-			if (GetDIBits(memDC, hBitmap, 0, bmp.bmHeight, imagePixels, &bmi, DIB_RGB_COLORS) != 0) {
-				// GetDIBits succeeded, no additional processing needed
-			}
-			else {
-				// GetDIBits failed
-				delete[] imagePixels;
-				imagePixels = nullptr;
-			}
-
-			// Cleanup
-			SelectObject(memDC, oldBitmap);
-			DeleteDC(memDC);
-			ReleaseDC(nullptr, hdc);
-
-			// Set width and height
-			width = bmp.bmWidth;
-			height = bmp.bmHeight;
-		}
-
-		CloseClipboard();
-	}
-	return imagePixels;
-}
-
-bool PasteImageFromClipboard(GlobalParams* m) {
-
-	if(!m->imgdata) {
-		AllocateBlankImage(m, 0x00000000);
-	}
-
-	createUndoStep(m, false);
-
-	int w, h;
-	uint32_t* d = GetImageFromClipboard(w, h);
-	uint32_t mh = h-1;
-
-	
-
-	if (d) {
-		if (m->imgdata) {
-			FreeData(m->imgdata);
-		}
-		Beep(4000, 40);
-
-		if(m->imgoriginaldata) {
-			FreeData(m->imgoriginaldata);
-		}
-
-		m->imgdata = d;
-		m->imgwidth = w;
-		m->imgheight = h;
-
-		void* l = malloc(m->imgwidth*m->imgheight*4);
-		memcpy(l, m->imgdata, m->imgwidth*m->imgheight*4);
-		m->imgoriginaldata = l;
-
-		autozoom(m);
-	}
-	else {
-		Beep(300, 90);
-	}
-
-
-	return true;
-}
-
-bool CopyImageToClipboard(GlobalParams* m, void* imageData, int width, int height){
-	Beep(3000, 40);
-
-	// Initialize COM for clipboard operations
-	if (FAILED(OleInitialize(NULL)))
-		return false;
-
-	// Create a device context for the screen
-	HDC screenDC = GetDC(NULL);
-	HDC memDC = CreateCompatibleDC(screenDC);
-	ReleaseDC(NULL, screenDC);
-
-	// Create a bitmap and select it into the device context
-	BITMAPINFO bmi;
-	ZeroMemory(&bmi, sizeof(bmi));
-	bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-	bmi.bmiHeader.biWidth = width;
-	bmi.bmiHeader.biHeight = -height; // negative height for top-down DIB
-	bmi.bmiHeader.biPlanes = 1;
-	bmi.bmiHeader.biBitCount = 32;
-	bmi.bmiHeader.biCompression = BI_RGB;
-	bmi.bmiHeader.biSizeImage = 0; // Set to 0 for BI_RGB
-	HBITMAP hBitmap = CreateDIBSection(memDC, &bmi, DIB_RGB_COLORS, NULL, NULL, 0);
-
-	if (hBitmap == NULL) {
-		DeleteDC(memDC);
-		OleUninitialize();
-		return false;
-	}
-
-	// Copy the image data to the bitmap
-	SetDIBits(memDC, hBitmap, 0, height, imageData, &bmi, DIB_RGB_COLORS);
-
-	// Select the bitmap into the device context
-	HBITMAP hOldBitmap = (HBITMAP)SelectObject(memDC, hBitmap);
-
-	// Open the clipboard
-	if (!OpenClipboard(NULL)) {
-		DeleteObject(hBitmap);
-		DeleteDC(memDC);
-		OleUninitialize();
-		return false;
-	}
-
-	// Empty the clipboard
-	EmptyClipboard();
-	
-	// Set PNG format
-	HANDLE hDIB = NULL;
-	{
-		DWORD dwBmpSize = ((width * 32 + 31) / 32) * 4 * height; // Calculate size of image buffer (DWORD aligned)
-		hDIB = GlobalAlloc(GHND, sizeof(BITMAPINFOHEADER) + dwBmpSize);
-		if (hDIB != NULL) {
-			LPVOID pv = GlobalLock(hDIB);
-			if (pv != NULL) {
-				BITMAPINFOHEADER* pbmi = (BITMAPINFOHEADER*)pv;
-				pbmi->biSize = sizeof(BITMAPINFOHEADER);
-				pbmi->biWidth = width;
-				pbmi->biHeight = -height; // Corrected height for bottom-up DIB
-				pbmi->biPlanes = 1;
-				pbmi->biBitCount = 32;
-				pbmi->biCompression = BI_RGB;
-				pbmi->biSizeImage = dwBmpSize;
-
-				BYTE* pData = (BYTE*)pbmi + sizeof(BITMAPINFOHEADER);
-				memcpy(pData, imageData, dwBmpSize);
-				for (int y = 0; y < height; y++) {
-					for (int x = 0; x < width; x++) {
-						*GetMemoryLocation(pData, x, y, width, height) = *GetMemoryLocation(pData, x, y, width, height);
-					}
-				}
-				ConvertToPremultipliedAlpha((uint32_t*)pData, width, height);
-				GlobalUnlock(hDIB);
-			}
-		}
-		
-	}
-	SetClipboardData(CF_DIB, hDIB); // CF_DIBV5 may not be supported on all systems
-
-	// Clean up
-	CloseClipboard();
-	SelectObject(memDC, hOldBitmap);
-	DeleteObject(hBitmap);
-	DeleteDC(memDC);
-	OleUninitialize();
-
-	return true;
-}
 
 uint32_t change_alpha(uint32_t color, uint8_t new_alpha) {
 	// Assuming color format is 0xRRGGBBAA 

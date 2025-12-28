@@ -6,13 +6,68 @@
 #include "../headers/rendering.hpp"
 //#include <dwmapi.h>
 bool dontdo = false;
-
-COLORREF boxColor = RGB(255, 0, 0); // Initial color red
-HBRUSH hBrush = NULL;
-
+#include <windowsx.h>
 
 static GlobalParams* m;
 
+
+void UpdateImage(GlobalParams* m);
+
+static LRESULT CALLBACK TrackbarJumpSubclass(
+	HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam,
+	UINT_PTR id, DWORD_PTR ref)
+{
+	static BOOL dragging;
+	RECT rc;
+	int min, max, pos;
+	BOOL vert;
+
+	switch (msg)
+	{
+	case WM_LBUTTONDOWN:
+		dragging = TRUE;
+		SetCapture(hwnd);
+
+	case WM_MOUSEMOVE:
+		if (!dragging || !(wParam & MK_LBUTTON))
+			break;
+
+		SendMessage(hwnd, TBM_GETCHANNELRECT, 0, (LPARAM)&rc);
+		min = (int)SendMessage(hwnd, TBM_GETRANGEMIN, 0, 0);
+		max = (int)SendMessage(hwnd, TBM_GETRANGEMAX, 0, 0);
+		vert = (GetWindowLong(hwnd, GWL_STYLE) & TBS_VERT) != 0;
+
+		if (vert)
+		{
+			int y = GET_Y_LPARAM(lParam);
+			if (y < rc.top) y = rc.top;
+			if (y > rc.bottom) y = rc.bottom;
+			pos = max - (max - min) * (y - rc.top) / (rc.bottom - rc.top);
+
+		}
+		else
+		{
+			int x = GET_X_LPARAM(lParam);
+			if (x < rc.left) x = rc.left;
+			if (x > rc.right) x = rc.right;
+			pos = min + (max - min) * (x - rc.left) / (rc.right - rc.left);
+		}
+
+		SendMessage(hwnd, TBM_SETPOS, TRUE, pos);
+		UpdateImage(m);
+		return 0;
+
+	case WM_LBUTTONUP:
+		dragging = FALSE;
+		ReleaseCapture();
+		return 0;
+	}
+
+	return DefSubclassProc(hwnd, msg, wParam, lParam);
+}
+
+COLORREF boxColor = RGB(255, 0, 0); // Initial color red
+HBRUSH hBrush = NULL;
 
 void PerformDrawTextRealignment() {
 	POINT pos;
@@ -32,11 +87,14 @@ void PerformDrawTextRealignment() {
     SendMessage(m->drawtext_access_dialog_hwnd, WM_COMMAND, 0, 0);
 	SetFocus(m->drawtext_access_dialog_hwnd);
 	int ts = m->sizetextvar;
-	SetWindowPos(m->drawtext_access_dialog_hwnd, 0, mpx+5, mpy+(ts*m->mscaler)+20, 0, 0, SWP_NOSIZE);
-	
 
-    SetFocus(adtdb);
-	
+    POINT location4 = {mpx+5, mpy-80};
+	SetWindowPos(m->drawtext_access_dialog_hwnd, 0, location4.x, location4.y, 0, 0, SWP_NOSIZE);
+    ScreenToClient(m->hwnd, &location4);
+    m->drawtext_guiLocX = location4.x;
+    m->drawtext_guiLocY = location4.y;
+	SetForegroundWindow(m->drawtext_access_dialog_hwnd);
+
 }
 
 std::string text = "Cosine64";
@@ -70,7 +128,7 @@ static void ApplyEffectToBuffer(void* fromBuffer, void* toBuffer) {
 
     memcpy(toBuffer, fromBuffer, m->imgwidth * m->imgheight * 4);
     PlaceString(m, m->sizetextvar, text.c_str(), m->locationXtextvar, m->locationYtextvar, InvertCC(textColor, true), toBuffer, m->imgwidth, m->imgheight, fromBuffer);
-    RedrawSurface(m);
+    RedrawSurfaceTextDialog(m);
 }
 
 static void ConfirmEffect() {
@@ -103,6 +161,8 @@ void InitDialogControls(HWND hwnd) {
     adtdb = GetDlgItem(hwnd, ActualDrawTextDialogBox);
     tss = GetDlgItem(hwnd, TextSizeSlider);
     fnameid = GetDlgItem(hwnd, FontNameID);
+
+	SetWindowSubclass(tss, TrackbarJumpSubclass, 1, 0);
 
     SetWindowText(adtdb, text.c_str());
 
@@ -142,11 +202,29 @@ void freeness() {
     }
     
 }
+
+bool lastghostmode = true;
 static LRESULT CALLBACK DialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
+    if(m->drawtext_ghostmode != lastghostmode) {
+        if(m->drawtext_ghostmode) {
+            SetWindowLongPtr(hwnd, GWL_EXSTYLE,
+                GetWindowLongPtr(hwnd, GWL_EXSTYLE) | WS_EX_LAYERED);
+            SetLayeredWindowAttributes(hwnd, 0, 50, LWA_ALPHA);
+            SetWindowLongPtr(hwnd, GWL_EXSTYLE,
+            GetWindowLongPtr(hwnd, GWL_EXSTYLE) | WS_EX_TRANSPARENT);
+            
+        } else {
+            SetWindowLongPtr(hwnd, GWL_EXSTYLE,
+                GetWindowLongPtr(hwnd, GWL_EXSTYLE) | WS_EX_LAYERED);
+            SetLayeredWindowAttributes(hwnd, 0, 230, LWA_ALPHA);
+            SetWindowLongPtr(hwnd, GWL_EXSTYLE,
+            GetWindowLongPtr(hwnd, GWL_EXSTYLE) & ~WS_EX_TRANSPARENT);
+        }
+    }
+    lastghostmode = m->drawtext_ghostmode;
 
     switch (msg) {
         case WM_INITDIALOG: {
-
 
             LONG style = GetWindowLong(hwnd, GWL_STYLE);
             style &= ~(WS_CAPTION | WS_DLGFRAME | WS_BORDER);
@@ -163,14 +241,14 @@ static LRESULT CALLBACK DialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lp
 
             InitDialogControls(hwnd);
 
-            RedrawSurface(m);
+            RedrawSurfaceTextDialog(m);
             didinit = true;
             UpdateImage(m);
             PerformDrawTextRealignment();
-            
+
+
             return FALSE;
         }
-
         case WM_COMMAND: {
             UpdateImage(m);
             switch (LOWORD(wparam)) {
@@ -182,6 +260,8 @@ static LRESULT CALLBACK DialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lp
                     UpdateLoadFont();
                     UpdateImage(m);
                 }
+                
+                SetFocus(adtdb);
                 break;
             }
             case ColorTextButton: {
@@ -200,7 +280,9 @@ static LRESULT CALLBACK DialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lp
                 InvalidateRect(tb, &rect, TRUE);
                 MapWindowPoints(tb, hwnd, (POINT*)&rect, 2);
                 RedrawWindow(hwnd, &rect, NULL, RDW_ERASE | RDW_INVALIDATE);
-                PerformDrawTextRealignment();
+                // set active here
+                SetFocus(hwnd);
+                SetFocus(adtdb);
                 UpdateImage(m);
 
                 break;

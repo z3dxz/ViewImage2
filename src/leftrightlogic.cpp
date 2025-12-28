@@ -90,6 +90,7 @@ void GoLeft(GlobalParams *m) {
 }
 
 void GoRight(GlobalParams* m) {
+	
 	if (!m->loading && !m->halt && m->imgwidth > 0) {
 		m->halt = true;
 		m->loading = true;

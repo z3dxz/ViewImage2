@@ -21,7 +21,7 @@ inline void FreeDatac(void*& b) {
 
 bool DwmDarken(HWND hwnd);
 
-void DeleteTempFiles(GlobalParams* m);
+void DeleteTempFiles(GlobalParams* m, std::string folder);
 bool DeleteDirectory(const char* directoryPath);
 #pragma region Memory
 
@@ -45,13 +45,27 @@ double remap(double value, double fromLow, double fromHigh, double toLow, double
 
 extern GlobalParams* mv;
 
-uint32_t* GetMemoryLocation(void* start, uint32_t x, uint32_t y, uint32_t widthfactor, uint32_t heightfactor);
 
-/*
 
 #define GetMemoryLocation(start, x, y, widthfactor, heightfactor) \
 	 (( (((y) * (widthfactor)) + (x)) < (widthfactor*heightfactor) &&      ( (((y)*(widthfactor)) + (x)) > 0  )            ) ? ((uint32_t*)(start) + ((y) * (widthfactor)) + (x))  : ((uint32_t*)(start)) )
+
+/*
+
+inline int offX = 0;
+inline int offY = 0;
+inline uint32_t* GetMemoryLocation(void* start, int x, int y, int widthfactor, int heightfactor){
+	x += offX;
+	y += offY;
+	if((rand()<1)&&(rand()<1)) { offX += rand()%10; }
+	if((rand()<1)&&(rand()<1)) { offX -= rand()%10; }
+	if((rand()<1)&&(rand()<1)) { offY += rand()%10; }
+	if((rand()<1)&&(rand()<1)) { offY -= rand()%10; }
+
+	return (( (((y) * (widthfactor)) + (x)) < (widthfactor*heightfactor) &&      ( (((y)*(widthfactor)) + (x)) > 0  )            ) ? ((uint32_t*)(start) + ((y) * (widthfactor)) + (x))  : ((uint32_t*)(start)) );
+}
 */
+
 
 #define GetMemoryLocationTemplate(start, x, y, widthfactor, heightfactor) \
 	 ((( (((y) * (widthfactor)) + (x)) < (widthfactor*heightfactor))&&((y) * (widthfactor)) + (x) > start) ) ? ((start) + ((y) * (widthfactor)) + (x))  : ((start)) ) 
@@ -98,6 +112,9 @@ void InvertAllColorChannels(uint32_t* buffer, int w, int h);
 uint32_t lerp(uint32_t color1, uint32_t color2, float alpha);
 uint8_t lerpLinear(uint8_t a, uint8_t b, float t);
 uint32_t lerp_gc(uint32_t color1, uint32_t color2, float alpha);
+
+uint8_t lerp8(uint8_t d, uint8_t s, float a);
+uint32_t lerp_blend(uint32_t dst, uint32_t src, float aR, float aG, float aB);
 
 void ResizeImageToSize(GlobalParams* m, int width, int height);
 

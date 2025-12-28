@@ -1,13 +1,13 @@
 // Microsoft Visual C++ generated resource script.
 //
 #include "resource.h"
-#include "winres.h"
 
 #define APSTUDIO_READONLY_SYMBOLS
 /////////////////////////////////////////////////////////////////////////////
 //
 // Generated from the TEXTINCLUDE 2 resource.
 //
+#include "winres.h"
 
 /////////////////////////////////////////////////////////////////////////////
 #undef APSTUDIO_READONLY_SYMBOLS
@@ -17,6 +17,7 @@
 
 #if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
 LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+#pragma code_page(1252)
 
 #ifdef APSTUDIO_INVOKED
 /////////////////////////////////////////////////////////////////////////////
@@ -73,7 +74,7 @@ CROPICON                PNG                     "cropicon.png"
 
 MENUSHADOW              PNG                     "menu_shadow.png"
 
-DMGUIDEICON              PNG                     "dmguide.png"
+DMGUIDEICON             PNG                     "dmguide.png"
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -101,7 +102,7 @@ END
 
 LoadingHalt DIALOGEX 0, 0, 137, 46
 STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | DS_CENTER | WS_POPUP | WS_SYSMENU
-FONT 8, "MS Shell Dlg", 400, 0, 0x1 
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
     LTEXT           "Please wait while undo processes",PL,15,19,107,8
 END
@@ -132,7 +133,7 @@ END
 
 DrawTextDialog DIALOGEX 0, 0, 271, 35
 STYLE DS_SETFONT | DS_MODALFRAME | DS_3DLOOK | DS_FIXEDSYS | WS_POPUP | WS_SYSMENU
-EXSTYLE WS_EX_OVERLAPPEDWINDOW | WS_EX_TRANSPARENT | WS_EX_COMPOSITED
+EXSTYLE WS_EX_OVERLAPPEDWINDOW
 FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
     DEFPUSHBUTTON   "Confirm",IDOK,184,18,32,13
@@ -204,10 +205,7 @@ BEGIN
 
     DrawTextDialog, DIALOG
     BEGIN
-        LEFTMARGIN, 7
-        RIGHTMARGIN, 302
-        TOPMARGIN, 7
-        BOTTOMMARGIN, 124
+        TOPMARGIN, 3
     END
 
     FontDialog, DIALOG
@@ -216,14 +214,6 @@ BEGIN
         RIGHTMARGIN, 210
         TOPMARGIN, 7
         BOTTOMMARGIN, 202
-    END
-
-    DrawTextDialogFuture, DIALOG
-    BEGIN
-        LEFTMARGIN, 7
-        RIGHTMARGIN, 302
-        TOPMARGIN, 7
-        BOTTOMMARGIN, 175
     END
 END
 #endif    // APSTUDIO_INVOKED
@@ -279,6 +269,14 @@ IDC_CURSOR1             CURSOR                  "cursor1.cur"
 
 IDC_CURSOR2             CURSOR                  "cursor2.cur"
 
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// RT_MANIFEST
+//
+
+1                       RT_MANIFEST             "viewimage.manifest"
+
 #endif    // English (United States) resources
 /////////////////////////////////////////////////////////////////////////////
 
@@ -294,4 +292,3 @@ IDC_CURSOR2             CURSOR                  "cursor2.cur"
 /////////////////////////////////////////////////////////////////////////////
 #endif    // not APSTUDIO_INVOKED
 
-1 24 "viewimage-2.5-x64-cm.final.manifest"

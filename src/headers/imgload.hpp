@@ -5,13 +5,16 @@
 #include "globalvar.hpp"
 #include "../special/sfbb_support.hpp"
 #include "../special/m45_support.hpp"
+#ifdef _SVG
 #include "../special/svg_support.hpp"
+#endif
 #include "../special/irbo_support.hpp"
-
 
 //void CombineBuffer(GlobalParams* m, uint32_t* first, uint32_t* second, int width, int height, bool invert);
 //void FreeCombineBuffer(GlobalParams* m);
 bool doIFSave(GlobalParams* m);
+
+std::string ReplaceBitmapAndMetrics(GlobalParams* m, void*& buffer, const char* standardPath, int* w, int* h);
 bool OpenImageFromPath(GlobalParams* m, std::string kpath, bool isLeftRight);
 void PrepareOpenImage(GlobalParams* m);
 

@@ -44,6 +44,9 @@ bool ishlock = false;
 int ogwidth;
 int ogheight;
 
+int firstw;
+int firsth;
+
 LRESULT CALLBACK TXTProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData) {
     switch (msg)
     {
@@ -104,6 +107,9 @@ LRESULT CALLBACK ResizeDialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpa
 
         int w1 = m->imgwidth;
         int h1 = m->imgheight;
+
+        firstw = w1;
+        firsth = h1;
 
         char strw[8];
         char strh[8];
@@ -259,6 +265,7 @@ LRESULT CALLBACK ResizeDialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpa
         }
         case ConfirmBBox: {
             // Retrieve values from text boxes
+            
             char widthText[16], heightText[16];
             GetWindowText(hWidthEdit, widthText, 16);
             GetWindowText(hHeightEdit, heightText, 16);
@@ -282,8 +289,14 @@ LRESULT CALLBACK ResizeDialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpa
                 MessageBox(hwnd, "You need at least 1 pixel in each dimension", "Error", MB_OK | MB_ICONERROR);
                 return TRUE; // Do not proceed with resizing
             }
-            // Perform resizing logic with width and height
-            ResizeImageToSize(m, width, height);
+
+            if(width == firstw && height == firsth) {
+                // do nothing for now
+                
+            } else {
+                // Perform resizing logic with width and height
+                ResizeImageToSize(m, width, height);
+            }
 
             // Close the dialog
             EndDialog(hwnd, IDOK);

@@ -1,6 +1,8 @@
 
 #define _CRT_SECURE_NO_WARNINGS
 #include "m45_support.hpp"
+#include <time.h>
+#include <algorithm>
 
 #define GetMemoryLocation(start, x, y, widthfactor) \
 	((uint32_t*)(start) + ((y) * (widthfactor)) + (x))\
@@ -32,8 +34,8 @@ VCOLOR rgbToHsv(uint32_t rgbColor) {
 	double g_norm = g / 255.0;
 	double b_norm = b / 255.0;
 
-	double cMax = std::max( std::max(r_norm, g_norm), b_norm);
-	double cMin =  std::min( std::min(r_norm, g_norm), b_norm);
+	double cMax = fmax( fmax(r_norm, g_norm), b_norm);
+	double cMin =  fmin( fmin(r_norm, g_norm), b_norm);
 	double delta = cMax - cMin;
 
 	// Calculate hue
@@ -514,16 +516,12 @@ void* decode_m45(const char* filepath, int* imgwidth, int* imgheight) {
 				uint8_t colorCarrier3 = 0;
 				uint8_t colorCarrier4 = 0;
 
-				if (s_ptr <= max_m);
 				colorCarrier = (*s_ptr);
 
-				if (s_ptr2 <= max_m);
 				colorCarrier2 = (*s_ptr2);
 
-				if (s_ptr3 <= max_m);
 				colorCarrier3 = (*s_ptr3);
 
-				if (s_ptr4 <= max_m);
 				colorCarrier4 = (*s_ptr4);
 
 

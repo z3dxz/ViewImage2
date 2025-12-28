@@ -4,6 +4,7 @@
 #include <Windows.h>
 #include <ft2build.h>
 #include <freetype/freetype.h>
+#include <freetype/ftlcdfil.h>
 #include <functional>
 #include <stdint.h>
 
@@ -18,6 +19,8 @@ struct MenuItem {
 	std::function<bool()> func;
 	int atlasX;
 	int atlasY;
+	bool* enable_condition;
+	bool close_menu;
 };
 
 struct UndoDataStruct {
@@ -27,9 +30,12 @@ struct UndoDataStruct {
 	int height;
 };
 
-#define REAL_BIG_VERSION "2.62"
+#define REAL_BIG_VERSION "2.6*"
 
 struct GlobalParams {
+	std::string name_primary = "ViewImage";
+	std::string name_full = "View Image";
+
 	std::vector<ToolbarButtonItem> toolbartable;
 
 	// deltatime
@@ -47,9 +53,6 @@ struct GlobalParams {
 
 	void* imagepreview;
 	bool isImagePreview = false;
-
-
-	bool debugslow = false;
 
 	// images
 	unsigned char* toolbarData;
@@ -124,8 +127,12 @@ struct GlobalParams {
 		int lockimgoffy;
 		POINT LockmPos;
 		bool isSize;
-		int lastMouseX;
-		int lastMouseY; // for drawing only
+		//int lastMouseX;
+		//int lastMouseY; // for drawing only
+		// not used anymore due to WASD magic
+		int lastK;
+		int lastV; // use these instead
+		
 
 
 	bool fullscreen = false;
@@ -172,8 +179,6 @@ struct GlobalParams {
 	float a_opacity = 1.0f;
 	float a_resolution = 30.0f;
 
-	bool pinkTestCenter = false;
-
 	// slider's
 
 	int slider1begin = 113;
@@ -190,6 +195,7 @@ struct GlobalParams {
 	float testfloat = 0.0f;
 
 	bool debugmode = false;
+	bool draw_updates_debug = false;
 
 	bool sleepmode = false;
 
@@ -203,7 +209,6 @@ struct GlobalParams {
 	FT_Face SegoeUI;
 	FT_Face Verdana;
 	FT_Face OCRAExt;
-	FT_Face Tahoma;
 
 	float etime = 0; // USED FOR MEASURING TIME
 
@@ -224,8 +229,8 @@ struct GlobalParams {
 	bool isMovingBR = false;
 
 	// For WASD Protection ONLY
-	float TransferWASDMoveMomentiumXIntArithmetic = 0;
-	float TransferWASDMoveMomentiumYIntArithmetic = 0;
+	float wasdX = 0;
+	float wasdY = 0;
 	bool SetLastMouseForWASDInputCaptureProtectionLock = false;
 
 
@@ -236,6 +241,11 @@ struct GlobalParams {
 	HWND drawtext_access_dialog_hwnd;
 	int locationXtextvar = 0;
 	int locationYtextvar = 0;
+
+	int drawtext_guiLocX = 0;
+	int drawtext_guiLocY = 0;
+	int drawtext_ghostmode = false;
+
 	int sizetextvar = 32;
 
 	double def_txt_shadow_softness = 0.34f;
@@ -246,7 +256,22 @@ struct GlobalParams {
 	int dmguide_y = 45;
 	int dmguide_sx = 45;
 	int dmguide_sy = 168;
+
+	bool lcd = true;
+
+	bool item_enabled = true; // enable true placeholder
+	bool item_disabled = false; // enable false placeholder
+
+	bool undo_menucondition = false;
+	bool redo_menucondition = false;
+	bool isimage_menucondition = false;
+
+		
+	LARGE_INTEGER previousTime;
+	LARGE_INTEGER frequency; // for wasd magic
 };	
+
+
 
 
 // mod list
@@ -256,5 +281,6 @@ struct GlobalParams {
 // effects (does not change original)
 	// brightness contrast
 	// gaussian
+	// text
 	// invert
 // crop (does change original)
