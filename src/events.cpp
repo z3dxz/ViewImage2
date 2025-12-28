@@ -336,9 +336,11 @@ void PerformWASDMagic(GlobalParams* m) {
     m->wasdX += ax * dt;
     m->wasdY += ay * dt;
 
-    float friction = expf(-damping * dt);
-    m->wasdX *= friction;
-    m->wasdY *= friction;
+    //float friction = expf(-damping * dt);
+    m->wasdX += -damping*m->wasdX * dt; // differential equation
+    m->wasdY += -damping*m->wasdY * dt;
+	//m->wasdX *= friction;
+	//m->wasdY *= friction;
 
     float moveX = m->wasdX * dt;
     float moveY = m->wasdY * dt;

@@ -1561,7 +1561,7 @@ void RedrawSurface(GlobalParams* m, bool onlyImage, bool doesManualClip, bool by
 	SwitchFont(m->SegoeUI);
 	if (m->debugmode) {
 		char debug[256];
-		sprintf(debug, "MS: %f: RES: %f: Undo Queue: %d:Undo Step: %d: Elapsed debug time: %f", m->ms_time, m->a_resolution, m->ProcessOfMakingUndoStep, m->undoStep, m->etime);
+		sprintf(debug, "WASDX: %f: MS: %f: RES: %f: Undo Queue: %d:Undo Step: %d: Elapsed debug time: %f", m->wasdX, m->ms_time, m->a_resolution, m->ProcessOfMakingUndoStep, m->undoStep, m->etime);
 		PlaceString(m, 16, debug, 12, m->toolheight + 8, 0x808080, m->scrdata);
 
 	}
