@@ -1,4 +1,7 @@
 #include <filesystem>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 #include "headers/ops.hpp"
 #include "headers/imgload.hpp"
 #include "../res/resource.h"
@@ -6,18 +9,6 @@
 #define max(a,b)            (((a) > (b)) ? (a) : (b))
 #define min(a,b)            (((a) < (b)) ? (a) : (b))
 
-// Helper function to clamp values between 0 and 255
-uint8_t clamp(int value) {
-	if (value < 0) return 0;
-	if (value > 255) return 255;
-	return (uint8_t)value;
-}
-
-int clampv(int value, int min, int max) {
-	if(value < min) { return min;}
-	if(value > max) {return max;}
-	return value;
-}
 
 
 uint8_t ivv = 0;
@@ -54,8 +45,6 @@ bool DwmDarken(HWND hwnd) {
 	FreeLibrary(hDwmApi);
 	return true;
 }
-
-#pragma region File
 
 bool DeleteDirectory(const char* directoryPath) {
 	return std::filesystem::remove_all(directoryPath);
@@ -136,11 +125,6 @@ unsigned char* LoadImageFromResource(int resourceId, int& width, int& height, in
 	return imageData;
 }
 
-
-#pragma endregion
-
-#pragma region Math
-
 HDC GetPrinterDC() {
 	PRINTDLG pd = { sizeof(PRINTDLG) };
 	pd.Flags = PD_RETURNDC;
@@ -215,20 +199,10 @@ void Print(GlobalParams* m) {
 
 	PrintDlg(&pd);
 
-	// Get the printer device context
 	HDC printerDC = pd.hDC;
 
-	//CombineBuffer(m, (uint32_t*)m->imgdata, (uint32_t*)m->imgannotate, m->imgwidth, m->imgheight, true);
 	PrintImageToPrinter((uint32_t*)m->imgdata, m->imgwidth, m->imgheight, printerDC);
-	//FreeCombineBuffer(m);
 }
-
-void swapPointers(void*& ptr1, void*& ptr2) {
-	void* temp = ptr1;
-	ptr1 = ptr2;
-	ptr2 = temp;
-}
-// to access memory pointer itself, use double pointer
 void ConfirmCropBuffer(GlobalParams* m, void** buffer, int newW, int newH) {
 
 	void* MyNewCropLifestyle = malloc(newW * newH * 4);
@@ -275,26 +249,7 @@ void ConfirmCrop(GlobalParams* m) {
 	m->isInCropMode = false;
 	RedrawSurface(m);
 }
-/*
 
-void ResizeImageToSize(GlobalParams* m, int width, int height) {
-	m->tempResizeBuffer = malloc(width * height * 4);
-	stbir_resize_uint8((unsigned char*)m->imgdata, m->imgwidth, m->imgheight, 0, (unsigned char*)m->tempResizeBuffer, width, height, 0, 4);
-	FreeData(m->imgdata);
-	m->imgwidth = width;
-	m->imgheight = height;
-	swapPointers(m->imgdata, m->tempResizeBuffer);
-	m->shouldSaveShutdown = true;
-
-	m->undoStep = 0;
-	m->undoData.clear();
-	FreeData(m->imgannotate);
-	m->imgannotate = malloc(width * height * 4);
-	memset(m->imgannotate, 0x00, width * height * 4);
-	autozoom(m);
-	//FreeData(to);
-}
-*/
 
 void performResize(GlobalParams* m, void** memory, int owidth, int oheight, int nwidth, int nheight) {
 	// allocate the copy for temporary reference
@@ -306,20 +261,11 @@ void performResize(GlobalParams* m, void** memory, int owidth, int oheight, int 
 
 	FreeData(*memory);
 	*memory = malloc(nwidth * nheight * 4);
-	//m->imgwidth = nwidth;
-	//m->imgheight = nheight;
 
-	// do
 	stbir_resize_uint8_linear((unsigned char*)tempOldBuffer, owidth, oheight, 0, (unsigned char*)*memory, nwidth, nheight, 0, STBIR_RGBA);
 
 	m->shouldSaveShutdown = true;
 
-	//m->undoStep = 0;
-	//m->undoData.clear();
-	//FreeData(m->imgannotate);
-	//m->imgannotate = malloc(width * height * 4);
-	//memset(m->imgannotate, 0x00, width * height * 4);
-	//FreeCombineBuffer(m);
 	FreeData(tempOldBuffer);
 }
 
@@ -336,7 +282,6 @@ void ResizeImageToSize(GlobalParams* m, int nwidth, int nheight) {
 }
 
 void rotatememory(GlobalParams* m, int owidth, int oheight, int nwidth, int nheight, void** memory) {
-	// allocate the copy for tempoary reference
 	void* tempOldBuffer = malloc(owidth * oheight * 4);
 	memcpy(tempOldBuffer, *memory, owidth * oheight * 4);
 
@@ -349,7 +294,6 @@ void rotatememory(GlobalParams* m, int owidth, int oheight, int nwidth, int nhei
 			*GetMemoryLocation(*memory, x, y, nwidth, nheight) = *GetMemoryLocation(tempOldBuffer, y, nwidth - 1 - x, owidth, oheight);
 		}
 	}
-
 
 	FreeData(tempOldBuffer);
 }
@@ -369,41 +313,6 @@ void rotateImage90Degrees(GlobalParams* m) {
 	autozoom(m);
 	RedrawSurface(m);
 }
-/*
-
-	//FreeData(to);
-
-	//
-	// Update width and height after rotation
-	size_t newWidth = m->imgheight;
-	size_t newHeight = m->imgwidth;
-	m->imgwidth = newWidth;
-	m->imgheight = newHeight;
-
-	// Allocate memory for rotated image
-	uint32_t* rotatedImage = (uint32_t*)malloc(newWidth * newHeight * sizeof(uint32_t));
-
-	// Transfer pixels to rotated image
-	for (size_t y = 0; y < newHeight; y++) {
-		for (size_t x = 0; x < newWidth; x++) {
-			*GetMemoryLocation(rotatedImage, x,y, newWidth, newHeight) = *GetMemoryLocation(m->imgdata,y, newWidth - 1 - x, m->imgheight, m->imgwidth);
-		}
-	}
-
-	// Free memory of the original image
-	FreeData(m->imgdata);
-
-	// Update pointer to point to rotated image
-	m->imgdata = rotatedImage;
-	m->shouldSaveShutdown = true;
-	RedrawSurface(m);
-}
-*/
-/*
-int GetButtonInterval(GlobalParams* m) {
-	return m->iconSize + 5;
-}
-*/
 
 int GetIndividualButtonPush(GlobalParams* m, int index) {
 	return (m->iconSize + 4) + (m->toolbartable[index].isSeperator * 5);
@@ -455,15 +364,7 @@ int getXbuttonID(GlobalParams* m, POINT mPos) {
 		p += GetIndividualButtonPush(m, i);
 	}
 	return -1;
-	/*
-	
-	LONG x = mPos.x;
-	int interval = GetButtonInterval(m);
-	return (mPos.y > m->toolheight || mPos.y < 2 || mPos.x < 2) ? -1 : x / interval;
-	*/
 }
-
-
 
 void GetCropCoordinates(GlobalParams* m, uint32_t* outDistLeft, uint32_t* outDistRight, uint32_t* outDistTop, uint32_t* outDistBottom) {
 
@@ -499,7 +400,6 @@ float roundzoom(float z) {
 	return pow(1.25f, round(log_base_1_25(z)));
 }
 
-
 void no_offset(GlobalParams* m) {
 	m->iLocX = 0;
 	if (!m->fullscreen) {
@@ -512,6 +412,9 @@ void no_offset(GlobalParams* m) {
 }
 
 void autozoom(GlobalParams* m) {
+	if(!m->imgdata) {
+		return;
+	}
 
 	int toolheight0 = 0;
 	if (!m->fullscreen) { toolheight0 = m->toolheight; }
@@ -595,37 +498,23 @@ uint8_t lerpLinear(uint8_t a, uint8_t b, float t) {
 }
 
 
-uint32_t lerp(uint32_t color1, uint32_t color2, float alpha)
+uint32_t lerp_u32(uint32_t c1, uint32_t c2, uint32_t a)
 {
-	/*
-	
-	if (((float)(rand() % 100) / 100.0f) > alpha) {
-		return color1;
+    if (c1 == c2 || a == 0)
+        return c1;
+    if (a == 255)
+        return c2;
 
-	}
-	return color2;
-	*/
-	// Extract the individual color channels from the input values
-	uint8_t a1 = (color1 >> 24) & 0xFF;
-	uint8_t r1 = (color1 >> 16) & 0xFF;
-	uint8_t g1 = (color1 >> 8) & 0xFF;
-	uint8_t b1 = color1 & 0xFF;
+    uint32_t rb1 = c1 & 0x00FF00FF;
+    uint32_t ag1 = (c1 >> 8) & 0x00FF00FF;
+    uint32_t rb2 = c2 & 0x00FF00FF;
+    uint32_t ag2 = (c2 >> 8) & 0x00FF00FF;
 
-	uint8_t a2 = (color2 >> 24) & 0xFF;
-	uint8_t r2 = (color2 >> 16) & 0xFF;
-	uint8_t g2 = (color2 >> 8) & 0xFF;
-	uint8_t b2 = color2 & 0xFF;
+    rb1 += ((rb2 - rb1) * a) >> 8;
+    ag1 += ((ag2 - ag1) * a) >> 8;
 
-	// Calculate the lerped color values for each channel
-	uint8_t a = (1 - alpha) * a1 + alpha * a2;
-	uint8_t r = (1 - alpha) * r1 + alpha * r2;
-	uint8_t g = (1 - alpha) * g1 + alpha * g2;
-	uint8_t b = (1 - alpha) * b1 + alpha * b2;
-
-	// Combine the lerped color channels into a single 32-bit value
-	return (a << 24) | (r << 16) | (g << 8) | b;
+    return (rb1 & 0x00FF00FF) | ((ag1 & 0x00FF00FF) << 8);
 }
-
 
 uint8_t lerp8(uint8_t d, uint8_t s, float a) {
     return (uint8_t)(d + (s - d) * a);
@@ -664,9 +553,7 @@ bool AutoAdjustLevels(GlobalParams* m, uint32_t* buffer) {
 	uint32_t* tempd = (uint32_t*)malloc(m->imgwidth*m->imgheight*4);
 	gaussian_blur_B((uint32_t*)buffer, tempd, m->imgwidth, m->imgheight, 2, m->imgwidth, m->imgheight, 0, 0);
 
-	m->isMenuState = false;
-	
-
+	m->isMenuState = false;	
 	int width = m->imgwidth;
 	int height = m->imgheight;
 
@@ -713,10 +600,6 @@ bool AutoAdjustLevels(GlobalParams* m, uint32_t* buffer) {
 	if (maxG == minG) { if (maxG < 255) { maxG++; } else { minG--; } }
 	if (maxB == minB) { if (maxB < 255) { maxB++; } else { minB--; } }
 
-	//if (maxRo == minRo) { if (maxRo < 255) { maxRo++; } else { minRo--; } }
-	//if (maxGo == minGo) { if (maxGo < 255) { maxGo++; } else { minGo--; } }
-	//if (maxBo == minBo) { if (maxBo < 255) { maxBo++; } else { minBo--; } }
-
 	if (minR == 0 && minG == 0 && minB == 0 && maxR == 255 && maxG == 255 && maxB == 255) {
 		MessageBox(m->hwnd, "There is no adjustment needed", "Automatic Adjust", MB_OK);
 		return false;
@@ -724,24 +607,24 @@ bool AutoAdjustLevels(GlobalParams* m, uint32_t* buffer) {
 
 	// modify
 	m->shouldSaveShutdown = true;
-	createUndoStep(m, false);
+	createUndoStep(m, true);
 
 	for (int y = 0; y < height; y++) {
 		for (int x = 0; x < width; x++) {
 			uint32_t pxlColor = *GetMemoryLocation(m->imgdata, x, y, width, height);
 
-			uint32_t a = (pxlColor >> 24) & 0xFF;
-			uint32_t r = (pxlColor >> 16) & 0xFF;
-			uint32_t g = (pxlColor >> 8) & 0xFF;
-			uint32_t b = (pxlColor) & 0xFF;
+			int a = (pxlColor >> 24) & 0xFF;
+			int r = (pxlColor >> 16) & 0xFF;
+			int g = (pxlColor >> 8) & 0xFF;
+			int b = (pxlColor) & 0xFF;
 
-			int newR = (clampv(r - minR, 0, 255) * (255) / (maxR - minR));
-			int newG = (clampv(g - minG, 0, 255) * (255) / (maxG - minG));
-			int newB = (clampv(b - minB, 0, 255) * (255) / (maxB - minB));
+			int newR = (std::clamp(r - minR, 0, 255) * (255) / (maxR - minR));
+			int newG = (std::clamp(g - minG, 0, 255) * (255) / (maxG - minG));
+			int newB = (std::clamp(b - minB, 0, 255) * (255) / (maxB - minB));
 
-			uint8_t nR = clamp(newR);
-			uint8_t nG = clamp(newG);
-			uint8_t nB = clamp(newB);
+			uint8_t nR = std::clamp(newR, 0, 255);
+			uint8_t nG = std::clamp(newG, 0, 255);
+			uint8_t nB = std::clamp(newB, 0, 255);
 
 			*GetMemoryLocation(m->imgdata, x, y, width, height) = change_alpha(RGB(nB, nG, nR), a);
 		}
@@ -892,9 +775,6 @@ void boxBlur(uint32_t* mem, uint32_t width, uint32_t height, uint32_t kernelSize
 		integralB = fintegralB;
 	}
 
-	
-	
-
 	for (uint32_t y = 0; y < height; ++y) {
 		for (uint32_t x = 0; x < width; ++x) {
 			uint32_t pixel = mem[y * width + x];
@@ -964,59 +844,21 @@ void boxBlur(uint32_t* mem, uint32_t width, uint32_t height, uint32_t kernelSize
 			mem[y * width + x] = (avgR << 16) | (avgG << 8) | avgB;
 		}
 	}
-
-	//FreeData(integralR);
-	//FreeData(integralG);
-	//FreeData(integralB);
 }
-
-
-
-
-
-
-/*
-void gaussian_blur(uint32_t* pixels, int lW, int lH, double sigma, uint32_t width, uint32_t height, uint32_t offX, uint32_t offY) {
-	unsigned char* result = (unsigned char*)malloc(width * height * 4);
-	for (int row = 0; row < height; row++)
-	{
-		for (int col = 0; col < width; col++)
-		{
-			for (int k = 0; k < 3; k++)
-			{
-				result[3 * row * width + 3 * col + k] = accessPixel((unsigned char*)pixels, col, row, k, width, height);
-			}
-		}
-	}
-	memcpy((unsigned char*)pixels, result, (width * height*4));
-}
-
-*/
-
-
 
 uint32_t multiplyColor(uint32_t color, float multiplier) {
-	// Extracting the individual color components
 	uint8_t alpha = (color >> 24) & 0xFF;
 	uint8_t red = (color >> 16) & 0xFF;
 	uint8_t green = (color >> 8) & 0xFF;
 	uint8_t blue = color & 0xFF;
 
-	// Multiplying each color component by the multiplier
-	red = static_cast<uint8_t>(red * multiplier);
-	green = static_cast<uint8_t>(green * multiplier);
-	blue = static_cast<uint8_t>(blue * multiplier);
+	red = (uint8_t)(red * multiplier);
+	green = (uint8_t)(green * multiplier);
+	blue = (uint8_t)(blue * multiplier);
 
-	// Combining the color components back into a single color value
 	return (alpha << 24) | (red << 16) | (green << 8) | blue;
 }
 
-
-
-
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
 
 // Compute integral image for a single channel
 void compute_integral_image(const uint8_t* input, int width, int height, uint32_t* integral_image) {
@@ -1051,7 +893,7 @@ void box_blur(const uint32_t* integral_image, uint8_t* output, int width, int he
 
 			uint32_t sum = get_integral_sum(integral_image, width, x0, y0, x1, y1);
 			int area = (x1 - x0 + 1) * (y1 - y0 + 1);
-			output[y * width + x] = clamp(sum / area);
+			output[y * width + x] = std::clamp((int)(sum / area), 0, 255);
 		}
 	}
 }
@@ -1163,13 +1005,8 @@ void gaussian_blur_B(uint32_t* input_buffer, uint32_t* output_buffer, int lW, in
 
 // Gaussian blur function
 void gaussian_blur(uint32_t* pixels, int lW, int lH, double sigma, uint32_t width, uint32_t height, uint32_t offX, uint32_t offY) {
-	// Compute kernel size
 	int kernel_size = (int)ceil(sigma * 3) * 2 + 1;
-
-	// Allocate kernel array
 	double* kernel = (double*)malloc(kernel_size * sizeof(double));
-
-	// Compute kernel values
 	double sum = 0.0;
 	int i;
 	for (i = 0; i < kernel_size; i++) {
@@ -1177,16 +1014,10 @@ void gaussian_blur(uint32_t* pixels, int lW, int lH, double sigma, uint32_t widt
 		kernel[i] = gaussian(x, sigma);
 		sum += kernel[i];
 	}
-
-	// Normalize kernel
 	for (i = 0; i < kernel_size; i++) {
 		kernel[i] /= sum;
 	}
-
-	// Allocate tempoary row array
 	uint32_t* row = (uint32_t*)malloc(width * sizeof(uint32_t));
-
-	// Blur horizontally
 	int x, y;
 	for (y = 0; y < lH; y++) {
 		for (x = 0; x < lW; x++) {
@@ -1196,7 +1027,6 @@ void gaussian_blur(uint32_t* pixels, int lW, int lH, double sigma, uint32_t widt
 				int xk = x - (kernel_size - 1) / 2 + k;
 				if (xk >= 0 && xk < width) {
 					uint32_t pixel = *GetMemoryLocation(pixels, (xk + offX), (y + offY), width, height);
-					//uint32_t pixel = pixels[(y + offY) * width + (xk + offX)];
 					sum_r += (double)((pixel & 0xff0000) >> 16) * kernel[k];
 					sum_g += (double)((pixel & 0x00ff00) >> 8) * kernel[k];
 					sum_b += (double)(pixel & 0x0000ff) * kernel[k];
@@ -1206,14 +1036,10 @@ void gaussian_blur(uint32_t* pixels, int lW, int lH, double sigma, uint32_t widt
 				((uint32_t)(sum_g + 0.5) << 8) |
 				((uint32_t)(sum_b + 0.5));
 		}
-		// Copy row back into pixels array
 		for (x = 0; x < lW; x++) {
 			*GetMemoryLocation(pixels, (x + offX), (y + offY), width, height) = row[x];
-			//pixels[(y + offY) * width + (x + offX)] = row[x];
 		}
 	}
-
-	// Blur vertically
 	for (x = 0; x < lW; x++) {
 		for (y = 0; y < lH; y++) {
 			int k;
@@ -1222,7 +1048,6 @@ void gaussian_blur(uint32_t* pixels, int lW, int lH, double sigma, uint32_t widt
 				int yk = y - (kernel_size - 1) / 2 + k;
 				if (yk >= 0 && yk < lH) {
 					uint32_t pixel = *GetMemoryLocation(pixels, (x + offX), (yk + offY), width, height);
-					//uint32_t pixel = pixels[(yk + offY) * width + (x + offX)];
 					sum_r += (double)((pixel & 0xff0000) >> 16) * kernel[k];
 					sum_g += (double)((pixel & 0x00ff00) >> 8) * kernel[k];
 					sum_b += (double)(pixel & 0x0000ff) * kernel[k];
@@ -1232,20 +1057,13 @@ void gaussian_blur(uint32_t* pixels, int lW, int lH, double sigma, uint32_t widt
 				((uint32_t)(sum_g + 0.5) << 8) |
 				((uint32_t)(sum_b + 0.5));
 		}
-		// Copy row back into pixels array
 		for (y = 0; y < lH; y++) {
 			*GetMemoryLocation(pixels, (offX + x), (offY + y), width, height) = row[y];
-			//pixels[(offY + y) * width + (offX + x)] = row[y];
 		}
 	}
-
-	// Free memory
 	FreeData(kernel);
 	FreeData(row);
 }
-
-
-#pragma endregion
 
 
 #include <stdint.h>

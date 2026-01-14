@@ -124,7 +124,7 @@ const char* encodesfbb(const char* out_path, void* imgdata, int imgwidth, int im
 }
 
 void* decodesfbb(const char* filepath, int* imgwidth, int* imgheight) {
-    printf("\n -- Reading File -- \n");
+    printf("\n -- Reading SFBB File -- \n");
     HANDLE hFile = CreateFile(filepath, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, NULL);
 
     if (hFile == INVALID_HANDLE_VALUE) {
@@ -138,7 +138,6 @@ void* decodesfbb(const char* filepath, int* imgwidth, int* imgheight) {
     int sizeOfAllocation = fsize;
     void* data = malloc(sizeOfAllocation);
     DWORD dwBytesRead = 0;
-    DWORD dwBytesWritten = 0;
 
     if (!ReadFile(hFile, data, sizeOfAllocation, &dwBytesRead, NULL)) {
         return 0;

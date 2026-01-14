@@ -2,9 +2,7 @@
 #include "ops.hpp"
 
 void clear_kvector();
-std::string GetPrevFilePath();
-std::string GetNextFilePath(const char* file_Path);
-
+bool index(GlobalParams* m);
 
 void GoLeft(GlobalParams* m);
 

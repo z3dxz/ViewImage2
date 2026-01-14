@@ -65,6 +65,21 @@ int ActuallyPlaceString_Old(GlobalParams* m, int size, const char* inputstr, uin
 
 
 
+POINT* sampleLine_old(double x1, double y1, double x2, double y2, int numSamples) {
+
+
+	POINT* samples = (POINT*)malloc(sizeof(POINT) * numSamples);
+
+	for (int i = 0; i < numSamples; i++) {
+		double t = (double)i / (numSamples - 1);
+		samples[i].x = x1 + t * (x2 - x1);
+		samples[i].y = y1 + t * (y2 - y1);
+	}
+
+	// remember to deallocate
+	return samples;
+}
+
 const char* strtable[] {
 	"Open Image (F)",
 	"Save as PNG (CTRL+S)",
@@ -169,7 +184,39 @@ const char* strtable[] {
 		*/
 
 		/*
+
 		
+/*
+
+void parseCommandLine(const std::string& cmdLine, std::string& firstArg, std::string& secondArg, std::string& thirdArg) {
+	std::istringstream stream(cmdLine);
+	std::string token;
+	std::vector<std::string> args;
+	bool inQuotes = false;
+
+	while (stream >> std::ws) {
+		if (stream.peek() == '"') {
+			stream.ignore();
+			std::getline(stream, token, '"');
+		}
+		else {
+			stream >> token;
+		}
+		args.push_back(token);
+	}
+
+	// Skip the application name
+	if (args.size() > 1) firstArg = args[1];
+	if (args.size() > 2) secondArg = args[2];
+	if (args.size() > 3) thirdArg = args[3];
+
+	if (args.size() <= 1) firstArg = "";
+	if (args.size() <= 2) secondArg = "";
+	if (args.size() <= 3) thirdArg = "";
+}
+*/
+
+
 /*
 
 bool CopyImageToClipboard(GlobalParams* m, void* imageData, int width, int height){
@@ -298,5 +345,136 @@ void RedrawSurfaceTextDialog(GlobalParams* m) {
 
 	}
 
+}
+*/
+
+/*
+// Old Image Image BI
+void PlaceImageBI(GlobalParams* m, void* memory, bool invert, POINT p, bool clip, RECT region) {
+
+	if (followsPattern(m->mscaler * 100)) {
+		PlaceImageNN(m, memory, invert, p, clip, region);
+		return;
+	}
+
+	const int margin = m->fullscreen ? 0 : 2;
+	const float inv_mscaler = 1.0f / m->mscaler;
+	const int32_t imgwidth_minus_1 = m->imgwidth - 1;
+	const int32_t imgheight_minus_1 = m->imgheight - 1;
+
+	float offX = ((float)m->width  - ((float)m->imgwidth  * m->mscaler)) / 2.0f + m->iLocX;
+	float offY = ((float)m->height - ((float)m->imgheight * m->mscaler)) / 2.0f + m->iLocY;
+
+	std::for_each(std::execution::par, m->itv.begin(), m->itv.end(), [&](uint32_t y) {
+		
+		float pty = ((float)y - offY) * inv_mscaler - 0.5f;
+		
+		for (uint32_t x : m->ith) {
+
+			if((!(x >= region.left && x <= region.right && y >= region.top && y <= region.bottom)) && clip) {
+				continue;
+			}
+
+			uint32_t bkc = 0x151515;
+			// bkc
+			if (y > m->toolheight || !(CanRenderToolbarMacro)) {
+
+				if (((x / 9) + (y / 9)) % 2 == 0) {
+					bkc = 0x181818;
+				}
+				else {
+					bkc = 0x121212;
+				}
+			}
+
+			float ptx = ((float)x - offX) * inv_mscaler - 0.5f;
+
+			uint32_t doColor = bkc;
+
+			if (ptx < imgwidth_minus_1 && pty < imgheight_minus_1 && ptx >= 0 && pty >= 0 && x >= margin && y >= margin && y < m->height - margin && x < m->width - margin) {
+				int32_t ptx_int = static_cast<int32_t>(ptx);
+				int32_t pty_int = static_cast<int32_t>(pty);
+				int ptx_frac = (int)((ptx - ptx_int)*255.0f);
+				int pty_frac = (int)((pty - pty_int)*255.0f);
+
+				// Get the four nearest pixels
+				
+				uint32_t c00 = *GetMemoryLocationRaw(memory, ptx_int, pty_int, m->imgwidth, m->imgheight);
+				uint32_t c01 = *GetMemoryLocationRaw(memory, ptx_int + 1, pty_int, m->imgwidth, m->imgheight);
+				uint32_t c10 = *GetMemoryLocationRaw(memory, ptx_int, pty_int + 1, m->imgwidth, m->imgheight);
+				uint32_t c11 = *GetMemoryLocationRaw(memory, ptx_int + 1, pty_int + 1, m->imgwidth, m->imgheight);
+				
+				if (((c00 >> 24) & 0xFF) != 0 || ((c01 >> 24) & 0xFF) != 0 || ((c10 >> 24) & 0xFF) != 0 || ((c11 >> 24) & 0xFF) != 0) {
+					uint32_t placeColor = lerp_u32(lerp_u32(c00, c01, ptx_frac), lerp_u32(c10, c11, ptx_frac), pty_frac);
+
+					int alpha = (placeColor >> 24) & 255;
+					if (alpha == 255) {
+						doColor = placeColor;
+					}
+					else if (alpha == 0) {
+						// still bkc
+					}
+					else {
+						doColor = lerp_u32(bkc, placeColor, (alpha));
+					}
+				}
+			}
+			*GetMemoryLocationRaw(m->scrdata, x, y, m->width, m->height) = doColor;
+		}
+	});
+}
+
+void PlaceImageNN(GlobalParams* m, void* memory, bool invert, POINT p, bool clip, RECT region) {
+
+	const float inv_mscaler = 1.0f / m->mscaler;
+	const int32_t imgwidth = m->imgwidth;
+	const int32_t imgheight = m->imgheight;
+	constexpr int margin = 2;
+
+	std::for_each(std::execution::par, m->itv.begin(), m->itv.end(), [&](uint32_t y) {
+
+		for (uint32_t x : m->ith) {
+
+			if((!(x >= region.left && x <= region.right && y >= region.top && y <= region.bottom)) && clip) {
+				continue;
+			}
+
+			uint32_t bkc = 0x151515;
+			// bkc
+			if (y > m->toolheight || !(CanRenderToolbarMacro)) {
+
+				if (((x / 9) + (y / 9)) % 2 == 0) {
+					bkc = 0x181818;
+				}
+				else {
+					bkc = 0x121212;
+				}
+			}
+
+			int32_t offX = (((int32_t)m->width - (int32_t)(imgwidth * m->mscaler)) / 2) + m->iLocX;
+			int32_t offY = (((int32_t)m->height - (int32_t)(imgheight * m->mscaler)) / 2) + m->iLocY;
+
+			int32_t ptx = (x - offX) * inv_mscaler;
+			int32_t pty = (y - offY) * inv_mscaler;
+
+			uint32_t doColor = bkc;
+			if (ptx < imgwidth && pty < imgheight && ptx >= 0 && pty >= 0 &&
+				x >= margin && y >= margin && y < m->height - margin && x < m->width - margin) { // check if image is within it's coordinates
+				uint32_t c = *GetMemoryLocationRaw(memory, ptx, pty, imgwidth, imgheight);
+
+				int alpha = (c >> 24) & 255;
+				if (alpha == 255) {
+					doColor = c;
+				}
+				else if (alpha == 0) {
+					// still bkc
+				}
+				else {
+					doColor = lerp_u32(bkc, c, static_cast<float>(alpha));
+				}
+			}
+			*GetMemoryLocationRaw(m->scrdata, x, y, m->width, m->height) = doColor;
+		}
+		});
 }
 */

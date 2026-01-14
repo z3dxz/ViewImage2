@@ -23,7 +23,6 @@ float lerp(float a, float b, float t) {
 	return (1.0f - t) * a + t * b;
 }
 
-
 VCOLOR rgbToHsv(uint32_t rgbColor) {
 	// Extract the individual RGB components from the 32-bit color
 	uint8_t r = (rgbColor >> 16) & 0xFF;
@@ -443,7 +442,7 @@ const void* findZero(const byte* startAddress, size_t size) {
 }
 
 void* decode_m45(const char* filepath, int* imgwidth, int* imgheight) {
-
+	std::cout << "Decoding M45\n";
 	// Opens file
 	HANDLE hFile = CreateFile(filepath, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, NULL);
 

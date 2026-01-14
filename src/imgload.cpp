@@ -34,7 +34,8 @@ std::string ReplaceBitmapAndMetrics(GlobalParams* m, void*& buffer, const char* 
 		buffer = stbi_load(standardPath, w, h, &channels, 4);
 		
 		if (!buffer) {
-			return "Error loading image data";
+			std::string er = "Error loading image data " + std::string(standardPath);
+			return er;
 		}
 		InvertAllColorChannels((uint32_t*)buffer, *w, *h);
 	}
@@ -81,7 +82,8 @@ std::string ReplaceBitmapAndMetrics(GlobalParams* m, void*& buffer, const char* 
 			InvertAllColorChannels((uint32_t*)buffer, *w, *h);
 		}
 		else {
-			return "File is in an unsupported format";
+			std::string er = "File is in an unsupported format";
+			return er;
 		}
 	}
 	//ConvertToPremultipliedAlpha((uint32_t*)buffer, *w, *h);
@@ -127,10 +129,17 @@ std::string OpenFileSaveDialog(GlobalParams* m, HWND hwnd) {
 
 void ActuallySaveImage(GlobalParams* m, std::string res){
 
-	int pos = res.find(".");
-	std::string ext = res.substr(pos+1);
-	std::transform(ext.begin(), ext.end(), ext.begin(),    [](unsigned char c){ return std::tolower(c); });
+	std::filesystem::path f(res);
+	if(f.empty()) {
+		MessageBox(0, "Can not find file path", "Failed to save image", MB_OK | MB_ICONERROR);
+		return;
+	}
+	if(f.extension().empty()) {
+		MessageBox(0, "Can not find file path extension", "Failed to save image", MB_OK | MB_ICONERROR);
+		return;
+	}
 
+	std::string ext = f.extension().string();
 
 	m->loading = true;
 	RedrawSurface(m);
@@ -138,22 +147,23 @@ void ActuallySaveImage(GlobalParams* m, std::string res){
 
 	InvertAllColorChannels((uint32_t*)m->imgdata, m->imgwidth, m->imgheight);
 
-	if(ext == "png") {
+	if(ext == ".png") {
 		stbi_write_png(res.c_str(), m->imgwidth, m->imgheight, 4, m->imgdata, 0);
-	} else if (ext == "bmp") {
+	} else if (ext == ".bmp") {
 		stbi_write_bmp(res.c_str(), m->imgwidth, m->imgheight, 4, m->imgdata);
-	} else if (ext == "tga") {
+	} else if (ext == ".tga") {
 		stbi_write_tga(res.c_str(), m->imgwidth, m->imgheight, 4, m->imgdata);
-	} else if (ext == "jpg" || ext == "jpeg") {
+	} else if (ext == ".jpg" || ext == ".jpeg") {
 		stbi_write_jpg(res.c_str(), m->imgwidth, m->imgheight, 4, m->imgdata, 85);
-	} else if(ext == "sfbb") {
+	} else if(ext == ".sfbb") {
 		encodesfbb(res.c_str(), m->imgdata, m->imgwidth, m->imgheight, 4);
-	} else if(ext == "m45") {
+	} else if(ext == ".m45") {
 		encodedata(m->imgdata, m->imgwidth, m->imgheight, res.c_str());
-	} else if(ext == "irbo") {
+	} else if(ext == ".irbo") {
 		encodeirbo(res.c_str(), m->imgdata, m->imgwidth, m->imgheight, 4);
 	} else {
-		MessageBox(0, "Failed to save image due to insufficient format", "Failed to save image", MB_OK | MB_ICONERROR);
+		std::string failstring = "Failed to save image due to insufficient format: " + res + " :Extension: " + ext;
+		MessageBox(0, failstring.c_str(), "Failed to save image", MB_OK | MB_ICONERROR);
 	}
 
 	InvertAllColorChannels((uint32_t*)m->imgdata, m->imgwidth, m->imgheight);
@@ -165,11 +175,14 @@ void ActuallySaveImage(GlobalParams* m, std::string res){
 	RedrawSurface(m);
 }
 
-void PrepareSaveImage(GlobalParams* m) {
+bool PrepareSaveImage(GlobalParams* m) {
 	std::string res = OpenFileSaveDialog(m, m->hwnd);
 
 	if (res != "Invalid") {
 		ActuallySaveImage(m, res);
+		return true;
+	} else {
+		return false;
 	}
 }
 
@@ -179,8 +192,8 @@ bool doIFSave(GlobalParams* m) {
 		SetForegroundWindow(m->hwnd);
 		int msgboxID = MessageBox(m->hwnd, "Would you like to save changes to the image", "Are you sure?", MB_YESNOCANCEL);
 		if (msgboxID == IDYES) {
-			PrepareSaveImage(m);
-			return false;
+			bool isactually = PrepareSaveImage(m);
+			return isactually;
 		}
 		else if (msgboxID == IDNO) {
 			// do it anyway
@@ -260,9 +273,21 @@ bool AllocateBlankImage(GlobalParams* m, uint32_t color) {
 	RedrawSurface(m);
 	return true;
 }
+/*
+Just a reference: real struct in header
+enum LoadImageResult {
+	LI_NotReady,
+	LI_Failed,
+	LI_Success
+};*/
 
 // openimagefrompath function here
-bool OpenImageFromPath(GlobalParams* m, std::string kpath, bool isLeftRight) {
+LoadImageResult OpenImageFromPath(GlobalParams* m, std::string kpath, bool isLeftRight) {
+
+	if (!doIFSave(m)) {
+		m->loading = false;
+		return LI_NotReady;
+	}
 
 	m->undoData.clear();
 	m->undoStep = 0;
@@ -274,13 +299,8 @@ bool OpenImageFromPath(GlobalParams* m, std::string kpath, bool isLeftRight) {
 	}
 	
 	m->loading = true;
-	RedrawSurface(m);
-	//Sleep(430);
 	
-	if (!doIFSave(m)) {
-		m->loading = false;
-		return false;
-	}
+	RedrawSurface(m);
 	
 	m->fpath = kpath;
 	
@@ -290,43 +310,34 @@ bool OpenImageFromPath(GlobalParams* m, std::string kpath, bool isLeftRight) {
 	if (m->imgoriginaldata) {
 		FreeData(m->imgoriginaldata);
 	}
-	//if (m->imgannotate) {
-	//	FreeData(m->imgannotate);
-	//}
-	// put thing here
-	//auto start = std::chrono::high_resolution_clock::now();
 
-	//
 	std::string error = ReplaceBitmapAndMetrics(m, m->imgdata, kpath.c_str(), &m->imgwidth, &m->imgheight);
-	if (error != "Success" || !m->imgdata) {
-		if (error == "Success") {
-			error = "Unknown Error";
-		}
-
-		MessageBox(m->hwnd, error.c_str(), "Failed to load", MB_OK | MB_ICONERROR);
-		m->fpath = "";
-		// should have already cleaned up
+	if(error !=  "Success") {
+		m->shouldSaveShutdown = false;
+		m->loading = false;
+		std::string title = "Failed to load ";
+		title += m->fpath;
+		MessageBox(m->hwnd, error.c_str(), title.c_str(), MB_OK | MB_ICONERROR);
+		//m->fpath = "";
 		ResetCoordinates(m);
-		m->mscaler = 1.0f;
-	}
-	else {
-		// Success
-		m->imgoriginaldata = malloc(m->imgwidth * m->imgheight * 4);
-		memcpy(m->imgoriginaldata, m->imgdata, m->imgwidth * m->imgheight * 4);
-		autozoom(m);
-		m->smoothing = ((m->imgwidth * m->imgheight) > 2500);
-	}
-	//
-	//m->imgannotate = malloc(m->imgwidth * m->imgheight * 4);
 
-	//memset(m->imgannotate, 0x00, m->imgwidth * m->imgheight * 4);
+		return LI_Failed;
+	}
+
+	if(!m->imgdata) {
+		MessageBox(m->hwnd, "Unknown Error", "Failed to load", MB_OK | MB_ICONERROR);
+	}
+
+	// Success
+	m->imgoriginaldata = malloc(m->imgwidth * m->imgheight * 4);
+	memcpy(m->imgoriginaldata, m->imgdata, m->imgwidth * m->imgheight * 4);
+	autozoom(m);
+	m->smoothing = ((m->imgwidth * m->imgheight) > 2500);
 
 	m->shouldSaveShutdown = false;
-
 	m->loading = false;
-
 	RedrawSurface(m);
-	return true;
+	return LI_Success;
 }
 
 
@@ -368,6 +379,5 @@ void PrepareOpenImage(GlobalParams* m) {
 		OpenImageFromPath(m, res, false);
 		m->loading = false;
 		RedrawSurface(m);
-		m->shouldSaveShutdown = false;
 	} 
 }

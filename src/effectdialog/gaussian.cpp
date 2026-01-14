@@ -31,7 +31,7 @@ static void ApplyEffectToBuffer(float amount) {
 }
 
 static void ConfirmEffect() {
-    createUndoStep(m, false);
+    createUndoStep(m, true);
     memcpy(m->imgdata, m->imagepreview, m->imgwidth * m->imgheight * 4);
     m->shouldSaveShutdown = true;
 }
@@ -48,11 +48,9 @@ static LRESULT CALLBACK DialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lp
         memcpy(m->imagepreview, m->imgdata, m->imgwidth * m->imgheight * 4);
         m->isImagePreview = true;
 
-        BOOL enable = TRUE;
         if (!DwmDarken(hwnd)) {
             // windows XP
         }
-        //DwmSetWindowAttribute(hwnd, 20, &enable, sizeof(enable));
 
         gslider = GetDlgItem(hwnd, SLIDERGAUSSIAN);
 

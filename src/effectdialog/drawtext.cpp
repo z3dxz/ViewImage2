@@ -60,6 +60,7 @@ static LRESULT CALLBACK TrackbarJumpSubclass(
 	case WM_LBUTTONUP:
 		dragging = FALSE;
 		ReleaseCapture();
+        
 		return 0;
 	}
 
@@ -86,7 +87,6 @@ void PerformDrawTextRealignment() {
     HWND adtdb = GetDlgItem(m->drawtext_access_dialog_hwnd, ActualDrawTextDialogBox);
     SendMessage(m->drawtext_access_dialog_hwnd, WM_COMMAND, 0, 0);
 	SetFocus(m->drawtext_access_dialog_hwnd);
-	int ts = m->sizetextvar;
 
     POINT location4 = {mpx+5, mpy-80};
 	SetWindowPos(m->drawtext_access_dialog_hwnd, 0, location4.x, location4.y, 0, 0, SWP_NOSIZE);
@@ -98,7 +98,7 @@ void PerformDrawTextRealignment() {
 }
 
 std::string text = "Cosine64";
-std::string fontstring = "segoeui.ttf";
+std::string fontstring = "OCRAEXT.ttf";
 
 uint32_t textColor = 0xFFFF80FF; // inverted
 uint32_t outlineColor = 0xFF000000; // global so we can save it
@@ -118,6 +118,8 @@ int ShowDrawTextDialog(GlobalParams* m0) {
     // Create the main dialog
 
     DialogBox(GetModuleHandle(0), MAKEINTRESOURCE(DrawTextDialog), 0, (DLGPROC)DialogProc);
+    
+
     return 0;
 }
 
@@ -132,7 +134,7 @@ static void ApplyEffectToBuffer(void* fromBuffer, void* toBuffer) {
 }
 
 static void ConfirmEffect() {
-    createUndoStep(m, false);
+    createUndoStep(m, true);
    // memcpy(m->imgdata, m->imagepreview, m->imgwidth * m->imgheight * 4);
     
     ApplyEffectToBuffer(m->imgdata, m->imgdata);
@@ -229,6 +231,13 @@ static LRESULT CALLBACK DialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lp
             LONG style = GetWindowLong(hwnd, GWL_STYLE);
             style &= ~(WS_CAPTION | WS_DLGFRAME | WS_BORDER);
             SetWindowLong(hwnd, GWL_STYLE, style);
+
+             SetWindowLongPtr(hwnd, GWL_EXSTYLE,
+                GetWindowLongPtr(hwnd, GWL_EXSTYLE) | WS_EX_LAYERED);
+            SetLayeredWindowAttributes(hwnd, 0, 230, LWA_ALPHA);
+            SetWindowLongPtr(hwnd, GWL_EXSTYLE,
+            GetWindowLongPtr(hwnd, GWL_EXSTYLE) & ~WS_EX_TRANSPARENT);
+            
             SetWindowPos(hwnd, NULL, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
 
             m->drawtext_access_dialog_hwnd = hwnd;
@@ -245,6 +254,8 @@ static LRESULT CALLBACK DialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lp
             didinit = true;
             UpdateImage(m);
             PerformDrawTextRealignment();
+            
+	        SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 
 
             return FALSE;
@@ -253,6 +264,8 @@ static LRESULT CALLBACK DialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lp
             UpdateImage(m);
             switch (LOWORD(wparam)) {
             case SelectFontButton: {
+                
+	            SetWindowPos(m->drawtext_access_dialog_hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
                 std::string font = ShowFontDialog(m, hwnd);
 
                 if (font != "Error") {
@@ -260,11 +273,13 @@ static LRESULT CALLBACK DialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lp
                     UpdateLoadFont();
                     UpdateImage(m);
                 }
+	            SetWindowPos(m->drawtext_access_dialog_hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
                 
                 SetFocus(adtdb);
                 break;
             }
             case ColorTextButton: {
+	            SetWindowPos(m->drawtext_access_dialog_hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 
                 bool success = true;// alpha to 0 weird windows bug
                 uint32_t c = change_alpha(PickColorFromDialog(m, change_alpha(textColor, 0), &success), 255);
@@ -284,6 +299,7 @@ static LRESULT CALLBACK DialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lp
                 SetFocus(hwnd);
                 SetFocus(adtdb);
                 UpdateImage(m);
+	            SetWindowPos(m->drawtext_access_dialog_hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 
                 break;
             }

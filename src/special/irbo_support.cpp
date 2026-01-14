@@ -114,9 +114,8 @@ const char* encodeirbo(const char* out_path, void* imgdata, int imgwidth, int im
 			int remainCB = ((float)(Cb%16)/16.0f)*100.0f;
 			int remainCR = ((float)(Cr%16)/16.0f)*100.0f;
 			
-
-			approx_cb = lerp(approx_cb, approx_cb+1, rand()%100<remainCB);
-			approx_cr = lerp(approx_cr, approx_cr+1, rand()%100<remainCR);
+			approx_cb = lerp_gc(approx_cb, approx_cb+1, rand()%100<remainCB);
+			approx_cr = lerp_gc(approx_cr, approx_cr+1, rand()%100<remainCR);
 
 			if(approx_cb > 15) {approx_cb = 15;}
 			if(approx_cr > 15) {approx_cr = 15;}
@@ -183,7 +182,7 @@ const char* encodeirbo(const char* out_path, void* imgdata, int imgwidth, int im
 
 void* decodeirbo(const char* filepath, int* imgwidth, int* imgheight){
 	// copy paste
-	printf("\n -- Reading File -- \n");
+	printf("\n -- Reading IRBO File -- \n");
     HANDLE hFile = CreateFile(filepath, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, NULL);
 
     if (hFile == INVALID_HANDLE_VALUE) {
@@ -197,7 +196,6 @@ void* decodeirbo(const char* filepath, int* imgwidth, int* imgheight){
     int sizeOfAllocation = fsize;
     void* data = malloc(sizeOfAllocation);
     DWORD dwBytesRead = 0;
-    DWORD dwBytesWritten = 0;
 
     if (!ReadFile(hFile, data, sizeOfAllocation, &dwBytesRead, NULL)) {
         return 0;
@@ -233,15 +231,11 @@ void* decodeirbo(const char* filepath, int* imgwidth, int* imgheight){
 			int Cb = (preCb*16);
 			int Cr = (preCr*16);
 				
-			int y  = Y;
 			int cb = Cb - 128;
 			int cr = Cr - 128;
 
 			cb = clampv2(cb, -128, 127);
 			cr = clampv2(cr, -128, 127);
-
-			float myCB = (float)cb/255.0f;
-			float myCR = (float)cr/255.0f;
 
 			 int r = (int) (Y + 1.40200 * (Cr - 0x80));
 			 int g = (int) (Y - 0.34414 * (Cb - 0x80) - 0.71414 * (Cr - 0x80));

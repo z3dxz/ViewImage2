@@ -255,7 +255,6 @@ LRESULT CALLBACK WndProcNormal(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam
 
 				gp.loading = false;
 				RedrawSurface(&gp);
-				gp.shouldSaveShutdown = false;
 			}
 		}
 		
@@ -295,13 +294,11 @@ LRESULT CALLBACK WndProcNormal(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam
 		MouseMove(&gp);
 		break;
 	}
+	case WM_SYSKEYUP:
+		if (wparam == VK_MENU)
+			return 0;
+		break;
 
-	case WM_SYSKEYDOWN: { // fix alt stalling issue that has ALWAYS existed before 2.6, even in 1.0
-		return 0;
-	}
-	case WM_SYSKEYUP: {
-		return 0;
-	}
 	case WM_KEYDOWN: {
 		KeyDown(&gp, wparam, lparam);
 		break;

@@ -10,14 +10,20 @@
 #endif
 #include "../special/irbo_support.hpp"
 
+enum LoadImageResult {
+	LI_NotReady,
+	LI_Failed,
+	LI_Success
+};
+
 //void CombineBuffer(GlobalParams* m, uint32_t* first, uint32_t* second, int width, int height, bool invert);
 //void FreeCombineBuffer(GlobalParams* m);
 bool doIFSave(GlobalParams* m);
 
 std::string ReplaceBitmapAndMetrics(GlobalParams* m, void*& buffer, const char* standardPath, int* w, int* h);
-bool OpenImageFromPath(GlobalParams* m, std::string kpath, bool isLeftRight);
+LoadImageResult OpenImageFromPath(GlobalParams* m, std::string kpath, bool isLeftRight);
 void PrepareOpenImage(GlobalParams* m);
 
 void ActuallySaveImage(GlobalParams* m, std::string res);
-void PrepareSaveImage(GlobalParams* m);
+bool PrepareSaveImage(GlobalParams* m);
 bool AllocateBlankImage(GlobalParams* m, uint32_t color);

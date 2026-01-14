@@ -36,19 +36,23 @@ bool DeleteDirectory(const char* directoryPath);
 	((mPP.y > m->toolheight && mPP.x >= m->CoordLeft && mPP.y > m->CoordTop && mPP.x < m->CoordRight && mPP.y < m->CoordBottom) && extracases(mPP, m))
 
 #define CheckIfMouseInSlider1(mPP, m, slider1begin, slider1end, sliderYb, sliderYe) \
-	((mPP.x > slider1begin && mPP.x < slider1end) && (mPP.y > sliderYb && mPP.y < sliderYe))
-
+	((mPP.x > (slider1begin-25) && mPP.x < (slider1end+25)) && (mPP.y > sliderYb && mPP.y < sliderYe))
+// added offsets for better user experience
 #define CheckIfMouseInSlider2(mPP, m, slider2begin, slider2end, sliderYb, sliderYe) \
-	((mPP.x > slider2begin && mPP.x < slider2end) && (mPP.y > sliderYb && mPP.y < sliderYe))
+	((mPP.x > (slider2begin-25) && mPP.x < (slider2end+25)) && (mPP.y > sliderYb && mPP.y < sliderYe))
 
 double remap(double value, double fromLow, double fromHigh, double toLow, double toHigh);
 
 extern GlobalParams* mv;
-
+ 
 
 
 #define GetMemoryLocation(start, x, y, widthfactor, heightfactor) \
 	 (( (((y) * (widthfactor)) + (x)) < (widthfactor*heightfactor) &&      ( (((y)*(widthfactor)) + (x)) > 0  )            ) ? ((uint32_t*)(start) + ((y) * (widthfactor)) + (x))  : ((uint32_t*)(start)) )
+
+#define GetMemoryLocationRaw(start, x, y, widthfactor, heightfactor) \
+	((uint32_t*)(start) + ((y) * (widthfactor)) + (x))
+
 
 /*
 
@@ -65,7 +69,6 @@ inline uint32_t* GetMemoryLocation(void* start, int x, int y, int widthfactor, i
 	return (( (((y) * (widthfactor)) + (x)) < (widthfactor*heightfactor) &&      ( (((y)*(widthfactor)) + (x)) > 0  )            ) ? ((uint32_t*)(start) + ((y) * (widthfactor)) + (x))  : ((uint32_t*)(start)) );
 }
 */
-
 
 #define GetMemoryLocationTemplate(start, x, y, widthfactor, heightfactor) \
 	 ((( (((y) * (widthfactor)) + (x)) < (widthfactor*heightfactor))&&((y) * (widthfactor)) + (x) > start) ) ? ((start) + ((y) * (widthfactor)) + (x))  : ((start)) ) 
@@ -109,7 +112,8 @@ void NewZoom(GlobalParams* m, float v, int mouse, bool shouldRoundZoom);
 uint32_t InvertCC(uint32_t d, bool should);
 void InvertAllColorChannels(uint32_t* buffer, int w, int h);
 
-uint32_t lerp(uint32_t color1, uint32_t color2, float alpha);
+
+uint32_t lerp_u32(uint32_t c1, uint32_t c2, uint32_t a);
 uint8_t lerpLinear(uint8_t a, uint8_t b, float t);
 uint32_t lerp_gc(uint32_t color1, uint32_t color2, float alpha);
 

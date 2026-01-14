@@ -133,11 +133,7 @@ static LRESULT CALLBACK DialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lp
         
         return FALSE;
     }
-    case WM_HSCROLL: {
-        return TRUE;
-    }
     case WM_COMMAND: {
-
         switch (wparam) {
             case IDOK: {
                 EndDialog(hwnd, IDOK);
@@ -154,7 +150,7 @@ static LRESULT CALLBACK DialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lp
                 LPARAM customData = SendMessage(list, LB_GETITEMDATA, selectedPos, 0);
 
                 char itemtxt[256];
-                SendMessage(list, LB_GETTEXT, customData, (LPARAM)itemtxt);
+                SendMessage(list, LB_GETTEXT, selectedPos, (LPARAM)itemtxt);
                 selectedFont = fonts[customData].fontFILE;
 
                 if (hPreviewTextFont) {

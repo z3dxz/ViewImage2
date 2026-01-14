@@ -249,7 +249,6 @@ bool PasteImageFromClipboard(GlobalParams* m) {
 	int w, h;
 	std::optional<uint32_t*> d = GetImageFromClipboard(m, w, h);
 	
-	uint32_t mh = h-1;
 	if(d.has_value()) {
 		if (d.value()) {
 			if (m->imgdata) {

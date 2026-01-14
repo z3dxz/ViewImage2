@@ -124,8 +124,6 @@ LRESULT CALLBACK ResizeDialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpa
 
         SendMessage(hWidthEdit, EM_SETSEL, 0, -1);
 
-        BOOL enable = TRUE;
-        //DwmSetWindowAttribute(hwnd, 20, &enable, sizeof(enable));
         if (!DwmDarken(hwnd)) {
             // windows XP
         }

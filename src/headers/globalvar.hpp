@@ -30,7 +30,7 @@ struct UndoDataStruct {
 	int height;
 };
 
-#define REAL_BIG_VERSION "2.6*"
+#define REAL_BIG_VERSION "2.6"
 
 struct GlobalParams {
 	std::string name_primary = "ViewImage";
@@ -74,7 +74,7 @@ struct GlobalParams {
 	std::string cd;
 
 	// size integers
-	int width = 1024;
+	int width = 1000;
 	int height = 563;
 	int imgwidth;
 	int imgheight;
@@ -102,6 +102,7 @@ struct GlobalParams {
 	bool loading = false;
 	bool deletingtemporaryfiles = false;
 
+	// left right logic
 	bool halt = false;
 
 	bool mouseDown = false;
@@ -184,7 +185,7 @@ struct GlobalParams {
 	int slider1begin = 113;
 	int slider1end = 214;
 
-	int slider2begin = 325;
+	int slider2begin = 318;
 	int slider2end = 405;
 
 	bool slider1mousedown = false;
@@ -209,8 +210,6 @@ struct GlobalParams {
 	FT_Face SegoeUI;
 	FT_Face Verdana;
 	FT_Face OCRAExt;
-
-	float etime = 0; // USED FOR MEASURING TIME
 
 	// crop mode
 	bool isInCropMode = false;
@@ -264,13 +263,13 @@ struct GlobalParams {
 
 	bool undo_menucondition = false;
 	bool redo_menucondition = false;
-	bool isimage_menucondition = false;
-
+	bool isimage_menucondition = false;	
 		
 	LARGE_INTEGER previousTime;
 	LARGE_INTEGER frequency; // for wasd magic
 
 	bool full_redraw_surface_the_first_time = true; // fully redraw the surface the first time mouse enters the toolbar to clear any changes present inside the image AKA annotation circle
+
 };	
 
 
