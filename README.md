@@ -2,6 +2,10 @@ ViewImage or "View Image" is a powerful, yet lightweight image viewer designed a
 
 <img width="1016" height="601" alt="demo" src="https://github.com/user-attachments/assets/0c9f1466-7a5a-4fb2-aeb9-81460a63ac77" />
 
+# Notes
+* Visit [the website](https://www.cosine64.com/info_pages/vi_info.html) for releases
+* Visit [the older github](https://github.com/z3dxz/ViewImage) for older releases and source code
+
 # Features
 * Snappy image controls + zoom
 * Draw mode
