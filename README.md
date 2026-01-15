@@ -29,7 +29,7 @@ ViewImage or "View Image" is a powerful, yet lightweight image viewer designed a
 * Has lots of features
 
 # Limitations
-* Limited file support (sfb_image only supports so much)
+* Limited file support (stb_image only supports so much)
 * Standard dynamic range
 * Can not scale, no hi-dpi support
 * No linux support
