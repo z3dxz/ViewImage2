@@ -33,7 +33,7 @@ ViewImage or "View Image" is a powerful, yet lightweight image viewer designed a
 * Standard dynamic range
 * Can not scale, no hi-dpi support
 * No linux support
-* No hardware acceleration
+* No hardware acceleration  
 I hope to solve these limitations in upcoming releases
 
 # Compilation
