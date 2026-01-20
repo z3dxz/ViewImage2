@@ -49,3 +49,4 @@ I hope to solve these limitations in upcoming releases
   make
   ```
 replace make with ninja if desired  
+On windows, it is recommended that MSYS with MinGW is used. Alternatives can be used as well.
