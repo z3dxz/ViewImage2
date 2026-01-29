@@ -516,7 +516,7 @@ int PerformCasedBasedOperation(GlobalParams* m, uint32_t id, bool menustate) {
 		if (m->fpath != "Untitled") {
 
 			// delete
-			int result = MessageBox(m->hwnd, "This will delete the image permanently!!!", "Are You Sure?", MB_YESNO);
+			int result = MessageBox(m->hwnd, "This will delete the image permanently!!!", "Are You Sure?", MB_YESNO | MB_ICONQUESTION);
 			if (result == IDYES) {
 				bool i = DeleteFile(m->fpath.c_str());
 				if (!i) {

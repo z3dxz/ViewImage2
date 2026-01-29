@@ -30,7 +30,7 @@ struct UndoDataStruct {
 	int height;
 };
 
-#define REAL_BIG_VERSION "2.6"
+#define REAL_BIG_VERSION "2.7*"
 
 struct GlobalParams {
 	std::string name_primary = "ViewImage";

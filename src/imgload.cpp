@@ -190,7 +190,7 @@ bool PrepareSaveImage(GlobalParams* m) {
 bool doIFSave(GlobalParams* m) {
 	if (m->shouldSaveShutdown == true) {
 		SetForegroundWindow(m->hwnd);
-		int msgboxID = MessageBox(m->hwnd, "Would you like to save changes to the image", "Are you sure?", MB_YESNOCANCEL);
+		int msgboxID = MessageBox(m->hwnd, "Would you like to save changes to the image", "Are you sure?", MB_YESNOCANCEL | MB_ICONQUESTION);
 		if (msgboxID == IDYES) {
 			bool isactually = PrepareSaveImage(m);
 			return isactually;
@@ -239,6 +239,7 @@ bool AllocateBlankImage(GlobalParams* m, uint32_t color) {
 
 	int bimgw = 1280;
 	int bimgh = 720;
+	
 	m->imgwidth = bimgw;
 	m->imgheight = bimgh;
 	m->imgdata = malloc(bimgw * bimgh *4);
