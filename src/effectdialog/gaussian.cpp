@@ -25,9 +25,8 @@ static void ApplyEffectToBuffer(float amount) {
     //fast_gaussian_blur(from, to, m->imgwidth, m->imgheight, 4, 4.0f, 10, Border::kKernelCrop);
     //std::swap(m->imgdata, m->imagepreview);
     
-    gaussian_blur_B(from, to, m->imgwidth, m->imgheight, amount, m->imgwidth, m->imgheight, 0, 0);
-    
-    
+    // gaussian B previously
+    gaussian_blur_real(from, to, m->imgwidth, m->imgheight, amount, m->imgwidth, m->imgheight, 0, 0);
 }
 
 static void ConfirmEffect() {

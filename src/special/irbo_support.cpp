@@ -147,7 +147,7 @@ const char* encodeirbo(const char* out_path, void* imgdata, int imgwidth, int im
     strcat(str_path, ".irbo");
 
     // write to a file
-    HANDLE hFile = CreateFile(  str_path, GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    HANDLE hFile = CreateFile(  str_path, GENERIC_WRITE,  FILE_SHARE_READ | FILE_SHARE_DELETE | FILE_SHARE_WRITE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 
     if (hFile == INVALID_HANDLE_VALUE)
     {
@@ -183,7 +183,7 @@ const char* encodeirbo(const char* out_path, void* imgdata, int imgwidth, int im
 void* decodeirbo(const char* filepath, int* imgwidth, int* imgheight){
 	// copy paste
 	printf("\n -- Reading IRBO File -- \n");
-    HANDLE hFile = CreateFile(filepath, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, NULL);
+    HANDLE hFile = CreateFile(filepath, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_DELETE | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
 
     if (hFile == INVALID_HANDLE_VALUE) {
         printf("sorry, the handle value was invalid");

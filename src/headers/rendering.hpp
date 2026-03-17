@@ -5,10 +5,6 @@
 #include <iostream>
 #include <cmath>
 #include <memory>
-#include <execution>
-
-void ResetCoordinates(GlobalParams* m);
-//bool InitFont(GlobalParams* m, std::string fontA, int size);
 
 FT_Face LoadFont(GlobalParams* m, std::string fontA);
 
@@ -16,9 +12,5 @@ void UpdateBuffer(GlobalParams* m);
 void RedrawSurfaceTextDialog(GlobalParams* m);
 
 void RedrawSurface(GlobalParams* m, bool onlyImage = false, bool doesManualClip = false, bool bypassSleep = false, bool clip = false, RECT region = {-1,-1,-1,-1});
-void CircleGenerator(int circleDiameter, int locX, int locY, uint32_t color, uint32_t* buffer, unsigned int width, unsigned int height);
-
-int PlaceString(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, void* mem);
-int PlaceString(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, void* mem, int bufwidth, int bufheight, void* fromBuffer);
 
 void SwitchFont(FT_Face& font);

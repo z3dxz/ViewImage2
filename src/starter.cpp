@@ -46,8 +46,42 @@ Thank you Sean T. Barrett for making stb_image(_resize/_write) and this entire i
 
 */
 
+bool SupportsAero() {
+    bool dwmEnabled = false;
+
+    HMODULE hDwm = LoadLibrary(TEXT("dwmapi.dll"));
+    if (hDwm) {
+        typedef HRESULT (WINAPI *DwmIsComp_t)(BOOL*);
+        DwmIsComp_t pDwmIsCompositionEnabled = (DwmIsComp_t)GetProcAddress(hDwm, "DwmIsCompositionEnabled");
+        
+        BOOL enabled = FALSE;
+        if (pDwmIsCompositionEnabled) {
+            if (SUCCEEDED(pDwmIsCompositionEnabled(&enabled))) {
+                dwmEnabled = (enabled == TRUE);
+            }
+        }
+        FreeLibrary(hDwm);
+    }
+
+    OSVERSIONINFOEX osvi;
+    ZeroMemory(&osvi, sizeof(OSVERSIONINFOEX));
+    osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
+
+    if (!GetVersionEx((OSVERSIONINFO*)&osvi)) {
+        return false;
+    }
+
+    bool isVistaOr7 = (osvi.dwMajorVersion == 6 && (osvi.dwMinorVersion == 0 || osvi.dwMinorVersion == 1));
+
+    return (isVistaOr7 && dwmEnabled);
+}
 
 int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nShowCmd) {
+
+	// get aero info
+	if(SupportsAero()) {
+		gp.aeromode = true;
+	}
 
 	// get argument info
 	int argc;
@@ -119,63 +153,73 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 	return retv;
 }
 
+LRESULT CALLBACK CheckEssential(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
+	switch(msg) {
+		case WM_GETMINMAXINFO: {
+			LPMINMAXINFO lpMMI = (LPMINMAXINFO)lparam;
+			lpMMI->ptMinTrackSize.x = 505;
+			lpMMI->ptMinTrackSize.y = 220;
+			break;
+		}
+		case WM_SIZE: {
+			Size(&gp);
+			break;
+		}
+		case 0x031E: {
+			bool enabledtodisable = gp.aeromode&&(!SupportsAero());
+			if(enabledtodisable) {
+				gp.aeromode = false;
+				RedrawSurface(&gp);
+				InvalidateRect(hwnd, NULL, TRUE);
+			}
+			break;
+		}\
+		case WM_CLOSE: {
+			if (doIFSave(&gp)) {
+				gp.loading = true;
+				RedrawSurface(&gp);
+				DeleteTempFiles(&gp, gp.undofolder);
+				DestroyWindow(hwnd);
+			}
+			break;
+		}
+		case WM_DESTROY: {
+			PostQuitMessage(0);
+			return 0;
+		}\
+		case WM_PAINT: {
+			UpdateBuffer(&gp);
+			return DefWindowProc(hwnd, msg, wparam, lparam);
+		}
+		case WM_SETFOCUS: {
+			gp.sleepmode = false;
+			if (gp.scrdata && gp.width > 1) {
+				if(gp.drawtext_access_dialog_hwnd) {
+				RedrawSurfaceTextDialog(&gp);
+				}
+				else {
+					RedrawSurface(&gp);
+				}
+			}
+			break;
+		}\
+		case WM_KILLFOCUS: {
 
-#define CheckEssential(hwnd, msg, wparam, lparam) \
-\
-		case WM_GETMINMAXINFO:\
-		{\
-			LPMINMAXINFO lpMMI = (LPMINMAXINFO)lparam;\
-			lpMMI->ptMinTrackSize.x = 505;\
-			lpMMI->ptMinTrackSize.y = 220;\
-\
-\
-			break;\
-		}\
-		case WM_SIZE: {\
-			Size(&gp);\
-\
-			break;\
-		}\
-		case WM_CLOSE: {\
-			if (doIFSave(&gp)) {\
-				gp.loading = true;\
-				RedrawSurface(&gp);\
-				DeleteTempFiles(&gp, gp.undofolder);\
-				DestroyWindow(hwnd);\
-			}\
-			break;\
-		}\
-		case WM_DESTROY: {\
-			PostQuitMessage(0);\
-			return 0;\
-		}\
-		case WM_PAINT: {\
-			UpdateBuffer(&gp);\
-			return DefWindowProc(hwnd, msg, wparam, lparam);\
-		}\
-		case WM_SETFOCUS: {\
-			gp.sleepmode = false;\
-			if (gp.scrdata && gp.width > 1) {\
-				if(gp.drawtext_access_dialog_hwnd) {\
-				RedrawSurfaceTextDialog(&gp);\
-				}\
-				else {\
-					RedrawSurface(&gp);\
-				}\
-			}\
-			break;\
-		}\
-		case WM_KILLFOCUS: {\
-\
-			gp.sleepmode = true;\
-			for (int i = 0; i < 50; i++) {\
-				ShowCursor(500);\
-			}\
-			break;\
-		}\
+			gp.sleepmode = true;
+			for (int i = 0; i < 50; i++) {
+				ShowCursor(500);
+			}
+			break;
+		}
+	}
+	
+	return 0;
+}
 
 bool md_dt = false;
 LRESULT CALLBACK WndProcDialogDrawText(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
+	
+	CheckEssential(hwnd, msg, wparam, lparam);
 	switch(msg) {
 		case WM_RBUTTONDOWN:
 		case WM_MBUTTONDOWN:
@@ -206,7 +250,6 @@ LRESULT CALLBACK WndProcDialogDrawText(HWND hwnd, UINT msg, WPARAM wparam, LPARA
 			ShowCursor(1);
 			break;
 		}
-		CheckEssential(hwnd, msg, wparam, lparam)
 		default: {
 			return DefWindowProc(hwnd, msg, wparam, lparam);
 		}
@@ -217,6 +260,7 @@ LRESULT CALLBACK WndProcDialogDrawText(HWND hwnd, UINT msg, WPARAM wparam, LPARA
 
 LRESULT CALLBACK WndProcNormal(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 
+	CheckEssential(hwnd, msg, wparam, lparam);
 
 	switch (msg) {
 	case WM_CREATE: {
@@ -225,9 +269,7 @@ LRESULT CALLBACK WndProcNormal(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam
 		//BOOL enable = TRUE;
 		//DwmSetWindowAttribute(hwnd, 20, &enable, sizeof(enable));
 
-		if (!DwmDarken(hwnd)) {
-			// windows XP
-		}
+		DwmDarken(hwnd);
 
 		break;
 	}
@@ -314,7 +356,6 @@ LRESULT CALLBACK WndProcNormal(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam
 		break;
 	}
 	
-	CheckEssential(hwnd, msg, wparam, lparam)
 	default: {
 		return DefWindowProc(hwnd, msg, wparam, lparam);
 	}

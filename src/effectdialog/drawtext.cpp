@@ -3,8 +3,7 @@
 #include <Uxtheme.h>
 #include <iostream>
 #include <string>
-#include "../headers/rendering.hpp"
-//#include <dwmapi.h>
+#include "../headers/renderops.hpp"
 bool dontdo = false;
 #include <windowsx.h>
 
@@ -129,7 +128,7 @@ static void ApplyEffectToBuffer(void* fromBuffer, void* toBuffer) {
     SwitchFont(f);
 
     memcpy(toBuffer, fromBuffer, m->imgwidth * m->imgheight * 4);
-    PlaceString(m, m->sizetextvar, text.c_str(), m->locationXtextvar, m->locationYtextvar, InvertCC(textColor, true), toBuffer, m->imgwidth, m->imgheight, fromBuffer);
+    opsPlaceStringBuffer(m, m->sizetextvar, text.c_str(), m->locationXtextvar, m->locationYtextvar, InvertCC(textColor, true), toBuffer, m->imgwidth, m->imgheight, fromBuffer);
     RedrawSurfaceTextDialog(m);
 }
 

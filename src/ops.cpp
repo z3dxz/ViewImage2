@@ -1,6 +1,7 @@
 #include <filesystem>
 #include <stdint.h>
 #include <stdlib.h>
+#include <shlwapi.h>
 #include <string.h>
 #include "headers/ops.hpp"
 #include "headers/imgload.hpp"
@@ -18,33 +19,58 @@ typedef HRESULT(WINAPI* DwmSetWindowAttribute_t)(HWND, DWORD, LPCVOID, DWORD);
 bool DwmDarken(HWND hwnd) {
 	BOOL enable = TRUE;
 
-	// Load the dwmapi.dll dynamically
 	HMODULE hDwmApi = LoadLibrary(TEXT("dwmapi.dll"));
 	if (hDwmApi == nullptr) {
-		//Failed to load dwmapi.dll
 		return false;
 	}
 
-	// Get the address of the DwmSetWindowAttribute function
 	DwmSetWindowAttribute_t pDwmSetWindowAttribute =
 		(DwmSetWindowAttribute_t)GetProcAddress(hDwmApi, "DwmSetWindowAttribute");
 
 	if (pDwmSetWindowAttribute == nullptr) {
-		//Failed to get DwmSetWindowAttribute function address
 		FreeLibrary(hDwmApi);
 		return false;
 	}
 
-	// Call the DwmSetWindowAttribute function
 	HRESULT hr = pDwmSetWindowAttribute(hwnd, 20, &enable, sizeof(enable));
 	if (FAILED(hr)) {
 		std::cerr << "DwmSetWindowAttribute failed with HRESULT: " << hr << std::endl;
 	}
 
-	// Free the loaded library
 	FreeLibrary(hDwmApi);
 	return true;
 }
+
+typedef struct _MARGINS {
+    int cxLeftWidth;
+    int cxRightWidth;
+    int cyTopHeight;
+    int cyBottomHeight;
+} MARGINS, *PMARGINS;
+
+typedef HRESULT(WINAPI* DwmExtendFrameIntoClientArea_t)(HWND, const MARGINS*);
+bool DwmExtend(HWND hwnd, int topHeight) {
+    HMODULE hDwmApi = LoadLibrary(TEXT("dwmapi.dll"));
+    if (hDwmApi == nullptr) {
+        return false;
+    }
+
+    DwmExtendFrameIntoClientArea_t pDwmExtendFrameIntoClientArea = (DwmExtendFrameIntoClientArea_t)GetProcAddress(hDwmApi, "DwmExtendFrameIntoClientArea");
+
+    if (pDwmExtendFrameIntoClientArea == nullptr) {
+        FreeLibrary(hDwmApi);
+        return false;
+    }
+
+    MARGINS margins = { 0, 0, topHeight, 0 };
+
+    HRESULT hr = pDwmExtendFrameIntoClientArea(hwnd, &margins);
+    
+    FreeLibrary(hDwmApi);
+    return SUCCEEDED(hr);
+}
+
+
 
 bool DeleteDirectory(const char* directoryPath) {
 	return std::filesystem::remove_all(directoryPath);
@@ -75,7 +101,6 @@ bool isFile(const char* str, const char* suffix) {
 
 unsigned char* LoadImageFromResource(int resourceId, int& width, int& height, int& channels)
 {
-	// Get the instance handle of the current module
 	HMODULE hModule = GetModuleHandle(nullptr);
 	if (!hModule)
 	{
@@ -83,7 +108,6 @@ unsigned char* LoadImageFromResource(int resourceId, int& width, int& height, in
 		return nullptr;
 	}
 
-	// Find the resource by ID
 	HRSRC hResource = FindResource(hModule, MAKEINTRESOURCE(resourceId), "PNG");
 	if (!hResource)
 	{
@@ -91,7 +115,6 @@ unsigned char* LoadImageFromResource(int resourceId, int& width, int& height, in
 		return nullptr;
 	}
 
-	// Load the resource data
 	HGLOBAL hResourceData = LoadResource(hModule, hResource);
 	if (!hResourceData)
 	{
@@ -99,7 +122,6 @@ unsigned char* LoadImageFromResource(int resourceId, int& width, int& height, in
 		return nullptr;
 	}
 
-	// Lock the resource data to get a pointer to the raw image data
 	const void* resourceData = LockResource(hResourceData);
 	if (!resourceData)
 	{
@@ -108,10 +130,8 @@ unsigned char* LoadImageFromResource(int resourceId, int& width, int& height, in
 		return nullptr;
 	}
 
-	// Get the size of the resource data
 	const size_t resourceSize = SizeofResource(hModule, hResource);
 
-	// Load the image data from the resource data
 	unsigned char* imageData = stbi_load_from_memory(reinterpret_cast<const stbi_uc*>(resourceData), resourceSize, &width, &height, &channels, 4);
 
 	if (!imageData)
@@ -119,26 +139,10 @@ unsigned char* LoadImageFromResource(int resourceId, int& width, int& height, in
 		std::cerr << "Failed to load image from resource " << resourceId << ": " << stbi_failure_reason() << std::endl;
 	}
 
-	// Free the resource data
 	FreeResource(hResourceData);
 
 	return imageData;
 }
-
-HDC GetPrinterDC() {
-	PRINTDLG pd = { sizeof(PRINTDLG) };
-	pd.Flags = PD_RETURNDC;
-
-	if (PrintDlg(&pd)) {
-		return pd.hDC;
-	}
-
-	return NULL;
-}
-
-
-
-
 
 void PrintImageToPrinter(uint32_t* image, int width, int height, HDC printerDC) {
 
@@ -148,7 +152,7 @@ void PrintImageToPrinter(uint32_t* image, int width, int height, HDC printerDC) 
 	}
 
 	if (!image) {
-		// Handle loading error
+
 		return;
 	}
 
@@ -160,30 +164,23 @@ void PrintImageToPrinter(uint32_t* image, int width, int height, HDC printerDC) 
 	bmpInfo.bmiHeader.biBitCount = 4 * 8; // Number of bits per pixel
 	bmpInfo.bmiHeader.biCompression = BI_RGB;
 
-	// Start a print job
 	DOCINFO docInfo = {};
 	docInfo.cbSize = sizeof(DOCINFO);
 	docInfo.lpszDocName = TEXT("Image Print");
 	StartDoc(printerDC, &docInfo);
 	StartPage(printerDC);
 
-	// Get printer page dimensions
 	int printerWidth = GetDeviceCaps(printerDC, HORZRES);
 	int printerHeight = GetDeviceCaps(printerDC, VERTRES);
 
-	// Calculate scaling factors
 	float scaleX = static_cast<float>(printerWidth) / width;
 	float scaleY = static_cast<float>(printerHeight) / height;
 
-	// Set up printing parameters
 	int destWidth = static_cast<int>(width * scaleX);
 	int destHeight = static_cast<int>(height * scaleY);
 
-	// Print the image to the printer
-	StretchDIBits(printerDC, 0, 0,destWidth, destHeight,
-		0, 0, width, height, temp, &bmpInfo, DIB_RGB_COLORS, SRCCOPY);
+	StretchDIBits(printerDC, 0, 0,destWidth, destHeight, 0, 0, width, height, temp, &bmpInfo, DIB_RGB_COLORS, SRCCOPY);
 
-	// End the print job
 	EndPage(printerDC);
 	EndDoc(printerDC);
 
@@ -203,6 +200,7 @@ void Print(GlobalParams* m) {
 
 	PrintImageToPrinter((uint32_t*)m->imgdata, m->imgwidth, m->imgheight, printerDC);
 }
+
 void ConfirmCropBuffer(GlobalParams* m, void** buffer, int newW, int newH) {
 
 	void* MyNewCropLifestyle = malloc(newW * newH * 4);
@@ -252,12 +250,8 @@ void ConfirmCrop(GlobalParams* m) {
 
 
 void performResize(GlobalParams* m, void** memory, int owidth, int oheight, int nwidth, int nheight) {
-	// allocate the copy for temporary reference
 	void* tempOldBuffer = malloc(owidth * oheight* 4);
 	memcpy(tempOldBuffer, *memory, owidth * oheight * 4);
-
-
-	// reallocate my image data to suit the new data
 
 	FreeData(*memory);
 	*memory = malloc(nwidth * nheight * 4);
@@ -484,20 +478,6 @@ void InvertAllColorChannels(uint32_t* buffer, int w, int h) {
 	}
 }
 
-uint8_t getAlpha(uint32_t color) {
-	return (color >> 24) & 0xFF;
-}
-
-double gammaCorrect(double value, double gamma) {
-    return std::pow(value, 1.0 / gamma);
-}
-
-
-uint8_t lerpLinear(uint8_t a, uint8_t b, float t) {
-	return static_cast<uint8_t>((1.0f - t) * a + t * b);
-}
-
-
 uint32_t lerp_u32(uint32_t c1, uint32_t c2, uint32_t a)
 {
     if (c1 == c2 || a == 0)
@@ -516,27 +496,6 @@ uint32_t lerp_u32(uint32_t c1, uint32_t c2, uint32_t a)
     return (rb1 & 0x00FF00FF) | ((ag1 & 0x00FF00FF) << 8);
 }
 
-uint8_t lerp8(uint8_t d, uint8_t s, float a) {
-    return (uint8_t)(d + (s - d) * a);
-}
-
-uint32_t lerp_blend(uint32_t dst, uint32_t src, float aR, float aG, float aB) {
-    uint8_t dR = (dst >> 16) & 0xFF;
-    uint8_t dG = (dst >>  8) & 0xFF;
-    uint8_t dB = (dst >>  0) & 0xFF;
-
-    uint8_t sR = (src >> 16) & 0xFF;
-    uint8_t sG = (src >>  8) & 0xFF;
-    uint8_t sB = (src >>  0) & 0xFF;
-
-    uint8_t oR = lerp8(dR, sR, aR);
-    uint8_t oG = lerp8(dG, sG, aG);
-    uint8_t oB = lerp8(dB, sB, aB);
-
-    return (dst & 0xFF000000) | (oR << 16) | (oG << 8 ) |  (oB << 0 );
-}
-
-
 const int TABLE_SIZE = 256;
 
 float gamma_table[TABLE_SIZE];
@@ -547,11 +506,12 @@ void init_gamma_table(float gamma) {
 	}
 }
 
-
-bool AutoAdjustLevels(GlobalParams* m, uint32_t* buffer) {
+bool AutoAdjustLevels(GlobalParams* m, uint32_t* buffer, double sigma) {
 	// temporary blurred image buffer
 	uint32_t* tempd = (uint32_t*)malloc(m->imgwidth*m->imgheight*4);
-	gaussian_blur_B((uint32_t*)buffer, tempd, m->imgwidth, m->imgheight, 2, m->imgwidth, m->imgheight, 0, 0);
+
+	// gaussian B previously
+	gaussian_blur_real((uint32_t*)buffer, tempd, m->imgwidth, m->imgheight, sigma, m->imgwidth, m->imgheight, 0, 0);
 
 	m->isMenuState = false;	
 	int width = m->imgwidth;
@@ -636,30 +596,27 @@ bool AutoAdjustLevels(GlobalParams* m, uint32_t* buffer) {
 	return true;
 }
 
-uint32_t subtractColors(uint32_t color1, uint32_t color2) {
-	// Extract color channels (assuming RGBA format)
-	uint8_t r1 = (color1 >> 24) & 0xFF;
-	uint8_t g1 = (color1 >> 16) & 0xFF;
-	uint8_t b1 = (color1 >> 8) & 0xFF;
-	uint8_t a1 = color1 & 0xFF;
 
-	uint8_t r2 = (color2 >> 24) & 0xFF;
-	uint8_t g2 = (color2 >> 16) & 0xFF;
-	uint8_t b2 = (color2 >> 8) & 0xFF;
-	uint8_t a2 = color2 & 0xFF;
 
-	// Subtract each channel
-	uint8_t r = max(0, static_cast<int>(r1) - static_cast<int>(r2));
-	uint8_t g = max(0, static_cast<int>(g1) - static_cast<int>(g2));
-	uint8_t b = max(0, static_cast<int>(b1) - static_cast<int>(b2));
-	uint8_t a = max(0, static_cast<int>(a1) - static_cast<int>(a2));
+uint32_t multiplyColors(uint32_t color1, uint32_t color2) {
+    uint8_t a1 = (color1 >> 24) & 0xFF;
+    uint8_t r1 = (color1 >> 16) & 0xFF;
+    uint8_t g1 = (color1 >> 8) & 0xFF;
+    uint8_t b1 = color1 & 0xFF;
 
-	// Combine channels back into a single uint32_t
-	return (static_cast<uint32_t>(r) << 24) |
-		(static_cast<uint32_t>(g) << 16) |
-		(static_cast<uint32_t>(b) << 8) |
-		static_cast<uint32_t>(a);
+    uint8_t a2 = (color2 >> 24) & 0xFF;
+    uint8_t r2 = (color2 >> 16) & 0xFF;
+    uint8_t g2 = (color2 >> 8) & 0xFF;
+    uint8_t b2 = color2 & 0xFF;
+
+    uint8_t aOut = (uint8_t)((a1 * a2 + 127) / 255);
+    uint8_t rOut = (uint8_t)((r1 * r2 + 127) / 255);
+    uint8_t gOut = (uint8_t)((g1 * g2 + 127) / 255);
+    uint8_t bOut = (uint8_t)((b1 * b2 + 127) / 255);
+
+    return (aOut << 24) | (rOut << 16) | (gOut << 8) | bOut;
 }
+
 
 bool yes = 0;
 uint32_t lerp_gc(uint32_t color1, uint32_t color2, float alpha) {
@@ -671,8 +628,7 @@ uint32_t lerp_gc(uint32_t color1, uint32_t color2, float alpha) {
 		yes = 1;
 	}
 
-	// Extract the individual color channels from the input values and apply gamma correction using the lookup table
-	 float a1 = gamma_table[(color1 >> 24) & 0xFF];
+	float a1 = gamma_table[(color1 >> 24) & 0xFF];
     float r1 = gamma_table[(color1 >> 16) & 0xFF];
     float g1 = gamma_table[(color1 >> 8) & 0xFF];
     float b1 = gamma_table[color1 & 0xFF];
@@ -682,438 +638,332 @@ uint32_t lerp_gc(uint32_t color1, uint32_t color2, float alpha) {
     float g2 = gamma_table[(color2 >> 8) & 0xFF];
     float b2 = gamma_table[color2 & 0xFF];
 
-    // Calculate the lerped color values for each channel
     float a = (1 - alpha) * a1 + alpha * a2;
     float r = (1 - alpha) * r1 + alpha * r2;
     float g = (1 - alpha) * g1 + alpha * g2;
     float b = (1 - alpha) * b1 + alpha * b2;
-	/**/
-    // Undo gamma correction
+
     a = sqrt(a);
     r = sqrt(r);
     g = sqrt(g);
     b = sqrt(b);
 
-    // Combine the lerped color channels into a single 32-bit value
     return (static_cast<uint32_t>(a * 255) << 24) | (static_cast<uint32_t>(r * 255) << 16) | (static_cast<uint32_t>(g * 255) << 8) | static_cast<uint32_t>(b * 255);
 }
 
 
-// Gaussian function
-double gaussian(double x, double sigma) {
-	return exp(-(x * x) / (2 * sigma * sigma)) / (sqrt(2 * 3.14159265) * sigma);
-}
-
-uint32_t* eintegralR=0;
-uint32_t* eintegralG=0;
-uint32_t* eintegralB=0;
-
-uint32_t eAssignedW = 0;
-uint32_t eAssignedH = 0;
-uint32_t* eAssignedMEM = 0;
-
-uint32_t* fintegralR = 0;
-uint32_t* fintegralG = 0;
-uint32_t* fintegralB = 0;
-
-uint32_t fAssignedW = 0;
-uint32_t fAssignedH = 0;
-uint32_t* fAssignedMEM = 0;
-
-bool lastmode;
-
-void boxBlur(uint32_t* mem, uint32_t width, uint32_t height, uint32_t kernelSize, int mode) {
-	uint32_t halfKernel = kernelSize / 2;
-
-	// This entire thing is an optimization for keeping the two buffers on two different slots
-	// Compute integral image
-	uint32_t* integralR;
-	uint32_t* integralG;
-	uint32_t* integralB;
-	if (mode == 1) {
-		if (!eintegralR) {
-			// init
-			eintegralR = (uint32_t*)malloc(width * height * sizeof(uint32_t));
-			eintegralG = (uint32_t*)malloc(width * height * sizeof(uint32_t));
-			eintegralB = (uint32_t*)malloc(width * height * sizeof(uint32_t));
-		}
-		if (eAssignedH != height || eAssignedW != width || eAssignedMEM != mem) {
-			// refresh
-			FreeData(eintegralR); FreeData(eintegralG); FreeData(eintegralB);
-			eintegralR = (uint32_t*)malloc(width * height * sizeof(uint32_t));
-			eintegralG = (uint32_t*)malloc(width * height * sizeof(uint32_t));
-			eintegralB = (uint32_t*)malloc(width * height * sizeof(uint32_t));
-		}
-		eAssignedW = width;
-		eAssignedH = height;
-		eAssignedMEM = mem;
-
-		integralR = eintegralR;
-		integralG = eintegralG;
-		integralB = eintegralB;
-	}
-	else {
-		if (!fintegralR) {
-			// init
-			fintegralR = (uint32_t*)malloc(width * height * sizeof(uint32_t));
-			fintegralG = (uint32_t*)malloc(width * height * sizeof(uint32_t));
-			fintegralB = (uint32_t*)malloc(width * height * sizeof(uint32_t));
-		}
-		if (fAssignedH != height || fAssignedW != width || fAssignedMEM != mem) {
-			// refresh
-			FreeData(fintegralR); FreeData(fintegralG); FreeData(fintegralB);
-			fintegralR = (uint32_t*)malloc(width * height * sizeof(uint32_t));
-			fintegralG = (uint32_t*)malloc(width * height * sizeof(uint32_t));
-			fintegralB = (uint32_t*)malloc(width * height * sizeof(uint32_t));
-		}
-		fAssignedW = width;
-		fAssignedH = height;
-		fAssignedMEM = mem;
-
-		integralR = fintegralR;
-		integralG = fintegralG;
-		integralB = fintegralB;
-	}
-
-	for (uint32_t y = 0; y < height; ++y) {
-		for (uint32_t x = 0; x < width; ++x) {
-			uint32_t pixel = mem[y * width + x];
-			uint32_t r = (pixel >> 16) & 0xFF;
-			uint32_t g = (pixel >> 8) & 0xFF;
-			uint32_t b = pixel & 0xFF;
-
-			uint32_t sumR = r;
-			uint32_t sumG = g;
-			uint32_t sumB = b;
-
-			if (x > 0) {
-				sumR += integralR[y * width + x - 1];
-				sumG += integralG[y * width + x - 1];
-				sumB += integralB[y * width + x - 1];
-			}
-			if (y > 0) {
-				sumR += integralR[(y - 1) * width + x];
-				sumG += integralG[(y - 1) * width + x];
-				sumB += integralB[(y - 1) * width + x];
-			}
-			if (x > 0 && y > 0) {
-				sumR -= integralR[(y - 1) * width + x - 1];
-				sumG -= integralG[(y - 1) * width + x - 1];
-				sumB -= integralB[(y - 1) * width + x - 1];
-			}
-
-			integralR[y * width + x] = sumR;
-			integralG[y * width + x] = sumG;
-			integralB[y * width + x] = sumB;
-		}
-	}
-
-	// Compute blurred image using integral images
-	for (uint32_t y = 0; y < height; ++y) {
-		for (uint32_t x = 0; x < width; ++x) {
-			uint32_t startX = x >= halfKernel ? x - halfKernel : 0;
-			uint32_t startY = y >= halfKernel ? y - halfKernel : 0;
-			uint32_t endX = x + halfKernel < width ? x + halfKernel : width - 1;
-			uint32_t endY = y + halfKernel < height ? y + halfKernel : height - 1;
-
-			uint32_t count = (endX - startX + 1) * (endY - startY + 1);
-			uint32_t sumR = integralR[endY * width + endX];
-			uint32_t sumG = integralG[endY * width + endX];
-			uint32_t sumB = integralB[endY * width + endX];
-
-			if (startX > 0) {
-				sumR -= integralR[endY * width + startX - 1];
-				sumG -= integralG[endY * width + startX - 1];
-				sumB -= integralB[endY * width + startX - 1];
-			}
-			if (startY > 0) {
-				sumR -= integralR[startY * width + endX];
-				sumG -= integralG[startY * width + endX];
-				sumB -= integralB[startY * width + endX];
-			}
-			if (startX > 0 && startY > 0) {
-				sumR += integralR[startY * width + startX - 1];
-				sumG += integralG[startY * width + startX - 1];
-				sumB += integralB[startY * width + startX - 1];
-			}
-
-			uint32_t avgR = sumR / count;
-			uint32_t avgG = sumG / count;
-			uint32_t avgB = sumB / count;
-
-			mem[y * width + x] = (avgR << 16) | (avgG << 8) | avgB;
-		}
-	}
-}
-
-uint32_t multiplyColor(uint32_t color, float multiplier) {
-	uint8_t alpha = (color >> 24) & 0xFF;
-	uint8_t red = (color >> 16) & 0xFF;
-	uint8_t green = (color >> 8) & 0xFF;
-	uint8_t blue = color & 0xFF;
-
-	red = (uint8_t)(red * multiplier);
-	green = (uint8_t)(green * multiplier);
-	blue = (uint8_t)(blue * multiplier);
-
-	return (alpha << 24) | (red << 16) | (green << 8) | blue;
-}
-
-
-// Compute integral image for a single channel
-void compute_integral_image(const uint8_t* input, int width, int height, uint32_t* integral_image) {
-	for (int y = 0; y < height; ++y) {
-		uint32_t row_sum = 0;
-		for (int x = 0; x < width; ++x) {
-			row_sum += input[y * width + x];
-			integral_image[y * width + x] = row_sum + (y > 0 ? integral_image[(y - 1) * width + x] : 0);
-		}
-	}
-}
-
-// Get sum of pixel values in a rectangular region using integral image
-uint32_t get_integral_sum(const uint32_t* integral_image, int width, int x0, int y0, int x1, int y1) {
-	uint32_t A = (x0 > 0 && y0 > 0) ? integral_image[(y0 - 1) * width + (x0 - 1)] : 0;
-	uint32_t B = (y0 > 0) ? integral_image[(y0 - 1) * width + x1] : 0;
-	uint32_t C = (x0 > 0) ? integral_image[y1 * width + (x0 - 1)] : 0;
-	uint32_t D = integral_image[y1 * width + x1];
-	return D + A - B - C;
-}
-
-// Apply box blur using integral image
-// This is a DIFFERENT box blur function than the menu and stuff
-void box_blur(const uint32_t* integral_image, uint8_t* output, int width, int height, int radius) {
-	int diameter = 2 * radius + 1;
-	for (int y = 0; y < height; ++y) {
-		for (int x = 0; x < width; ++x) {
-			int x0 = (x - radius < 0) ? 0 : x - radius;
-			int y0 = (y - radius < 0) ? 0 : y - radius;
-			int x1 = (x + radius >= width) ? width - 1 : x + radius;
-			int y1 = (y + radius >= height) ? height - 1 : y + radius;
-
-			uint32_t sum = get_integral_sum(integral_image, width, x0, y0, x1, y1);
-			int area = (x1 - x0 + 1) * (y1 - y0 + 1);
-			output[y * width + x] = std::clamp((int)(sum / area), 0, 255);
-		}
-	}
-}
-// Gaussian blur using three-pass box blur approximation with integral images
-void gaussian_blur_B(uint32_t* input_buffer, uint32_t* output_buffer, int lW, int lH, double sigma, uint32_t width, uint32_t height, uint32_t offX, uint32_t offY) {
-	int radius = (int)(sigma * 3.0);
-	int integral_size = width * height;
-	uint32_t* integral_image_r = (uint32_t*)malloc(integral_size * sizeof(uint32_t));
-	uint32_t* integral_image_g = (uint32_t*)malloc(integral_size * sizeof(uint32_t));
-	uint32_t* integral_image_b = (uint32_t*)malloc(integral_size * sizeof(uint32_t));
-	uint32_t* integral_image_a = (uint32_t*)malloc(integral_size * sizeof(uint32_t));
-	uint8_t* temp_buffer1_r = (uint8_t*)malloc(integral_size * sizeof(uint8_t));
-	uint8_t* temp_buffer1_g = (uint8_t*)malloc(integral_size * sizeof(uint8_t));
-	uint8_t* temp_buffer1_b = (uint8_t*)malloc(integral_size * sizeof(uint8_t));
-	uint8_t* temp_buffer1_a = (uint8_t*)malloc(integral_size * sizeof(uint8_t));
-	uint8_t* temp_buffer2_r = (uint8_t*)malloc(integral_size * sizeof(uint8_t));
-	uint8_t* temp_buffer2_g = (uint8_t*)malloc(integral_size * sizeof(uint8_t));
-	uint8_t* temp_buffer2_b = (uint8_t*)malloc(integral_size * sizeof(uint8_t));
-	uint8_t* temp_buffer2_a = (uint8_t*)malloc(integral_size * sizeof(uint8_t));
-
-	if (!integral_image_r || !integral_image_g || !integral_image_b || !integral_image_a ||
-		!temp_buffer1_r || !temp_buffer1_g || !temp_buffer1_b || !temp_buffer1_a ||
-		!temp_buffer2_r || !temp_buffer2_g || !temp_buffer2_b || !temp_buffer2_a) {
-		free(integral_image_r);
-		free(integral_image_g);
-		free(integral_image_b);
-		free(integral_image_a);
-		free(temp_buffer1_r);
-		free(temp_buffer1_g);
-		free(temp_buffer1_b);
-		free(temp_buffer1_a);
-		free(temp_buffer2_r);
-		free(temp_buffer2_g);
-		free(temp_buffer2_b);
-		free(temp_buffer2_a);
-		return; // Handle memory allocation failure
-	}
-
-	// Split input buffer into separate channels and compute integral images
-	for (int y = 0; y < height; ++y) {
-		for (int x = 0; x < width; ++x) {
-			uint32_t pixel = input_buffer[y * width + x];
-			temp_buffer1_r[y * width + x] = (pixel >> 16) & 0xFF;
-			temp_buffer1_g[y * width + x] = (pixel >> 8) & 0xFF;
-			temp_buffer1_b[y * width + x] = pixel & 0xFF;
-			temp_buffer1_a[y * width + x] = (pixel >> 24) & 0xFF;
-		}
-	}
-
-	compute_integral_image(temp_buffer1_r, width, height, integral_image_r);
-	compute_integral_image(temp_buffer1_g, width, height, integral_image_g);
-	compute_integral_image(temp_buffer1_b, width, height, integral_image_b);
-	compute_integral_image(temp_buffer1_a, width, height, integral_image_a);
-
-	// Apply first pass of box blur
-	box_blur(integral_image_r, temp_buffer2_r, width, height, radius);
-	box_blur(integral_image_g, temp_buffer2_g, width, height, radius);
-	box_blur(integral_image_b, temp_buffer2_b, width, height, radius);
-	box_blur(integral_image_a, temp_buffer2_a, width, height, radius);
-
-	// Compute integral images for the intermediate buffers
-	compute_integral_image(temp_buffer2_r, width, height, integral_image_r);
-	compute_integral_image(temp_buffer2_g, width, height, integral_image_g);
-	compute_integral_image(temp_buffer2_b, width, height, integral_image_b);
-	compute_integral_image(temp_buffer2_a, width, height, integral_image_a);
-
-	// Apply second pass of box blur
-	box_blur(integral_image_r, temp_buffer1_r, width, height, radius);
-	box_blur(integral_image_g, temp_buffer1_g, width, height, radius);
-	box_blur(integral_image_b, temp_buffer1_b, width, height, radius);
-	box_blur(integral_image_a, temp_buffer1_a, width, height, radius);
-
-	// Compute integral images for the intermediate buffers
-	compute_integral_image(temp_buffer1_r, width, height, integral_image_r);
-	compute_integral_image(temp_buffer1_g, width, height, integral_image_g);
-	compute_integral_image(temp_buffer1_b, width, height, integral_image_b);
-	compute_integral_image(temp_buffer1_a, width, height, integral_image_a);
-
-	// Apply third pass of box blur
-	box_blur(integral_image_r, temp_buffer2_r, width, height, radius);
-	box_blur(integral_image_g, temp_buffer2_g, width, height, radius);
-	box_blur(integral_image_b, temp_buffer2_b, width, height, radius);
-	box_blur(integral_image_a, temp_buffer2_a, width, height, radius);
-
-	// Combine blurred channels back into output buffer
-	for (int y = 0; y < height; ++y) {
-		for (int x = 0; x < width; ++x) {
-			output_buffer[y * width + x] = ((uint32_t)temp_buffer2_a[y * width + x] << 24) |
-				((uint32_t)temp_buffer2_r[y * width + x] << 16) |
-				((uint32_t)temp_buffer2_g[y * width + x] << 8) |
-				(uint32_t)temp_buffer2_b[y * width + x];
-		}
-	}
-
-	free(integral_image_r);
-	free(integral_image_g);
-	free(integral_image_b);
-	free(integral_image_a);
-	free(temp_buffer1_r);
-	free(temp_buffer1_g);
-	free(temp_buffer1_b);
-	free(temp_buffer1_a);
-	free(temp_buffer2_r);
-	free(temp_buffer2_g);
-	free(temp_buffer2_b);
-	free(temp_buffer2_a);
-}
-
 
 // Gaussian blur function
-void gaussian_blur(uint32_t* pixels, int lW, int lH, double sigma, uint32_t width, uint32_t height, uint32_t offX, uint32_t offY) {
-	int kernel_size = (int)ceil(sigma * 3) * 2 + 1;
-	double* kernel = (double*)malloc(kernel_size * sizeof(double));
-	double sum = 0.0;
-	int i;
-	for (i = 0; i < kernel_size; i++) {
-		double x = (double)i - (double)(kernel_size - 1) / 2.0;
-		kernel[i] = gaussian(x, sigma);
-		sum += kernel[i];
-	}
-	for (i = 0; i < kernel_size; i++) {
-		kernel[i] /= sum;
-	}
-	uint32_t* row = (uint32_t*)malloc(width * sizeof(uint32_t));
-	int x, y;
-	for (y = 0; y < lH; y++) {
-		for (x = 0; x < lW; x++) {
-			int k;
-			double sum_r = 0.0, sum_g = 0.0, sum_b = 0.0;
-			for (k = 0; k < kernel_size; k++) {
-				int xk = x - (kernel_size - 1) / 2 + k;
-				if (xk >= 0 && xk < width) {
-					uint32_t pixel = *GetMemoryLocation(pixels, (xk + offX), (y + offY), width, height);
-					sum_r += (double)((pixel & 0xff0000) >> 16) * kernel[k];
-					sum_g += (double)((pixel & 0x00ff00) >> 8) * kernel[k];
-					sum_b += (double)(pixel & 0x0000ff) * kernel[k];
-				}
-			}
-			row[x] = ((uint32_t)(sum_r + 0.5) << 16) |
-				((uint32_t)(sum_g + 0.5) << 8) |
-				((uint32_t)(sum_b + 0.5));
-		}
-		for (x = 0; x < lW; x++) {
-			*GetMemoryLocation(pixels, (x + offX), (y + offY), width, height) = row[x];
-		}
-	}
-	for (x = 0; x < lW; x++) {
-		for (y = 0; y < lH; y++) {
-			int k;
-			double sum_r = 0.0, sum_g = 0.0, sum_b = 0.0;
-			for (k = 0; k < kernel_size; k++) {
-				int yk = y - (kernel_size - 1) / 2 + k;
-				if (yk >= 0 && yk < lH) {
-					uint32_t pixel = *GetMemoryLocation(pixels, (x + offX), (yk + offY), width, height);
-					sum_r += (double)((pixel & 0xff0000) >> 16) * kernel[k];
-					sum_g += (double)((pixel & 0x00ff00) >> 8) * kernel[k];
-					sum_b += (double)(pixel & 0x0000ff) * kernel[k];
-				}
-			}
-			row[y] = ((uint32_t)(sum_r + 0.5) << 16) |
-				((uint32_t)(sum_g + 0.5) << 8) |
-				((uint32_t)(sum_b + 0.5));
-		}
-		for (y = 0; y < lH; y++) {
-			*GetMemoryLocation(pixels, (offX + x), (offY + y), width, height) = row[y];
-		}
-	}
-	FreeData(kernel);
-	FreeData(row);
+void gaussian_blur_real(uint32_t* input_buffer, uint32_t* output_buffer, int lW, int lH, double sigma, uint32_t width, uint32_t height, uint32_t offX, uint32_t offY) {
+    int kernel_size = (int)ceil(sigma * 3.0) * 2 + 1;
+    double* kernel = (double*)malloc(kernel_size * sizeof(double));
+    double sum = 0.0;
+    
+    for (int i = 0; i < kernel_size; i++) {
+        double x = (double)i - (double)(kernel_size - 1) / 2.0;
+        kernel[i] = exp(-0.5 * (x * x) / (sigma * sigma));
+        sum += kernel[i];
+    }
+    for (int i = 0; i < kernel_size; i++) kernel[i] /= sum;
+
+    uint32_t* temp_buffer = (uint32_t*)malloc(lW * lH * sizeof(uint32_t));
+    int half_k = (kernel_size - 1) / 2;
+
+    for (int y = 0; y < lH; y++) {
+        for (int x = 0; x < lW; x++) {
+			if((y+offY) >= height || (x+offX) >= width || (x+offX) < 0 || (y+offY) < 0) continue;
+            double r = 0, g = 0, b = 0, a = 0;
+            for (int k = 0; k < kernel_size; k++) {
+                int xk = x - half_k + k;
+                if (xk < 0) xk = 0;
+                if (xk >= lW) xk = lW - 1;
+
+                uint32_t p = input_buffer[(y + offY) * width + (xk + offX)];
+                a += (double)((p >> 24) & 0xFF) * kernel[k];
+                r += (double)((p >> 16) & 0xFF) * kernel[k];
+                g += (double)((p >> 8) & 0xFF) * kernel[k];
+                b += (double)(p & 0xFF) * kernel[k];
+            }
+            temp_buffer[y * lW + x] = ((uint32_t)(a + 0.5) << 24) | ((uint32_t)(r + 0.5) << 16) | ((uint32_t)(g + 0.5) << 8) | (uint32_t)(b + 0.5);
+        }
+    }
+
+    for (int x = 0; x < lW; x++) {
+        for (int y = 0; y < lH; y++) {
+			if((y+offY) >= height || (x+offX) >= width || (x+offX) < 0 || (y+offY) < 0) continue;
+            double r = 0, g = 0, b = 0, a = 0;
+            for (int k = 0; k < kernel_size; k++) {
+                int yk = y - half_k + k;
+                if (yk < 0) yk = 0;
+                if (yk >= lH) yk = lH - 1;
+
+                uint32_t p = temp_buffer[yk * lW + x];
+                a += (double)((p >> 24) & 0xFF) * kernel[k];
+                r += (double)((p >> 16) & 0xFF) * kernel[k];
+                g += (double)((p >> 8) & 0xFF) * kernel[k];
+                b += (double)(p & 0xFF) * kernel[k];
+            }
+            output_buffer[(y + offY) * width + (x + offX)] = ((uint32_t)(a + 0.5) << 24) | ((uint32_t)(r + 0.5) << 16) | ((uint32_t)(g + 0.5) << 8) | (uint32_t)(b + 0.5);
+        }
+    }
+
+    free(kernel);
+    free(temp_buffer);
 }
-
-
-#include <stdint.h>
-
-void blur_toolbar(GlobalParams* m, uint32_t* pixels) {
-
-
-	unsigned char* px = (unsigned char*)pixels;
-	unsigned char* gd = (unsigned char*)m->toolbar_gaussian_data;
-
-	boxBlur(pixels, m->width, m->toolheight, 15, 1);
-
-}
-
-double remap(double value, double fromLow, double fromHigh, double toLow, double toHigh) {
-	if (fromLow == fromHigh) {
-		return value;
-	}
-
-	// Map the value from the 'from' range to the 'to' range
-	double result = toLow + (value - fromLow) * (toHigh - toLow) / (fromHigh - fromLow);
-
-	// Clamp the result to the 'to' range
-	result = fmin(fmax(result, toLow), toHigh);
-
-	return result;
-}
-
-void ConvertToPremultipliedAlpha(uint32_t* imageData, int width, int height) {
-	for (int y = 0; y < height; ++y) {
-		for (int x = 0; x < width; ++x) {
-			uint32_t pixel = imageData[y * width + x];
-			uint8_t alpha = (pixel >> 24) & 0xFF;
-			uint8_t red = (pixel >> 16) & 0xFF;
-			uint8_t green = (pixel >> 8) & 0xFF;
-			uint8_t blue = pixel & 0xFF;
-
-			// Convert RGB channels to premultiplied alpha
-			red = (red * alpha) / 255;
-			green = (green * alpha) / 255;
-			blue = (blue * alpha) / 255;
-
-			// Update the pixel with premultiplied alpha values
-			imageData[y * width + x] = (alpha << 24) | (red << 16) | (green << 8) | blue;
-		}
-	}
-}
-
 
 uint32_t change_alpha(uint32_t color, uint8_t new_alpha) {
-	// Assuming color format is 0xRRGGBBAA 
 	return (color & 0xFFFFFF) | (static_cast<uint32_t>(new_alpha) << 24);
+}
+
+
+// Freetype Globals
+FT_Library ft;
+FT_Face* currentFace;
+
+std::string GetWindowsFontsFolder() {
+	HKEY hKey;
+	char fontPath[MAX_PATH];
+	DWORD size = MAX_PATH;
+
+	// Open the registry key where the fonts directory path is stored
+	if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, "Software\\Microsoft\\Windows NT\\CurrentVersion\\Fonts", 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+		// Query the "FontDir" value
+		if (RegQueryValueEx(hKey, "FontDir", nullptr, nullptr, (LPBYTE)fontPath, &size) == ERROR_SUCCESS) {
+			RegCloseKey(hKey);
+			return std::string(fontPath);
+		}
+		RegCloseKey(hKey);
+	}
+
+	// Fallback: Use the standard Windows directory + "Fonts" if registry lookup fails
+	if (GetWindowsDirectory(fontPath, MAX_PATH)) {
+		PathAppend(fontPath, "Fonts");
+		return std::string(fontPath);
+	}
+
+	// If everything fails, return an empty string
+	return "Fail";
+}
+
+void initfontfolder(GlobalParams* m) {
+	m->fontsfolder = GetWindowsFontsFolder();
+	if (m->fontsfolder == "Fail") {
+		MessageBox(m->hwnd, "Fonts directory not found\n", "Error", MB_OK | MB_ICONERROR);
+	}
+}
+
+std::string ExePath() {
+    char buffer[MAX_PATH] = { 0 };
+    GetModuleFileName(nullptr, buffer, MAX_PATH );
+    std::string::size_type pos = std::string(buffer).find_last_of("\\/");
+    return std::string(buffer).substr(0, pos);
+}
+
+bool alreadyInit = false;
+FT_Face LoadFont(GlobalParams* m, std::string fontA) {
+	if (!alreadyInit) {
+		if (FT_Init_FreeType(&ft)) {
+			MessageBox(m->hwnd, "Failed to initialize FreeType library\n", "Error", MB_OK | MB_ICONERROR);
+			return nullptr;
+		}
+		FT_Library_SetLcdFilter(ft, FT_LCD_FILTER_MAX);
+		alreadyInit = true;
+	}
+	
+	if (m->fontsfolder == "") {
+		initfontfolder(m);
+	}
+	std::string font_s = (m->fontsfolder + "\\" + fontA);
+	FT_Face k;
+	if (!(FT_New_Face(ft, font_s.c_str(), 0, &k))) {
+		return k;
+	}
+
+	// try again
+	std::string cdir = ExePath();
+	font_s = (cdir + "\\" + fontA);
+	if (!(FT_New_Face(ft, font_s.c_str(), 0, &k))) {
+		return k;
+	}
+
+	std::string er = "Failed to load font: " + fontA + "\nYou may need to install this on your system";
+	MessageBox(m->hwnd, er.c_str(), "Error Loading Font", MB_OK | MB_ICONERROR);
+	return nullptr;
+}
+
+
+void SwitchFont(FT_Face& font) {
+	currentFace = &font;
+}
+
+int opsPlaceStringGreyscale(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, void* mem, int bufwidth, int bufheight, void* fromBuffer) {
+	
+	locY = bufheight - locY-size; // compensate for negative Y
+
+	if (!*currentFace) {
+		return 0;
+	}
+
+	FT_Set_Pixel_Sizes(*currentFace, 0, size);
+
+    const FT_GlyphSlot glyph = (*currentFace)->glyph;
+	
+	for (const char* p = inputstr; *p; p++) {
+		
+		if (FT_Load_Char((*currentFace), *p, FT_LOAD_RENDER) != 0)
+			continue;
+		
+		// width of char: glyph->bitmap.width
+		// height of char: glyph->bitmap.rows
+
+        const float vx = locX + glyph->bitmap_left * 1;
+        const float vy = locY + glyph->bitmap_top * 1;
+
+		// render
+		for (int y = 0; y < glyph->bitmap.rows; ++y) {
+			for (int x = 0; x < glyph->bitmap.width; ++x) {
+				unsigned char pixelValue = glyph->bitmap.buffer[y * glyph->bitmap.pitch + x];
+				
+				uint32_t ptx = vx + x;
+				uint32_t pty = vy-y;
+
+				pty = bufheight - pty; // compensate for negative Y
+
+				uint32_t* memoryPathFrom = GetMemoryLocation(fromBuffer, ptx, pty, bufwidth, bufheight);
+				uint32_t existingColor = *memoryPathFrom;
+				if (ptx >= 0 && pty >= 0 && ptx < bufwidth && pty < bufheight) {
+					*GetMemoryLocation(mem, ptx, pty, bufwidth, bufheight) = lerp_u32(existingColor, color, pixelValue);
+				}
+			}
+		}
+
+        locX += (glyph->advance.x >> 6) * 1;
+        locY += (glyph->advance.y >> 6) * 1;
+		
+	}
+	return 1;
+}
+
+
+
+int opsPlaceStringLCD(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, void* mem, int bufwidth, int bufheight, void* fromBuffer) {
+	
+	locY = bufheight - locY - size; // compensate for negative Y
+
+	if (!*currentFace) {
+		return false;
+	}
+
+	FT_Set_Pixel_Sizes(*currentFace, 0, size);
+	const FT_GlyphSlot glyph = (*currentFace)->glyph;
+
+	for (const char* p = inputstr; *p; p++) {
+		
+		if (FT_Load_Char((*currentFace), *p, FT_LOAD_RENDER | FT_LOAD_TARGET_LCD) != 0)
+			continue;
+
+		const int vx = locX + glyph->bitmap_left;
+		const int vy = locY + glyph->bitmap_top;
+
+		for (int y = 0; y < glyph->bitmap.rows; y++) {
+			for (int x = 0; x < glyph->bitmap.width / 3; x++) {
+
+				int i = y * glyph->bitmap.pitch + x * 3;
+
+				float cr = glyph->bitmap.buffer[i + 0] / 255.0f;
+				float cg = glyph->bitmap.buffer[i + 1] / 255.0f;
+				float cb = glyph->bitmap.buffer[i + 2] / 255.0f;
+
+				int ptx = vx + x;
+				int pty = bufheight - (vy - y);
+
+				if (ptx < 0 || pty < 0 || ptx >= bufwidth || pty >= bufheight)
+					continue;
+
+				uint32_t* dstPtr  = GetMemoryLocation(mem,        ptx, pty, bufwidth, bufheight);
+				uint32_t* srcPtr  = GetMemoryLocation(fromBuffer, ptx, pty, bufwidth, bufheight);
+				uint32_t dstColor = *srcPtr;
+
+				uint8_t dstR = (dstColor >> 16) & 0xFF;
+				uint8_t dstG = (dstColor >> 8)  & 0xFF;
+				uint8_t dstB =  dstColor        & 0xFF;
+				uint8_t dstA = (dstColor >> 24) & 0xFF;
+
+				uint8_t srcR = (color >> 16) & 0xFF;
+				uint8_t srcG = (color >> 8)  & 0xFF;
+				uint8_t srcB =  color        & 0xFF;
+				uint8_t srcA = (color >> 24) & 0xFF;
+
+				uint8_t outR = (uint8_t)(srcR * cr + dstR * (1.0f - cr));
+				uint8_t outG = (uint8_t)(srcG * cg + dstG * (1.0f - cg));
+				uint8_t outB = (uint8_t)(srcB * cb + dstB * (1.0f - cb));
+
+				float cov = cr;
+				if (cg > cov) cov = cg;
+				if (cb > cov) cov = cb;
+
+				uint8_t outA = dstA + (uint8_t)((255 - dstA) * cov * (srcA / 255.0f));
+
+				*dstPtr = (outA << 24) | (outR << 16) | (outG << 8) | outB;
+			}
+		}
+
+		locX += (glyph->advance.x >> 6);
+		locY += (glyph->advance.y >> 6);
+	}
+
+	return true;
+}
+
+int opsPlaceStringBuffer(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, void* mem, int bufwidth, int bufheight, void* fromBuffer) {
+	bool state = true;
+	if (m->lcd) {
+		state = state && opsPlaceStringLCD(m, size, inputstr, locX, locY, color, mem, bufwidth, bufheight, fromBuffer);
+	} else {
+		state = state && opsPlaceStringGreyscale(m, size, inputstr, locX, locY, color, mem, bufwidth, bufheight, fromBuffer);
+	}
+
+	return state;
+}
+
+int opsPlaceStringShadowObject(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, void* mem, double sigma, int passes) {
+	sigma*=3.5;
+	int clearance = 10;
+	unsigned int approx_textwidth = std::string(inputstr).length()*size;
+
+	unsigned int tempbuffer_width = approx_textwidth+clearance*2;
+	unsigned int tempbuffer_height = size+clearance*2;
+
+
+	size_t memcount = tempbuffer_width*tempbuffer_height;
+	size_t memsize = memcount*4;
+
+	uint32_t* temp_buffer = (uint32_t*)malloc(memsize);
+	memset(temp_buffer, 0xFF, memsize);
+
+	int e = opsPlaceStringGreyscale(m, size, inputstr, clearance, clearance, 0x000000, temp_buffer, tempbuffer_width, tempbuffer_height, temp_buffer);
+
+	// blur
+	// gaussian B previously
+	gaussian_blur_real(temp_buffer, temp_buffer, tempbuffer_width, tempbuffer_height, sigma, tempbuffer_width, tempbuffer_height, 0, 0);
+
+	for(int i=0; i<passes; i++) {
+		for(int y=0; y<tempbuffer_height; y++) {
+			for(int x=0; x<tempbuffer_width; x++) {
+				// render temp
+				uint32_t putX = locX+x-clearance;
+				uint32_t putY = locY+y-clearance;
+				if(putX > 0 && putX <= m->width && putY > 0 && putY <= m->height) {
+					uint32_t* scrbuf = GetMemoryLocation(mem, putX, putY, m->width, m->height);
+					int from = (*GetMemoryLocation(temp_buffer, x, y, tempbuffer_width, tempbuffer_height) >> 8) & 0xFF;
+					int factor = 255-from;
+					*scrbuf = lerp_u32(*scrbuf, color, factor);
+				}
+			}
+		}
+	}
+
+	free(temp_buffer);
+
+	return e;
 }

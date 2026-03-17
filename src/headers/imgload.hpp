@@ -4,6 +4,7 @@
 #include <string>
 #include "globalvar.hpp"
 #include "../special/sfbb_support.hpp"
+#include "../special/ico_support.hpp"
 #include "../special/m45_support.hpp"
 #ifdef _SVG
 #include "../special/svg_support.hpp"
@@ -24,6 +25,6 @@ std::string ReplaceBitmapAndMetrics(GlobalParams* m, void*& buffer, const char* 
 LoadImageResult OpenImageFromPath(GlobalParams* m, std::string kpath, bool isLeftRight);
 void PrepareOpenImage(GlobalParams* m);
 
-void ActuallySaveImage(GlobalParams* m, std::string res);
+bool ActuallySaveImage(GlobalParams* m, std::string res);
 bool PrepareSaveImage(GlobalParams* m);
 bool AllocateBlankImage(GlobalParams* m, uint32_t color);

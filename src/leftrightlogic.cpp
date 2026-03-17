@@ -28,6 +28,7 @@ std::vector<std::string> SortFileVector(const std::string& referencePath) {
         ".m45",
         ".irbo",
 		".sfbb",
+		".ico",
 		".jpg",
 		".png",
 		".bmp",

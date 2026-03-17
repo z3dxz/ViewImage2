@@ -34,16 +34,14 @@ void ResizeBuffers(GlobalParams* m) {
 
 	// Allocate new buffers
 	void* newScrdata = realloc(m->scrdata, newWidth * newHeight * 4);
-	void* newToolbarData = realloc(m->toolbar_gaussian_data, newWidth * m->toolheight * 4);
 	std::vector<uint32_t> newIth(newWidth);
 	std::vector<uint32_t> newItv(newHeight);
 
-	if (newScrdata && newToolbarData) {
+	if (newScrdata) {
 		// Update with new data
 		m->width = newWidth;
 		m->height = newHeight;
 		m->scrdata = newScrdata;
-		m->toolbar_gaussian_data = newToolbarData;
 		m->ith = std::move(newIth);
 		m->itv = std::move(newItv);
 		for (uint32_t i = 0; i < m->width; i++)
@@ -54,7 +52,6 @@ void ResizeBuffers(GlobalParams* m) {
 	else {
 		// Error handling: Failed to allocate memory
 		if (newScrdata) FreeData(newScrdata);
-		if (newToolbarData) FreeData(newToolbarData);
 	}
 
 	// Notify main thread
@@ -64,6 +61,26 @@ void ResizeBuffers(GlobalParams* m) {
 	}
 	cv.notify_one();
 }
+
+void ResetCoordinates(GlobalParams* m) {
+
+	if (m->imgwidth > 0) {
+
+		
+		m->CoordLeft = ((float)m->width - m->imgwidth * m->mscaler) / 2.0f + m->iLocX;
+		m->CoordTop = ((float)m->height - m->imgheight * m->mscaler) / 2.0f + m->iLocY;
+
+		m->CoordRight = ((float)m->width + m->imgwidth * m->mscaler)/2.0f + m->iLocX;
+		m->CoordBottom = ((float)m->height + m->imgheight * m->mscaler)/2.0f + m->iLocY;
+	}
+	else {
+		m->CoordLeft = 0;
+		m->CoordTop = 0;
+		m->CoordRight = 0;
+		m->CoordBottom = 0;
+	}
+}
+
 
 void Size(GlobalParams* m) {
 	if (m->scrdata) { {
@@ -128,8 +145,6 @@ bool Initialization(GlobalParams* m, int argc, LPWSTR* argv) {
 	for (uint32_t i = 0; i < m->width * m->height; i++) {
 		*((uint32_t*)m->scrdata+i) = 0x008080; // TEAL color
 	}
-
-	m->toolbar_gaussian_data = malloc(m->width * m->toolheight * 4);
 
 	m->toolbarData = LoadImageFromResource(TOOLBAR_RES, m->widthos, m->heightos, m->channelos);
 
@@ -329,7 +344,7 @@ void PerformWASDMagic(GlobalParams* m) {
 		GuidedRedrawSurface(m);
 	}
 }
-
+void UndoBus(GlobalParams*m );
 void OpenImageEffectsMenu(GlobalParams* m) {
 	m->menuVector = {
 
@@ -337,8 +352,7 @@ void OpenImageEffectsMenu(GlobalParams* m) {
 			[m]() -> bool {
 				m->loading = true;
 				RedrawSurface(m);
-				bool did = AutoAdjustLevels(m, (uint32_t*)m->imgdata);
-
+				bool did = AutoAdjustLevels(m, (uint32_t*)m->imgdata, 7.0);
 				m->loading = false;
 				RedrawSurface(m);
 				return true;
@@ -466,7 +480,7 @@ int PerformCasedBasedOperation(GlobalParams* m, uint32_t id, bool menustate) {
 			std::string name = m->current_directory + "\\Image" + std::to_string(rand()) + "." + ext;
 			
 
-			ActuallySaveImage(m, name);
+			bool save = ActuallySaveImage(m, name);
 		} else {
 			PrepareSaveImage(m);
 		}
@@ -829,16 +843,11 @@ void placeDraw(GlobalParams* m, POINT* pos) {
 
     ScreenToClient(m->hwnd, pos);
 
-    //int k = (int)((float)((m->lastMouseX) - m->CoordLeft) * (1.0f / m->mscaler));
-    //int v = (int)((float)((m->lastMouseY) - m->CoordTop) * (1.0f / m->mscaler));
 	int k = m->lastK;
 	int v = m->lastV;
 
     int k1 = (int)((float)(pos->x - m->CoordLeft) * (1.0f / m->mscaler));
     int v1 = (int)((float)(pos->y - m->CoordTop) * (1.0f / m->mscaler));
-
-	//std::cout << "Last: " << m->lastMouseX << " : " << m->lastMouseY << "\n";
-	//std::cout << "    : " << m->lastMouseX << " : " << m->lastMouseY << "\n";
 
 	float sizex = abs(k - k1);
 	float sizey = abs(v - v1);
@@ -1212,9 +1221,6 @@ void MouseMove(GlobalParams* m, bool isCalledWhenMouseAcuallyMoved){
 		DeleteObject(rgn);
 		endRedraw = false;
 	}
-
-	
-
 
 	SetCursor(cursor);
 	ShowCursor(TRUE);
@@ -1658,7 +1664,7 @@ void KeyDown(GlobalParams* m, WPARAM wparam, LPARAM lparam) {
 		// AutoAdjust
 		m->loading = true;
 		RedrawSurface(m);
-		bool did = AutoAdjustLevels(m, (uint32_t*)m->imgdata);
+		bool did = AutoAdjustLevels(m, (uint32_t*)m->imgdata, 7.0);
 
 		m->loading = false;
 		RedrawSurface(m);

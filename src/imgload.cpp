@@ -47,7 +47,13 @@ std::string ReplaceBitmapAndMetrics(GlobalParams* m, void*& buffer, const char* 
 				buffer = 0;
 				return "Error loading SFBB image data";
 			}
-
+		}
+		else if(isFile(standardPath, ".ico")) {
+			buffer = decodeico(standardPath, w, h);
+			if(!buffer) {
+				buffer = 0;
+				return "Error loading ICO image data";
+			}
 		}
 		else if (isFile(standardPath, ".svg")) {
 #ifdef _SVG
@@ -112,7 +118,7 @@ std::string OpenFileSaveDialog(GlobalParams* m, HWND hwnd) {
 	ofn.lpstrInitialDir = pa;
 	ofn.lStructSize = sizeof(OPENFILENAME);
 	ofn.hwndOwner = NULL;
-	ofn.lpstrFilter = "PNG File (*.png)\0*.png\0BMP File\0*.bmp\0TGA File\0*.tga\0JPEG File\0*.jpg\0SFBB File\0*.sfbb\0M45 File\0*.m45\0IRBO File\0*.irbo\0All Files (*.*)\0*.*\0";
+	ofn.lpstrFilter = "PNG File (*.png)\0*.png\0BMP File (*.bmp)\0*.bmp\0TGA File (*.tga)\0*.tga\0JPEG File (*.jpg;*.jpeg)\0*.jpg;*.jpeg\0ICO File (*.ico)\0*.ico\0SFBB File (*.sfbb)\0*.sfbb\0M45 File (*.m45)\0*.m45\0IRBO File (*.irbo)\0*.irbo\0All Files (*.*)\0*.*\0";
 	ofn.lpstrFile = szFileName;
 	ofn.nMaxFile = sizeof(szFileName);
 	ofn.nMaxFile = MAX_PATH;
@@ -127,16 +133,16 @@ std::string OpenFileSaveDialog(GlobalParams* m, HWND hwnd) {
 	return "Invalid";
 }
 
-void ActuallySaveImage(GlobalParams* m, std::string res){
+bool ActuallySaveImage(GlobalParams* m, std::string res){
 
 	std::filesystem::path f(res);
 	if(f.empty()) {
 		MessageBox(0, "Can not find file path", "Failed to save image", MB_OK | MB_ICONERROR);
-		return;
+		return false;
 	}
 	if(f.extension().empty()) {
 		MessageBox(0, "Can not find file path extension", "Failed to save image", MB_OK | MB_ICONERROR);
-		return;
+		return false;
 	}
 
 	std::string ext = f.extension().string();
@@ -146,33 +152,46 @@ void ActuallySaveImage(GlobalParams* m, std::string res){
 	//CombineBuffer(m, (uint32_t*)m->imgdata, (uint32_t*)m->imgannotate, m->imgwidth, m->imgheight, true);
 
 	InvertAllColorChannels((uint32_t*)m->imgdata, m->imgwidth, m->imgheight);
-
+	int yes = 0;
+	std::string failstring = "Failed to save image due to an error with the saving process " + res + " :Extension: " + ext;
 	if(ext == ".png") {
-		stbi_write_png(res.c_str(), m->imgwidth, m->imgheight, 4, m->imgdata, 0);
+		yes = stbi_write_png(res.c_str(), m->imgwidth, m->imgheight, 4, m->imgdata, 0);
 	} else if (ext == ".bmp") {
-		stbi_write_bmp(res.c_str(), m->imgwidth, m->imgheight, 4, m->imgdata);
+		yes = stbi_write_bmp(res.c_str(), m->imgwidth, m->imgheight, 4, m->imgdata);
 	} else if (ext == ".tga") {
-		stbi_write_tga(res.c_str(), m->imgwidth, m->imgheight, 4, m->imgdata);
+		yes = stbi_write_tga(res.c_str(), m->imgwidth, m->imgheight, 4, m->imgdata);
 	} else if (ext == ".jpg" || ext == ".jpeg") {
-		stbi_write_jpg(res.c_str(), m->imgwidth, m->imgheight, 4, m->imgdata, 85);
+		yes = stbi_write_jpg(res.c_str(), m->imgwidth, m->imgheight, 4, m->imgdata, 85);
 	} else if(ext == ".sfbb") {
-		encodesfbb(res.c_str(), m->imgdata, m->imgwidth, m->imgheight, 4);
+		const char* fs = encodesfbb(res.c_str(), m->imgdata, m->imgwidth, m->imgheight, 4);
+		yes = strcmp(fs, "success") == 0;
+		if(!yes) {failstring = std::string(fs);}
 	} else if(ext == ".m45") {
-		encodedata(m->imgdata, m->imgwidth, m->imgheight, res.c_str());
+		yes = encodedata(m->imgdata, m->imgwidth, m->imgheight, res.c_str());
 	} else if(ext == ".irbo") {
-		encodeirbo(res.c_str(), m->imgdata, m->imgwidth, m->imgheight, 4);
+		const char* fs = encodeirbo(res.c_str(), m->imgdata, m->imgwidth, m->imgheight, 4);
+		yes = strcmp(fs, "success") == 0;
+		if(!yes) {failstring = std::string(fs);}
 	} else {
-		std::string failstring = "Failed to save image due to insufficient format: " + res + " :Extension: " + ext;
-		MessageBox(0, failstring.c_str(), "Failed to save image", MB_OK | MB_ICONERROR);
+		yes = 0;
+		failstring = "Failed to save image due to insufficient format: " + res + " :Extension: " + ext;
 	}
 
 	InvertAllColorChannels((uint32_t*)m->imgdata, m->imgwidth, m->imgheight);
+
+	if(!yes) {
+		MessageBox(0, failstring.c_str(), "Failed to save image", MB_OK | MB_ICONERROR);
+		m->loading = false;
+		return false;
+	}
+
 
 	//FreeCombineBuffer(m);
 	m->shouldSaveShutdown = false;
 	OpenImageFromPath(m, res, false);
 	m->loading = false;
 	RedrawSurface(m);
+	return true;
 }
 
 bool PrepareSaveImage(GlobalParams* m) {
@@ -351,7 +370,7 @@ std::string OpenFileOpenDialog(HWND hwnd) {
 	ofn.hwndOwner = hwnd;
 	ofn.lpstrFile = szFile;
 	ofn.nMaxFile = sizeof(szFile);
-	ofn.lpstrFilter = "Supported Images (*.m45 *.irbo *.svg *.sfbb *.jpeg *.jpg *.png *.tga *.bmp *.psd; .gif; .hdr; .pic; .pnm)\0*.m45;*.irbo;*.svg;*.sfbb;*.jpeg;*.jpg;*.png;*.tga;*.bmp;*.psd;*.gif;*.hdr;*.pic;*.pnm\0Every File\0*.*\0";
+	ofn.lpstrFilter = "Supported Images (*.m45 *.irbo *.svg *.sfbb *.ico *.jpeg *.jpg *.png *.tga *.bmp *.psd; .gif; .hdr; .pic; .pnm)\0*.m45;*.irbo;*.svg;*.ico*;*.sfbb;*.jpeg;*.jpg;*.png;*.tga;*.bmp;*.psd;*.gif;*.hdr;*.pic;*.pnm\0Every File\0*.*\0";
 	ofn.nFilterIndex = 1;
 	ofn.lpstrFileTitle = NULL;
 	ofn.nMaxFileTitle = 0;

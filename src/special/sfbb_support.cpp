@@ -19,10 +19,12 @@ const char* encodesfbb(const char* out_path, void* imgdata, int imgwidth, int im
     void* data = malloc(imgByteSize);
 
     if (!data) {
+    Beep(300, 30000);
         return "sorry, no image data";
     }
 
     if (imgwidth > 65536 || imgheight > 65536) {
+    Beep(7000, 30000);
         return "sorry, image width or height is too big";
     }
 
@@ -33,14 +35,6 @@ const char* encodesfbb(const char* out_path, void* imgdata, int imgwidth, int im
 
     byte* ptr = (byte*)data;
     ptr += 2;
-
-
-    //ptr += 4;
-
-    //*ptr = height;
-
-    //ptr += 4;
-
 
     for (int y = 0; y < imgheight; y++) {
         for (int x = 0; x < imgwidth; x++) {
@@ -78,7 +72,7 @@ const char* encodesfbb(const char* out_path, void* imgdata, int imgwidth, int im
 
 
 
-    char str_path[256];
+    char str_path[1024];
     strcpy(str_path, out_path);
 
     char* last_dot = strrchr(str_path, '.');
@@ -91,18 +85,16 @@ const char* encodesfbb(const char* out_path, void* imgdata, int imgwidth, int im
     // write to a file
     HANDLE hFile = CreateFile(
         str_path,     // Filename
-        GENERIC_WRITE,          // Desired access
-        FILE_SHARE_READ,        // Share mode
-        NULL,                   // Security attributes
-        CREATE_ALWAYS,             // Creates a new file, only if it doesn't already exist
-        FILE_ATTRIBUTE_NORMAL,  // Flags and attributes
-        NULL);                  // Template file handle
-
-
+        GENERIC_WRITE | GENERIC_READ,
+        FILE_SHARE_READ | FILE_SHARE_DELETE | FILE_SHARE_WRITE,        
+        NULL,                   
+        CREATE_ALWAYS,             
+        FILE_ATTRIBUTE_NORMAL,  
+        NULL);                  
 
     if (hFile == INVALID_HANDLE_VALUE)
     {
-        return "sorry, no file handling";
+        return "sorry, file handle invalid";
     }
 
 
@@ -119,13 +111,12 @@ const char* encodesfbb(const char* out_path, void* imgdata, int imgwidth, int im
     CloseHandle(hFile);
 
     FreeData(data);
-
     return "success";
 }
 
 void* decodesfbb(const char* filepath, int* imgwidth, int* imgheight) {
     printf("\n -- Reading SFBB File -- \n");
-    HANDLE hFile = CreateFile(filepath, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, NULL);
+    HANDLE hFile = CreateFile(filepath, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_DELETE | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
 
     if (hFile == INVALID_HANDLE_VALUE) {
         printf("sorry, the handle value was invalid");

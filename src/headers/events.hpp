@@ -13,6 +13,7 @@
 
 uint32_t PickColorFromDialog(GlobalParams* m, uint32_t def, bool* success);
 
+void ResetCoordinates(GlobalParams* m);
 
 bool Initialization(GlobalParams* m, int argc, LPWSTR* argv);
 bool ToolbarMouseDown(GlobalParams* m);
@@ -25,7 +26,6 @@ void RightUp(GlobalParams* m);
 void Size(GlobalParams* m);
 void MouseWheel(GlobalParams* m, WPARAM wparam, LPARAM lparam);
 
-void ConvertToPremultipliedAlpha(uint32_t* imageData, int width, int height);
 void ToggleFullscreen(GlobalParams* m);
 
 void PerformWASDMagic(GlobalParams* m);

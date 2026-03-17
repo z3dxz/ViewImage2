@@ -2,11 +2,12 @@
 #include <string>
 #include <vector>
 #include <Windows.h>
+#include <functional>
+#include <stdint.h>
+
 #include <ft2build.h>
 #include <freetype/freetype.h>
 #include <freetype/ftlcdfil.h>
-#include <functional>
-#include <stdint.h>
 
 struct ToolbarButtonItem {
 	int indexX = 0;
@@ -49,7 +50,6 @@ struct GlobalParams {
 	void* imgdata;
 	void* imgoriginaldata;
 	void* scrdata;
-	void* toolbar_gaussian_data;
 
 	void* imagepreview;
 	bool isImagePreview = false;
@@ -267,6 +267,8 @@ struct GlobalParams {
 		
 	LARGE_INTEGER previousTime;
 	LARGE_INTEGER frequency; // for wasd magic
+
+	bool aeromode = false;
 
 	bool full_redraw_surface_the_first_time = true; // fully redraw the surface the first time mouse enters the toolbar to clear any changes present inside the image AKA annotation circle
 
