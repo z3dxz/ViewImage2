@@ -243,12 +243,6 @@ void RenderToolbarTooltips(GlobalParams* m) {
 	}
 }
 
-void RenderToolbarShadow(GlobalParams *m) {
-	// drop shadow for the toolbar (not buttons)
-
-	dDrawGradient(m, 0, m->toolheight, m->width, 20, GradientTopBottom, 0x4C000000, 0x00000000);
-}
-
 void DrawMenuIcon(GlobalParams* m, int locationX, int locationY, int atlasX, int atlasY, int opacity2) {
 	PlaceFromAtlas(m, m->menu_icon_atlas, m->menu_atlas_SizeX, m->menu_atlas_SizeY, atlasX, atlasY, locationX, locationY, 12, 12, 0xFF6060, 1.0f);
 }
@@ -713,9 +707,6 @@ void RedrawSurface(GlobalParams* m, bool onlyImage, bool doesManualClip, bool by
 
 	if ((toolbar)) {
 		RenderToolbarTooltips(m);
-		if(!m->aeromode) {
-			RenderToolbarShadow(m);
-		}
 	}
 
 	bool shouldIDrawTheDrawingToolbar = !onlyImage;

@@ -32,13 +32,11 @@ void ResizeBuffers(GlobalParams* m) {
 	if (newWidth < 1) { newWidth = 1; }
 	if (newHeight < 1) { newHeight = 1; }
 
-	// Allocate new buffers
 	void* newScrdata = realloc(m->scrdata, newWidth * newHeight * 4);
 	std::vector<uint32_t> newIth(newWidth);
 	std::vector<uint32_t> newItv(newHeight);
 
 	if (newScrdata) {
-		// Update with new data
 		m->width = newWidth;
 		m->height = newHeight;
 		m->scrdata = newScrdata;
@@ -50,11 +48,9 @@ void ResizeBuffers(GlobalParams* m) {
 			m->itv[i] = i;
 	}
 	else {
-		// Error handling: Failed to allocate memory
 		if (newScrdata) FreeData(newScrdata);
 	}
 
-	// Notify main thread
 	{
 		std::lock_guard<std::mutex> lock(mtx);
 		resizeCompleted = true;
@@ -263,12 +259,11 @@ uint32_t PickColorFromDialog(GlobalParams* m, uint32_t def, bool* success) {
 	cc.Flags = CC_FULLOPEN | CC_RGBINIT;
 
 	if (ChooseColor(&cc) == TRUE) {
-		return (uint32_t)cc.rgbResult; // Convert COLORREF to uint32_t
+		return (uint32_t)cc.rgbResult;
 	}
 	else {
-		// Handle error or cancellation
 		*success = false;
-		return 0; // Assuming 0 as an invalid color value
+		return 0;
 	}
 }
 
@@ -541,10 +536,8 @@ int PerformCasedBasedOperation(GlobalParams* m, uint32_t id, bool menustate) {
 				CHAR szPath[MAX_PATH];
 				GetModuleFileName(NULL, szPath, MAX_PATH);
 
-				// Start a new instance of the application
 				ShellExecute(NULL, "open", szPath, NULL, NULL, SW_SHOWNORMAL);
 
-				// Terminate the current instance of the application
 				ExitProcess(0);
 			}
 		}

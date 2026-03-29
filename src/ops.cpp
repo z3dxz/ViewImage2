@@ -419,8 +419,9 @@ void autozoom(GlobalParams* m) {
 	float precentY = (float)(m->height - toolheight0) / (float)m->imgheight;
 
 	float e = fmin(precentX, precentY);
-
+	
 	float fzoom = e;
+
 	if (m->imgheight < 50) { fzoom = e / 2; }
 	// round to the nearest power of 1.25 (for easy zooming back to 100)
 	m->mscaler = fzoom;
