@@ -31,6 +31,16 @@ struct UndoDataStruct {
 	int height;
 };
 
+struct Slider {
+	int x;
+	int y;
+	int endX;
+	int endY;
+	int* parentX;
+	int* parentY;
+	bool md = false;
+};
+
 #define REAL_BIG_VERSION "2.7*"
 
 struct GlobalParams {
@@ -105,9 +115,10 @@ struct GlobalParams {
 	// left right logic
 	bool halt = false;
 
-	bool mouseDown = false;
-	bool rightdown = false;
-	bool toolmouseDown = false;
+	bool Leftdown = false;
+	bool Rightdown = false;
+	bool Middledown;
+	bool movemousedown = false;
 	bool drawmousedown = false;
 	int drawtype = 1; // 1 for draw: 0 for erase: 3 for transparent
 
@@ -134,7 +145,9 @@ struct GlobalParams {
 		int lastK;
 		int lastV; // use these instead
 		
-
+	// Slider
+	Slider brush_size_slider;
+	Slider brush_opacity_slider;
 
 	bool fullscreen = false;
 	WINDOWPLACEMENT wpPrev;
@@ -159,8 +172,6 @@ struct GlobalParams {
 	int drawMenuOffsetX = 0;
 	int drawMenuOffsetY = 0;
 
-	bool IsLastMouseDownWhenOverMenu = false;
-
 	bool smoothing = true;
 
 	std::string fontsfolder;
@@ -180,28 +191,12 @@ struct GlobalParams {
 	float a_opacity = 1.0f;
 	float a_resolution = 30.0f;
 
-	// slider's
-
-	int slider1begin = 113;
-	int slider1end = 214;
-
-	int slider2begin = 318;
-	int slider2end = 405;
-
-	bool slider1mousedown = false;
-	bool slider2mousedown = false;
-	bool slider3mousedown = false;
-	bool slider4mousedown = false;
-
 	float testfloat = 0.0f;
 
 	bool debugmode = false;
 	bool draw_updates_debug = false;
 
 	bool sleepmode = false;
-
-	int mouseRightInitialCheckX;
-	int mouseRightInitialCheckY;
 
 	bool tint = false;
 

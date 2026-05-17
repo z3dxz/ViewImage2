@@ -66,7 +66,6 @@ static void ApplyEffectToBuffer(int brightness, int contrast) {
             *to = AdjustContrast(*to, contrast);
         }
     }
-
 }
 
 static void ConfirmEffect() {

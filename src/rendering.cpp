@@ -112,9 +112,9 @@ void RenderToolbarContainer(GlobalParams* m) {
 	dDrawFilledRectangle(m, 0, 1, m->width, m->toolheight-1, 0x0C0C0C, 0.65f);
 
 	// The three border lines
-	dDrawFilledRectangle(m, 0, 0, m->width, 1, 0x333333, 1.0f);
-	dDrawFilledRectangle(m, 0, m->toolheight-2, m->width, 1, 0xFFFFFF, 0.2f);
-	dDrawFilledRectangle(m, 0, m->toolheight-1, m->width, 1, 0x000000, 1.0f);
+	drawLine(m, 0, 0, m->width, true, 0x333333, 1.0f);
+	drawLine(m, 0, m->toolheight-2, m->width, true, 0xFFFFFF, 0.2f);
+	drawLine(m, 0, m->toolheight-1, m->width, true, 0x000000, 1.0f);
 }
 
 void RenderToolbarContainerAero(GlobalParams* m) {
@@ -172,14 +172,17 @@ void DrawVersion(GlobalParams* m, bool aeromode) {
 	if(m->width <= 540) {
 		yloc = m->toolheight + 4;
 	}
-	
-	if(aeromode) {
-		PlaceStringShadow(m, 13, REAL_BIG_VERSION, m->width - 71, yloc, 0xFF000000, 1.34f, 0,0,4, 0xFFFFFFFF);
-	} else {
-		PlaceString(m, 13, REAL_BIG_VERSION, m->width - 71, yloc, 0xb0b0b0);
+	std::string str = REAL_BIG_VERSION;
+	uint32_t vcolor = m->aeromode ? 0xFFFFFFFF : 0xFFb0b0b0;
+	if(str.find('*') != std::string::npos) {
+		vcolor = 0xFFFF8080;
 	}
 	
-	
+	if(aeromode) {
+		PlaceStringShadow(m, 13, str.c_str(), m->width - 71, yloc, 0xFF000000, 1.34f, 0,0,4, vcolor);
+	} else {
+		PlaceString(m, 13, str.c_str(), m->width - 71, yloc, vcolor);
+	}	
 }
 
 void RenderToolbar(GlobalParams* m, bool aeromode) {
@@ -265,7 +268,7 @@ void DrawMenu(GlobalParams* m) { // render menu draw menu
 	m->actmenuY = posY;
 
 	gaussian_blur(m, miX-4, miY-4, 4.0f, posX+2, posY+2);
-	dDrawRoundedFilledRectangle(m, posX, posY, miX, miY, 0x000000, 0.8f);
+	dDrawRoundedFilledRectangle(m, posX, posY, miX, miY, 0x000000, 0.65f);
 	dDrawRoundedRectangle(m, posX+1, posY+1, miX-2, miY-2, 0xFFFFFF, 0.2f);
 	dDrawRoundedRectangle(m, posX, posY, miX, miY, 0x000000, 1.0f);
 
@@ -295,18 +298,18 @@ void DrawMenu(GlobalParams* m) { // render menu draw menu
 			mystr = mystr.substr(0, mystr.length() - 3);
 		}
 
+
 		int opacity = 255;
-		uint32_t txtcolor = 0xF0F0F0;
 		if(!enabled) {
 			opacity = 128;
-			txtcolor = 0x808080;
+			PlaceString(m, 12, mystr.c_str(), posX + 26, (mH * i) + posY + 9, 0x808080);
+		} else {
+			PlaceStringShadow(m, 12, mystr.c_str(), posX + 26, (mH * i) + posY + 9, 0xF0F0F0, 0.5, 1, 1, 1, 0xFF000000);
 		}
-
+		
 		DrawMenuIcon(m, posX + 10, (mH* i) + posY + 10, m->menuVector[i].atlasX, m->menuVector[i].atlasY, opacity);
 												// changed when adding icon
-
-
-		PlaceString(m, 12, mystr.c_str(), posX + 26, (mH * i) + posY + 9, txtcolor);
+		
 		if (i == m->menuVector.size()-1) continue;
 
 		if (strstr(m->menuVector[i].name.c_str(), "{s}")) { // seperator
@@ -315,15 +318,30 @@ void DrawMenu(GlobalParams* m) { // render menu draw menu
 	}
 }
 
-void RenderSlider(GlobalParams* m, int offsetX, int offsetY, int sizex, float position, float highlightOpacity) {
+void RenderSlider(GlobalParams* m, Slider slider, POINT mPP, float position) {
+	float highlightOpacity = 0.3f;
+
+	if (IsInSlider(slider)) {
+		
+		highlightOpacity = 0.45f;
+		if(m->Leftdown) {
+			highlightOpacity = 0.75f;
+		}
+	}
+
+	int offsetX = (*slider.parentX)+slider.x;
+	int offsetY = (*slider.parentY)+slider.y;
+	int sizex = slider.endX - slider.x;
+	int sizey = slider.endY - slider.y;
+
 	// draw slider
 	uint32_t colorh = ((int)(highlightOpacity*255.0f) >> 24) | (255 << 16) | (255 << 8) | 255;
 	
-	dDrawRoundedRectangle(m, offsetX+ 1, offsetY +1, sizex, 5, colorh, highlightOpacity); // actual slider
-	dDrawRoundedRectangle(m, offsetX+ 0, offsetY, sizex+2, 7, 0xE6000000, 0.9f); // outline slider
+	dDrawRoundedRectangle(m, offsetX+1, offsetY+sizey/2-2, sizex, 5, colorh, highlightOpacity); // actual slider
+	dDrawRoundedRectangle(m, offsetX+ 0, offsetY+sizey/2-3, sizex+2, 7, 0xE6000000, 0.9f); // outline slider
 	int pos = ((sizex) * position) + offsetX-2;
-	dDrawRoundedRectangle(m, pos+1, offsetY -4, 4, 15, colorh, highlightOpacity); // actual  "knob"
-	dDrawRoundedRectangle(m, pos, offsetY-5, 6, 17, 0xE6000000, 0.9f); // outline "knob"
+	dDrawRoundedRectangle(m, pos+1, offsetY+1, 4, sizey-2, colorh, highlightOpacity); // actual  "knob"
+	dDrawRoundedRectangle(m, pos, offsetY, 6, sizey, 0xE6000000, 0.9f); // outline "knob"
 }
 
 void DrawBottomFakeToolbar(GlobalParams* m) {
@@ -424,7 +442,7 @@ void DrawDrawModeMenu(GlobalParams* m){
 	}
 
 
-	float sizeLeveler = sqrt(m->drawSize-1) / 10.0f; // I used ALGEBRA!
+	float sizeLeveler = sqrt(m->drawSize-1) / sqrt(m->imgheight-1); // I used ALGEBRA!
 	if (sizeLeveler > 1.0f) { sizeLeveler = 1.0f; }
 	if (sizeLeveler < 0.0f) { sizeLeveler = 0.0f; }
 
@@ -434,38 +452,8 @@ void DrawDrawModeMenu(GlobalParams* m){
 	GetCursorPos(&mp);
 	ScreenToClient(m->hwnd, &mp);
 
-	// Hover
-	//------------------------------------------------------------------------------------------------------------------------------
-	int slider1begin = m->drawMenuOffsetX + m->slider1begin;
-	int slider1end = m->drawMenuOffsetX + m->slider1end;
-
-	int slider2begin = m->drawMenuOffsetX + m->slider2begin;
-	int slider2end = m->drawMenuOffsetX + m->slider2end;
-
-	int sliderYb = m->drawMenuOffsetY;
-	int sliderYe = m->drawMenuOffsetY + 40;
-
-	float highlightOpacity1 = 0.3f;
-	float highlightOpacity2 = 0.3f;
-
-	if (CheckIfMouseInSlider1(mp, m, slider1begin, slider1end, sliderYb, sliderYe) || m->slider1mousedown) {
-		
-		highlightOpacity1 = 0.45f;
-		if(m->toolmouseDown) {
-			highlightOpacity1 = 0.75f;
-		}
-	}
-
-	if (CheckIfMouseInSlider2(mp, m, slider2begin, slider2end, sliderYb, sliderYe) || m->slider2mousedown) {
-		highlightOpacity2 = 0.45f;
-		if(m->toolmouseDown) {
-			highlightOpacity2 = 0.75f;
-		}
-	}
-	//------------------------------------------------------------------------------------------------------------------------------
-
-	RenderSlider(m, m->drawMenuOffsetX +m->slider1begin, m->drawMenuOffsetY + 19, m->slider1end-m->slider1begin, sizeLeveler, highlightOpacity1);
-	RenderSlider(m, m->drawMenuOffsetX +m->slider2begin, m->drawMenuOffsetY + 19, m->slider2end-m->slider2begin, opacitylever, highlightOpacity2);
+	RenderSlider(m, m->brush_size_slider, mp, sizeLeveler);
+	RenderSlider(m, m->brush_opacity_slider, mp, opacitylever);
 
 	if(aeromode) m->lcd = lcd;
 }
@@ -480,8 +468,16 @@ void UpdateBuffer(GlobalParams* m)
 	bmi.bmiHeader.biPlanes = 1;
 	bmi.bmiHeader.biBitCount = 32;
 	bmi.bmiHeader.biCompression = BI_RGB;
+	// fun
+	/*
+	for(int i=0; i<100; i++) {
+		int x = rand()%(m->width-40); int y = rand()%(m->width-40);
+		StretchDIBits(m->hdc, x,m->height-y-40, 40, 40, x,y, 40, 40, m->scrdata, &bmi, DIB_RGB_COLORS, SRCCOPY);
+	}
+	*/
 
 	StretchDIBits(m->hdc, 0, 0, m->width, m->height, 0, 0, m->width, m->height, m->scrdata, &bmi, DIB_RGB_COLORS, SRCCOPY);
+	
 }
 
 void RenderCropGUI(GlobalParams* m) {
@@ -554,7 +550,7 @@ void RenderDrawModeGuide(GlobalParams* m){
 		// transparent
 		dDrawRoundedRectangle(m, ilocx+2, ilocy+84, 37, 37, 0xFFFFFF, 0.4f);
 	}
-	else if (GetKeyState(VK_CONTROL) & 0x8000 || m->rightdown || (m->drawtype == 0)) {
+	else if (GetKeyState(VK_CONTROL) & 0x8000 || m->Rightdown || (m->drawtype == 0)) {
 		// erase
 		dDrawRoundedRectangle(m, ilocx+2, ilocy+43, 37, 37, 0xFFFFFF, 0.4f);
 	} else {
@@ -664,7 +660,7 @@ void RedrawSurface(GlobalParams* m, bool onlyImage, bool doesManualClip, bool by
 	}
 	
 	if (drawingbuffer) {
-		if ((m->smoothing && ((!m->mouseDown) || m->drawmode)) && !m->isInCropMode) {
+		if ((m->smoothing && ((!m->movemousedown) || m->drawmode)) && !m->isInCropMode) {
 			PlaceImageBI(m, CanRenderToolbarMacro, drawingbuffer, true, p, clip, region);
 		}
 		else {
@@ -759,7 +755,7 @@ void RedrawSurface(GlobalParams* m, bool onlyImage, bool doesManualClip, bool by
 	SwitchFont(m->SegoeUI);
 	if (m->debugmode) {
 		char debug[256];
-		sprintf(debug, "WASDX: %f: MS: %f: RES: %f: Undo Queue: %d:Undo Step: %d", m->wasdX, m->ms_time, m->a_resolution, m->ProcessOfMakingUndoStep, m->undoStep);
+		sprintf(debug, "WASDX: %f: MS: %f: RES: %f: Undo Queue: %d:Undo Step: %d: LD: %d | RD: %d | ", m->wasdX, m->ms_time, m->a_resolution, m->ProcessOfMakingUndoStep, m->undoStep, m->Leftdown, m->Rightdown);
 		PlaceString(m, 16, debug, 12, m->toolheight + 8, 0x808080);
 	}
 

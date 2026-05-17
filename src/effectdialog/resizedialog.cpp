@@ -1,5 +1,5 @@
 #include "headers/resizedialog.hpp"
-#include "../res/resource.h"
+#include "../../res/resource.h"
 #include <Uxtheme.h>
 //#include <dwmapi.h>
 
@@ -47,25 +47,136 @@ int ogheight;
 int firstw;
 int firsth;
 
-LRESULT CALLBACK TXTProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData) {
+
+
+LRESULT CALLBACK TXTProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData) {
     switch (msg)
     {
-    case WM_CHAR:
-    {
-        // Allow only numeric characters (0-9) and control characters
-        if (wParam < '0' || wParam > '9')
-        {
-            if (wParam != '\b' && wParam != '\r' && wParam != '\t' && wParam != '\x1A')
-                return 0; // Block the input
+        case WM_CTLCOLOREDIT:
+        case WM_CTLCOLORSTATIC: {
+            HDC hdc = (HDC)wparam;
+            SetTextColor(hdc, RGB(220, 220, 220));
+            SetBkColor(hdc, RGB(40, 40, 40));
+            static HBRUSH hEditBg = CreateSolidBrush(RGB(40, 40, 40));
+            return (LRESULT)hEditBg;
         }
-        break;
-    }
-    }
+        case WM_PAINT: {
 
-    // Call the original window procedure for default processing
-    return DefSubclassProc(hwnd, msg, wParam, lParam);
+            HDC hdc = GetWindowDC(hwnd);
+            RECT rect;
+            GetWindowRect(hwnd, &rect);
+            OffsetRect(&rect, -rect.left, -rect.top);
+            
+            LRESULT result = DefSubclassProc(hwnd, msg, wparam, lparam);
+
+            HPEN brush = CreatePen(PS_SOLID, 1, RGB(128,128,128));
+            HGDIOBJ oldPen = SelectObject(hdc, brush);
+            SelectObject(hdc, GetStockObject(NULL_BRUSH));
+            RoundRect(hdc, rect.left, rect.top, rect.right, rect.bottom, 4,4);
+            
+            // Cleanup
+            SelectObject(hdc, oldPen);
+            DeleteObject(brush);
+            ReleaseDC(hwnd, hdc);
+
+            return result;
+        }
+        case WM_NCPAINT:
+            return 0; // Prevent Windows from drawing the old-style 3D border
+        case WM_CHAR: {
+            if (wparam < '0' || wparam > '9')  {
+                if (wparam != '\b' && wparam != '\r' && wparam != '\t' && wparam != '\x1A')
+                    return 0;
+            }
+            return DefSubclassProc(hwnd, msg, wparam, lparam);
+        }
+        default:
+            return DefSubclassProc(hwnd, msg, wparam, lparam);
+        }
+
+        return 0;
 }
 
+LRESULT CALLBACK ButtonPaint(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData) {
+    static HFONT hVerdana = CreateFont(15, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, 
+                                       ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, 
+                                       CLEARTYPE_QUALITY, VARIABLE_PITCH | FF_SWISS, "SegoeUI");
+
+    switch (msg) {
+        case WM_ERASEBKGND:
+            return 1;
+
+        case WM_PAINT: {
+            PAINTSTRUCT ps;
+            HDC hdc = BeginPaint(hwnd, &ps);
+            RECT rect;
+            GetClientRect(hwnd, &rect);
+
+            // 1. Setup Quality Rendering
+            HFONT oldFont = (HFONT)SelectObject(hdc, hVerdana);
+            bool isPressed = (SendMessage(hwnd, BM_GETSTATE, 0, 0) & BST_PUSHED);
+
+            HBRUSH backgroundb = CreateSolidBrush(isPressed ? RGB(60, 60, 60) : RGB(40, 40, 40));
+            HGDIOBJ oldBrush = SelectObject(hdc, backgroundb);
+            
+            HPEN hNullPen = CreatePen(PS_NULL, 0, 0);
+            HGDIOBJ oldNullPen = SelectObject(hdc, hNullPen);
+            RoundRect(hdc, rect.left, rect.top, rect.right, rect.bottom, 8, 8);
+            
+            SelectObject(hdc, GetStockObject(NULL_BRUSH));
+            
+            HPEN black = CreatePen(PS_SOLID, 1, RGB(0, 0, 0));
+            SelectObject(hdc, black);
+            RoundRect(hdc, rect.left, rect.top, rect.right, rect.bottom, 8, 8);
+            
+            HPEN gray = CreatePen(PS_SOLID, 1, RGB(128, 128, 128));
+            SelectObject(hdc, gray);
+            RoundRect(hdc, rect.left + 1, rect.top + 1, rect.right - 1, rect.bottom - 1, 6, 6);
+
+            char text[64];
+            GetWindowText(hwnd, text, sizeof(text));
+            SetTextColor(hdc, RGB(220, 220, 220));
+            SetBkMode(hdc, TRANSPARENT);
+            DrawText(hdc, text, -1, &rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+
+            
+            HICON hIcon = (HICON)SendMessage(hwnd, BM_GETIMAGE, IMAGE_ICON, 0);
+            if (hIcon) {
+                int iconSize = 16;
+                int x = rect.left + (rect.right - rect.left - iconSize) / 2;
+                int y = rect.top + (rect.bottom - rect.top - iconSize) / 2;
+
+                DrawIconEx(hdc, x, y, hIcon, iconSize, iconSize, 0, NULL, DI_NORMAL);
+            }
+
+            SelectObject(hdc, oldFont);
+            SelectObject(hdc, oldBrush);
+            SelectObject(hdc, oldNullPen);
+            DeleteObject(backgroundb);
+            DeleteObject(black);
+            DeleteObject(gray);
+            DeleteObject(hNullPen);
+
+            EndPaint(hwnd, &ps);
+            return 0;
+        }
+
+        case WM_NCDESTROY: {
+            return DefSubclassProc(hwnd, msg, wparam, lparam);
+        }
+
+        case WM_LBUTTONDOWN:
+        case WM_LBUTTONUP:
+        case WM_MOUSEMOVE:
+        case WM_MOUSELEAVE: {
+            InvalidateRect(hwnd, NULL, FALSE);
+            return DefSubclassProc(hwnd, msg, wparam, lparam);
+        }
+
+        default:
+            return DefSubclassProc(hwnd, msg, wparam, lparam);
+    }
+}
 LRESULT CALLBACK ResizeDialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 
     switch (msg) {
@@ -93,17 +204,17 @@ LRESULT CALLBACK ResizeDialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpa
         LW = GetDlgItem(hwnd, lockw);
         LH = GetDlgItem(hwnd, lockh);
 
+
         SetWindowSubclass(hWidthEdit, TXTProc, 0, 0);
         SetWindowSubclass(hHeightEdit, TXTProc, 0, 0);
 
+        SetWindowSubclass(Confirm, ButtonPaint, 0, 0);
+        SetWindowSubclass(No, ButtonPaint, 0, 0);
+        SetWindowSubclass(LW, ButtonPaint, 0, 0);
+        SetWindowSubclass(LH, ButtonPaint, 0, 0);
+
         SendMessage(LW, BM_SETIMAGE, (WPARAM)IMAGE_ICON, (LPARAM)unlockic);
         SendMessage(LH, BM_SETIMAGE, (WPARAM)IMAGE_ICON, (LPARAM)unlockic);
-        
-        SetWindowTheme(Confirm, L"Darkmode_Explorer", NULL);
-        SetWindowTheme(No, L"Darkmode_Explorer", NULL);
-
-        SetWindowTheme(LW, L"Darkmode_Explorer", NULL);
-        SetWindowTheme(LH, L"Darkmode_Explorer", NULL);
 
         int w1 = m->imgwidth;
         int h1 = m->imgheight;
@@ -128,16 +239,33 @@ LRESULT CALLBACK ResizeDialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpa
 
         return FALSE;
     }
+	case WM_PAINT: {
+
+        HDC hdc = GetWindowDC(hwnd);
+
+        RECT rect = {10, 35, 214, 169};
+
+        HPEN brush = CreatePen(PS_SOLID, 1, RGB(128,128,128));
+        HGDIOBJ oldPen = SelectObject(hdc, brush);
+        SelectObject(hdc, GetStockObject(NULL_BRUSH));
+        RoundRect(hdc, rect.left, rect.top, rect.right, rect.bottom, 4,4);
+        
+        // Cleanup
+        SelectObject(hdc, oldPen);
+        DeleteObject(brush);
+        ReleaseDC(hwnd, hdc);
+
+		return DefWindowProc(hwnd, msg, wparam, lparam);
+	}
     case WM_CTLCOLORDLG: {
 
         if (bz) DeleteObject(bz);
-        bz = CreateSolidBrush(RGB(15,15,15));
+        bz = CreateSolidBrush(RGB(64,64,64));
         return (LRESULT)bz;
     }
-    
     case WM_CTLCOLORBTN: {
         if (bu) DeleteObject(bu);
-        bu = CreateSolidBrush(RGB(0,0,0));
+        bu = CreateSolidBrush(RGB(64,64,64));
         return (LRESULT)bu;
     }
     case WM_CTLCOLORSTATIC: {
@@ -146,7 +274,7 @@ LRESULT CALLBACK ResizeDialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpa
         HDC hdcStatic = (HDC)wparam;
 
         if (b) DeleteObject(b);
-        b = CreateSolidBrush(RGB(15,15,15));
+        b = CreateSolidBrush(RGB(64,64,64));
 
         SetBkMode(hdcStatic, TRANSPARENT);
 

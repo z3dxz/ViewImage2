@@ -133,25 +133,6 @@ void PlaceFromAtlas(GlobalParams* m, void* source, int sourceWidth, int sourceHe
 	}
 }
 
-void dDrawGradient(GlobalParams* m, int x, int y, int w, int h, GradientDirection direction, uint32_t color1, uint32_t color2){
-	// Get RGB of r1 and g2
-    uint8_t r1 = (color1 >> 16) & 0xFF, g1 = (color1 >> 8) & 0xFF, b1 = color1 & 0xFF;
-    uint8_t r2 = (color2 >> 16) & 0xFF, g2 = (color2 >> 8) & 0xFF, b2 = color2 & 0xFF;
-
-	for (int j = 0; j < h; j++) {
-        for (int i = 0; i < w; i++) {
-            uint32_t t = (direction == GradientLeftRight) ? (uint32_t)((i * 255) / (w - 1)) : (uint32_t)((j * 255) / (h - 1));
-            uint32_t fcolor = lerp_u32(color1, color2, t);
-            uint32_t alpha = (fcolor >> 24) & 0xFF;
-
-            uint32_t* data = GetMemoryLocation(m->scrdata, x + i, y + j, m->width, m->height);
-			
-            *data = lerp_u32(*data, fcolor, alpha);
-        }
-    }
-}
-
-
 void PlaceImageNN(GlobalParams* m, int rendertoolbar, void* memory, bool invert, POINT p, bool clip, RECT region) {
     const int margin = m->fullscreen ? 0 : 2;
     const int32_t imgW = m->imgwidth;
@@ -211,7 +192,6 @@ void PlaceImageNN(GlobalParams* m, int rendertoolbar, void* memory, bool invert,
         }
     });
 }
-
 
 bool followsPattern(int number) {
 	double logBase2 = log2(number / 100.0);
@@ -326,151 +306,6 @@ void gaussian_blur(GlobalParams* m, int lW, int lH, double sigma, uint32_t offX,
 	gaussian_blur_real((uint32_t*)m->scrdata, (uint32_t*)m->scrdata, lW, lH, sigma, m->width, m->height, offX, offY);
 }
 
-// box blur
-
-uint32_t* eintegralR=0;
-uint32_t* eintegralG=0;
-uint32_t* eintegralB=0;
-
-uint32_t eAssignedW = 0;
-uint32_t eAssignedH = 0;
-uint32_t* eAssignedMEM = 0;
-
-uint32_t* fintegralR = 0;
-uint32_t* fintegralG = 0;
-uint32_t* fintegralB = 0;
-
-uint32_t fAssignedW = 0;
-uint32_t fAssignedH = 0;
-uint32_t* fAssignedMEM = 0;
-
-bool lastmode;
-
 void boxBlur(GlobalParams* m, uint32_t kernelSize, int mode, int startOffset, int vsize) {
-
-	int width = m->width;
-	int height = vsize;
-	uint32_t* memory = (uint32_t*)m->scrdata+(startOffset*width);
-
-	uint32_t halfKernel = kernelSize / 2;
-
-	// This entire thing is an optimization for keeping the two buffers on two different slots
-	// Compute integral image
-	uint32_t* integralR;
-	uint32_t* integralG;
-	uint32_t* integralB;
-	if (mode == 1) {
-		if (!eintegralR) {
-			// init
-			eintegralR = (uint32_t*)malloc(width * height * sizeof(uint32_t));
-			eintegralG = (uint32_t*)malloc(width * height * sizeof(uint32_t));
-			eintegralB = (uint32_t*)malloc(width * height * sizeof(uint32_t));
-		}
-		if (eAssignedH != height || eAssignedW != width || eAssignedMEM != memory) {
-			// refresh
-			FreeData(eintegralR); FreeData(eintegralG); FreeData(eintegralB);
-			eintegralR = (uint32_t*)malloc(width * height * sizeof(uint32_t));
-			eintegralG = (uint32_t*)malloc(width * height * sizeof(uint32_t));
-			eintegralB = (uint32_t*)malloc(width * height * sizeof(uint32_t));
-		}
-		eAssignedW = width;
-		eAssignedH = height;
-		eAssignedMEM = (uint32_t*)memory;
-
-		integralR = eintegralR;
-		integralG = eintegralG;
-		integralB = eintegralB;
-	}
-	else {
-		if (!fintegralR) {
-			// init
-			fintegralR = (uint32_t*)malloc(width * height * sizeof(uint32_t));
-			fintegralG = (uint32_t*)malloc(width * height * sizeof(uint32_t));
-			fintegralB = (uint32_t*)malloc(width * height * sizeof(uint32_t));
-		}
-		if (fAssignedH != height || fAssignedW != width || fAssignedMEM != memory) {
-			// refresh
-			FreeData(fintegralR); FreeData(fintegralG); FreeData(fintegralB);
-			fintegralR = (uint32_t*)malloc(width * height * sizeof(uint32_t));
-			fintegralG = (uint32_t*)malloc(width * height * sizeof(uint32_t));
-			fintegralB = (uint32_t*)malloc(width * height * sizeof(uint32_t));
-		}
-		fAssignedW = width;
-		fAssignedH = height;
-		fAssignedMEM = (uint32_t*)memory;
-
-		integralR = fintegralR;
-		integralG = fintegralG;
-		integralB = fintegralB;
-	}
-
-	for (uint32_t y = 0; y < height; ++y) {
-		for (uint32_t x = 0; x < width; ++x) {
-			uint32_t pixel = ((uint32_t*)memory)[y * width + x];
-			uint32_t r = (pixel >> 16) & 0xFF;
-			uint32_t g = (pixel >> 8) & 0xFF;
-			uint32_t b = pixel & 0xFF;
-
-			uint32_t sumR = r;
-			uint32_t sumG = g;
-			uint32_t sumB = b;
-
-			if (x > 0) {
-				sumR += integralR[y * width + x - 1];
-				sumG += integralG[y * width + x - 1];
-				sumB += integralB[y * width + x - 1];
-			}
-			if (y > 0) {
-				sumR += integralR[(y - 1) * width + x];
-				sumG += integralG[(y - 1) * width + x];
-				sumB += integralB[(y - 1) * width + x];
-			}
-			if (x > 0 && y > 0) {
-				sumR -= integralR[(y - 1) * width + x - 1];
-				sumG -= integralG[(y - 1) * width + x - 1];
-				sumB -= integralB[(y - 1) * width + x - 1];
-			}
-
-			integralR[y * width + x] = sumR;
-			integralG[y * width + x] = sumG;
-			integralB[y * width + x] = sumB;
-		}
-	}
-
-	for (uint32_t y = 0; y < height; ++y) {
-		for (uint32_t x = 0; x < width; ++x) {
-			uint32_t startX = x >= halfKernel ? x - halfKernel : 0;
-			uint32_t startY = y >= halfKernel ? y - halfKernel : 0;
-			uint32_t endX = x + halfKernel < width ? x + halfKernel : width - 1;
-			uint32_t endY = y + halfKernel < height ? y + halfKernel : height - 1;
-
-			uint32_t count = (endX - startX + 1) * (endY - startY + 1);
-			uint32_t sumR = integralR[endY * width + endX];
-			uint32_t sumG = integralG[endY * width + endX];
-			uint32_t sumB = integralB[endY * width + endX];
-
-			if (startX > 0) {
-				sumR -= integralR[endY * width + startX - 1];
-				sumG -= integralG[endY * width + startX - 1];
-				sumB -= integralB[endY * width + startX - 1];
-			}
-            
-			if (startY > 0) {
-				sumR -= integralR[startY * width + endX];
-				sumG -= integralG[startY * width + endX];
-				sumB -= integralB[startY * width + endX];
-			}
-			if (startX > 0 && startY > 0) {
-				sumR += integralR[startY * width + startX - 1];
-				sumG += integralG[startY * width + startX - 1];
-				sumB += integralB[startY * width + startX - 1];
-			}
-
-			uint32_t avgR = sumR / count;
-			uint32_t avgG = sumG / count;
-			uint32_t avgB = sumB / count;
-
-			memory[y * width + x] = (avgR << 16) | (avgG << 8) | avgB;
-		}
-	}
+    gaussian_blur_real((uint32_t*)m->scrdata, (uint32_t*)m->scrdata, m->width, vsize, 4.0, m->width, m->height, 0, startOffset);
 }

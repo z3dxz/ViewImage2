@@ -91,12 +91,10 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 	std::string WINDOW_NAME = gp.name_full + " (Loading)";
 
 	WNDCLASSEX wc = { 0 };
-
 	wc.cbSize = sizeof(WNDCLASSEX);
 	wc.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_ICON1));
 	wc.lpszClassName = CLASS_NAME.c_str();
 	wc.lpfnWndProc = WndProc;
-	//wc.hCursor = LoadCursor(NULL, IDC_ARROW);
 	wc.style = CS_HREDRAW | CS_VREDRAW;
 
 	RegisterClassEx(&wc);
@@ -206,9 +204,6 @@ LRESULT CALLBACK CheckEssential(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 		case WM_KILLFOCUS: {
 
 			gp.sleepmode = true;
-			for (int i = 0; i < 50; i++) {
-				ShowCursor(500);
-			}
 			break;
 		}
 	}
@@ -247,7 +242,6 @@ LRESULT CALLBACK WndProcDialogDrawText(HWND hwnd, UINT msg, WPARAM wparam, LPARA
 			if(md_dt) {
 				PerformDrawTextRealignment();
 			}
-			ShowCursor(1);
 			break;
 		}
 		default: {
@@ -306,30 +300,30 @@ LRESULT CALLBACK WndProcNormal(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam
 	}
 	case WM_LBUTTONDOWN:
 	{
-		if (!ToolbarMouseDown(&gp)) {
-			return 0;
-		}
+		return MouseDown(&gp);
+	}
+	case WM_LBUTTONUP: {
+		MouseUp(&gp);
+		break;
 	}
 	case WM_MBUTTONDOWN: {
-
-		MouseDown(&gp);
+		MiddleDown(&gp);
 		break;
 	}
-	case WM_LBUTTONUP:
 	case WM_MBUTTONUP: {
-		MouseUp(&gp, true);
-		break;
-	}
-	case WM_RBUTTONUP: {
-
-		RightUp(&gp);
-
+		MiddleUp(&gp);
 		break;
 	}
 	case WM_RBUTTONDOWN: {
 		if(!gp.drawtext_access_dialog_hwnd) {
 			RightDown(&gp);
 		}
+		break;
+	}
+	case WM_RBUTTONUP: {
+
+		RightUp(&gp);
+
 		break;
 	}
 	case WM_MOUSEMOVE: {

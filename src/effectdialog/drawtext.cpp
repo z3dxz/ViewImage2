@@ -12,9 +12,7 @@ static GlobalParams* m;
 
 void UpdateImage(GlobalParams* m);
 
-static LRESULT CALLBACK TrackbarJumpSubclass(
-	HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam,
-	UINT_PTR id, DWORD_PTR ref)
+static LRESULT CALLBACK TrackbarJumpSubclass(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam, UINT_PTR id, DWORD_PTR ref)
 {
 	static BOOL dragging;
 	RECT rc;

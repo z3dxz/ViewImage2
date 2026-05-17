@@ -34,11 +34,8 @@ bool DeleteDirectory(const char* directoryPath);
 #define IsInImage(mPP, m) \
 	((mPP.y > m->toolheight && mPP.x >= m->CoordLeft && mPP.y > m->CoordTop && mPP.x < m->CoordRight && mPP.y < m->CoordBottom) && extracases(mPP, m))
 
-#define CheckIfMouseInSlider1(mPP, m, slider1begin, slider1end, sliderYb, sliderYe) \
-	((mPP.x > (slider1begin-25) && mPP.x < (slider1end+25)) && (mPP.y > sliderYb && mPP.y < sliderYe))
-// added offsets for better user experience
-#define CheckIfMouseInSlider2(mPP, m, slider2begin, slider2end, sliderYb, sliderYe) \
-	((mPP.x > (slider2begin-25) && mPP.x < (slider2end+25)) && (mPP.y > sliderYb && mPP.y < sliderYe))
+#define IsInSlider(slider)\
+    ((mPP.x > ((slider.x+(*slider.parentX))-25) && mPP.x < ((slider.endX+(*slider.parentX))+25)) && (mPP.y > ((slider.y+(*slider.parentY))-7) && mPP.y < ((slider.endY+(*slider.parentY))+7)))
 
 extern GlobalParams* mv;
 
@@ -71,6 +68,7 @@ void ResizeImageToSize(GlobalParams* m, int width, int height);
 double gaussian(double x, double sigma);
 void gaussian_blur_real(uint32_t* input_buffer, uint32_t* output_buffer, int lW, int lH, double sigma, uint32_t width, uint32_t height, uint32_t offX, uint32_t offY);
 
+void boxBlurRegion(uint32_t* src, uint32_t* dst, int width, int height, uint32_t kernelSize, int rx, int ry, int rw, int rh);
 uint32_t multiplyColors(uint32_t color1, uint32_t color2);
 bool CopyImageToClipboard(GlobalParams* m, void* imageData, int width, int height);
 bool PasteImageFromClipboard(GlobalParams* m);

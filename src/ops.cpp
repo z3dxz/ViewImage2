@@ -652,64 +652,92 @@ uint32_t lerp_gc(uint32_t color1, uint32_t color2, float alpha) {
     return (static_cast<uint32_t>(a * 255) << 24) | (static_cast<uint32_t>(r * 255) << 16) | (static_cast<uint32_t>(g * 255) << 8) | static_cast<uint32_t>(b * 255);
 }
 
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
+#define MAX(a,b) ((a) > (b) ? (a) : (b))
+#define MIN(a,b) ((a) < (b) ? (a) : (b))
+
+void boxBlurRegion(uint32_t* src, uint32_t* dst, int width, int height, uint32_t kernelSize, int rx, int ry, int rw, int rh) {
+    if (kernelSize < 2) return;
+
+    int radius = (int)(kernelSize / 2);
+    int xStart = MAX(0, rx - radius), yStart = MAX(0, ry - radius);
+    int xEnd = MIN(width - 1, rx + rw + radius - 1), yEnd = MIN(height - 1, ry + rh + radius - 1);
+    int workW = xEnd - xStart + 1, workH = yEnd - yStart + 1;
+
+    size_t chanSize = (size_t)workW * workH;
+
+    uint64_t* intA = (uint64_t*)malloc(chanSize * sizeof(uint64_t) * 4);
+    if (!intA) return;
+    uint64_t *intR = intA + chanSize, *intG = intR + chanSize, *intB = intG + chanSize;
+
+    for (int y = 0; y < workH; ++y) {
+        uint64_t rS = 0, gS = 0, bS = 0, aS = 0;
+        for (int x = 0; x < workW; ++x) {
+            uint32_t p = src[(yStart + y) * width + (xStart + x)];
+            aS += (p >> 24) & 0xFF;
+            rS += (p >> 16) & 0xFF;
+            gS += (p >> 8) & 0xFF;
+            bS += p & 0xFF;
+
+            int idx = y * workW + x;
+            if (y == 0) {
+                intA[idx] = aS; intR[idx] = rS; intG[idx] = gS; intB[idx] = bS;
+            } else {
+                int prev = (y - 1) * workW + x;
+                intA[idx] = aS + intA[prev]; intR[idx] = rS + intR[prev];
+                intG[idx] = gS + intG[prev]; intB[idx] = bS + intB[prev];
+            }
+        }
+    }
+
+    for (int y = 0; y < rh; ++y) {
+        for (int x = 0; x < rw; ++x) {
+            int gx = rx + x, gy = ry + y;
+            int lx1 = MAX(xStart, gx - radius) - xStart - 1;
+            int ly1 = MAX(yStart, gy - radius) - yStart - 1;
+            int lx2 = MIN(xEnd,   gx + radius) - xStart;
+            int ly2 = MIN(yEnd,   gy + radius) - yStart;
+
+            #define GET_SUM(buf) (buf[ly2*workW+lx2] - (lx1>=0?buf[ly2*workW+lx1]:0) - (ly1>=0?buf[ly1*workW+lx2]:0) + (lx1>=0&&ly1>=0?buf[ly1*workW+lx1]:0))
+
+            uint32_t count = (lx2 - lx1) * (ly2 - ly1);
+            uint32_t a = (uint32_t)(GET_SUM(intA) / count); // average alpha
+            uint32_t r = (uint32_t)(GET_SUM(intR) / count);
+            uint32_t g = (uint32_t)(GET_SUM(intG) / count);
+            uint32_t b = (uint32_t)(GET_SUM(intB) / count);
+
+            dst[gy * width + gx] = (a << 24) | (r << 16) | (g << 8) | b;
+        }
+    }
+    free(intA);
+}
 
 // Gaussian blur function
 void gaussian_blur_real(uint32_t* input_buffer, uint32_t* output_buffer, int lW, int lH, double sigma, uint32_t width, uint32_t height, uint32_t offX, uint32_t offY) {
-    int kernel_size = (int)ceil(sigma * 3.0) * 2 + 1;
-    double* kernel = (double*)malloc(kernel_size * sizeof(double));
-    double sum = 0.0;
-    
-    for (int i = 0; i < kernel_size; i++) {
-        double x = (double)i - (double)(kernel_size - 1) / 2.0;
-        kernel[i] = exp(-0.5 * (x * x) / (sigma * sigma));
-        sum += kernel[i];
-    }
-    for (int i = 0; i < kernel_size; i++) kernel[i] /= sum;
-
-    uint32_t* temp_buffer = (uint32_t*)malloc(lW * lH * sizeof(uint32_t));
-    int half_k = (kernel_size - 1) / 2;
-
-    for (int y = 0; y < lH; y++) {
-        for (int x = 0; x < lW; x++) {
-			if((y+offY) >= height || (x+offX) >= width || (x+offX) < 0 || (y+offY) < 0) continue;
-            double r = 0, g = 0, b = 0, a = 0;
-            for (int k = 0; k < kernel_size; k++) {
-                int xk = x - half_k + k;
-                if (xk < 0) xk = 0;
-                if (xk >= lW) xk = lW - 1;
-
-                uint32_t p = input_buffer[(y + offY) * width + (xk + offX)];
-                a += (double)((p >> 24) & 0xFF) * kernel[k];
-                r += (double)((p >> 16) & 0xFF) * kernel[k];
-                g += (double)((p >> 8) & 0xFF) * kernel[k];
-                b += (double)(p & 0xFF) * kernel[k];
+    if (sigma <= 0.0) {
+        for (int y = 0; y < lH; ++y) {
+            for (int x = 0; x < lW; ++x) {
+                output_buffer[(offY + y) * width + (offX + x)] = 
+                    input_buffer[(offY + y) * width + (offX + x)];
             }
-            temp_buffer[y * lW + x] = ((uint32_t)(a + 0.5) << 24) | ((uint32_t)(r + 0.5) << 16) | ((uint32_t)(g + 0.5) << 8) | (uint32_t)(b + 0.5);
         }
+        return;
     }
 
-    for (int x = 0; x < lW; x++) {
-        for (int y = 0; y < lH; y++) {
-			if((y+offY) >= height || (x+offX) >= width || (x+offX) < 0 || (y+offY) < 0) continue;
-            double r = 0, g = 0, b = 0, a = 0;
-            for (int k = 0; k < kernel_size; k++) {
-                int yk = y - half_k + k;
-                if (yk < 0) yk = 0;
-                if (yk >= lH) yk = lH - 1;
+    double w_ideal = sqrt((12.0 * sigma * sigma / 3.0) + 1.0);
+    uint32_t wl = (uint32_t)floor(w_ideal);
+    if (wl % 2 == 0) wl--; // Base width (must be odd)
+    uint32_t wu = wl + 2;  // Upper width
 
-                uint32_t p = temp_buffer[yk * lW + x];
-                a += (double)((p >> 24) & 0xFF) * kernel[k];
-                r += (double)((p >> 16) & 0xFF) * kernel[k];
-                g += (double)((p >> 8) & 0xFF) * kernel[k];
-                b += (double)(p & 0xFF) * kernel[k];
-            }
-            output_buffer[(y + offY) * width + (x + offX)] = ((uint32_t)(a + 0.5) << 24) | ((uint32_t)(r + 0.5) << 16) | ((uint32_t)(g + 0.5) << 8) | (uint32_t)(b + 0.5);
-        }
-    }
+    double m_ideal = (12.0 * sigma * sigma - 3.0 * wl * wl - 6.0 * wl - 3.0) / (4.0 * wl + 4.0);
+    int m = (int)round(m_ideal);
 
-    free(kernel);
-    free(temp_buffer);
+    boxBlurRegion(input_buffer, output_buffer, width, height, (m > 0 ? wu : wl), offX, offY, lW, lH);
+    boxBlurRegion(output_buffer, output_buffer, width, height, (m > 1 ? wu : wl), offX, offY, lW, lH);
+    boxBlurRegion(output_buffer, output_buffer, width, height, (m > 2 ? wu : wl), offX, offY, lW, lH);
 }
 
 uint32_t change_alpha(uint32_t color, uint8_t new_alpha) {
@@ -927,8 +955,9 @@ int opsPlaceStringBuffer(GlobalParams* m, int size, const char* inputstr, uint32
 	return state;
 }
 
+
 int opsPlaceStringShadowObject(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, void* mem, double sigma, int passes) {
-	sigma*=3.5;
+	sigma*=5.0;
 	int clearance = 10;
 	unsigned int approx_textwidth = std::string(inputstr).length()*size;
 

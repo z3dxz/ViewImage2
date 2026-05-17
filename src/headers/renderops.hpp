@@ -20,7 +20,6 @@ void CircleGenerator(GlobalParams* m, int circleDiameter, int locX, int locY, ui
 void drawLine(GlobalParams* m, int startX, int startY, int len, bool horizontal, uint32_t color, float opacity);
 void dDrawFilledRectangle(GlobalParams* m, int xloc, int yloc, int width, int height, uint32_t color, float opacity);
 void PlaceFromAtlas(GlobalParams* m, void* source, int sourceWidth, int sourceHeight, int sourceX, int sourceY, int destX, int destY, int width, int height, uint32_t color_tint, float opacity);
-void dDrawGradient(GlobalParams* m, int x, int y, int w, int h, GradientDirection direction, uint32_t color1, uint32_t color2);
 
 void PlaceImageNN(GlobalParams* m, int rendertoolbar, void* memory, bool invert, POINT p, bool clip, RECT region);
 

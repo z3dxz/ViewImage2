@@ -1,6 +1,7 @@
 #include "headers/gaussian.h"
 #include "../../res/resource.h"
 #include <Uxtheme.h>
+#include <windowsx.h>
 //#include <dwmapi.h>
 
 static GlobalParams* m;
@@ -100,21 +101,64 @@ static LRESULT CALLBACK DialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lp
     return TRUE;
 }
 
-LRESULT CALLBACK SliderProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData)
+LRESULT CALLBACK SliderProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam, UINT_PTR id, DWORD_PTR ref)
 {
-    switch (msg)
-    {
-    case WM_LBUTTONUP:
-    {
-        float posg = (float)SendMessage(gslider, TBM_GETPOS, 0, 0);
-        float amount = posg;
+	static BOOL dragging;
+	RECT rc;
+	int min, max, pos;
+	BOOL vert;
 
-        ApplyEffectToBuffer(amount);
+	switch (msg)
+	{
+	case WM_LBUTTONDOWN:
+		dragging = TRUE;
+		SetCapture(hwnd);
+
+	case WM_MOUSEMOVE: {
+		if (!dragging || !(wParam & MK_LBUTTON))
+			break;
+
+		SendMessage(hwnd, TBM_GETCHANNELRECT, 0, (LPARAM)&rc);
+		min = (int)SendMessage(hwnd, TBM_GETRANGEMIN, 0, 0);
+		max = (int)SendMessage(hwnd, TBM_GETRANGEMAX, 0, 0);
+		vert = (GetWindowLong(hwnd, GWL_STYLE) & TBS_VERT) != 0;
+
+		if (vert)
+		{
+			int y = GET_Y_LPARAM(lParam);
+			if (y < rc.top) y = rc.top;
+			if (y > rc.bottom) y = rc.bottom;
+			pos = max - (max - min) * (y - rc.top) / (rc.bottom - rc.top);
+
+		}
+		else
+		{
+			int x = GET_X_LPARAM(lParam);
+			if (x < rc.left) x = rc.left;
+			if (x > rc.right) x = rc.right;
+			pos = min + (max - min) * (x - rc.left) / (rc.right - rc.left);
+		}
+
+		SendMessage(hwnd, TBM_SETPOS, TRUE, pos);
+
+        ApplyEffectToBuffer(pos);
         RedrawSurface(m);
-        return DefSubclassProc(hwnd, msg, wParam, lParam);
+        
+		return 0;
     }
+	case WM_LBUTTONUP:
+		dragging = FALSE;
+		ReleaseCapture();
+        
+		return 0;
+	}
 
-    default:
-        return DefSubclassProc(hwnd, msg, wParam, lParam);
-    }
+	return DefSubclassProc(hwnd, msg, wParam, lParam);
 }
+
+/*
+
+            float posg = (float)SendMessage(hwnd, TBM_GETPOS, 0, 0);
+            
+            ApplyEffectToBuffer(posg);
+*/
