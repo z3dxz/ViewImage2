@@ -1214,30 +1214,26 @@ GlobalParams* m_proc;
 INT_PTR CALLBACK DialogProc(HWND hwndDlg, UINT umsg, WPARAM wparam, LPARAM lparam) {
 	switch (umsg) {
 	case WM_INITDIALOG: {
-		SetTimer(hwndDlg, 1, 100, NULL); // Set a timer to check the condition periodically
+		SetTimer(hwndDlg, 1, 100, NULL);
 		HWND i = GetDlgItem(hwndDlg, IDC_PROGRESS1);
 		SendMessage(i, (WM_USER + 10), (WPARAM)TRUE, (LPARAM)10);
 		return TRUE;
 	}
 	case WM_TIMER: {
 		if (m_proc->ProcessOfMakingUndoStep == 0) {
-			EndDialog(hwndDlg, 0); // Close the dialog when the condition is false
+			EndDialog(hwndDlg, 0);
 
 		}
 		return TRUE;
 	}
 	case WM_CLOSE:
-		EndDialog(hwndDlg, 0); // Handle the close button
+		EndDialog(hwndDlg, 0);
 		return TRUE;
 	}
 	return FALSE;
 }
 
-
-
-// Function to show a modal dialog box while processing
 void showMessageWhileProcessing(GlobalParams* m) {
-	
 	m_proc = m;
 	m->tint = true;
 	RedrawSurface(m);
