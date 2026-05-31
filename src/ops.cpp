@@ -3,6 +3,10 @@
 #include <stdlib.h>
 #include <shlwapi.h>
 #include <string.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <tbb/parallel_for.h>
+#include <tbb/blocked_range.h>
 #include "headers/ops.hpp"
 #include "headers/imgload.hpp"
 #include "../res/resource.h"
@@ -652,13 +656,9 @@ uint32_t lerp_gc(uint32_t color1, uint32_t color2, float alpha) {
     return (static_cast<uint32_t>(a * 255) << 24) | (static_cast<uint32_t>(r * 255) << 16) | (static_cast<uint32_t>(g * 255) << 8) | static_cast<uint32_t>(b * 255);
 }
 
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
 
 #define MAX(a,b) ((a) > (b) ? (a) : (b))
 #define MIN(a,b) ((a) < (b) ? (a) : (b))
-
 void boxBlurRegion(uint32_t* src, uint32_t* dst, int width, int height, uint32_t kernelSize, int rx, int ry, int rw, int rh) {
     if (kernelSize < 2) return;
 
@@ -667,51 +667,70 @@ void boxBlurRegion(uint32_t* src, uint32_t* dst, int width, int height, uint32_t
     int xEnd = MIN(width - 1, rx + rw + radius - 1), yEnd = MIN(height - 1, ry + rh + radius - 1);
     int workW = xEnd - xStart + 1, workH = yEnd - yStart + 1;
 
+    if (workW <= 0 || workH <= 0) return;
+
     size_t chanSize = (size_t)workW * workH;
 
     uint64_t* intA = (uint64_t*)malloc(chanSize * sizeof(uint64_t) * 4);
     if (!intA) return;
     uint64_t *intR = intA + chanSize, *intG = intR + chanSize, *intB = intG + chanSize;
 
-    for (int y = 0; y < workH; ++y) {
-        uint64_t rS = 0, gS = 0, bS = 0, aS = 0;
-        for (int x = 0; x < workW; ++x) {
-            uint32_t p = src[(yStart + y) * width + (xStart + x)];
-            aS += (p >> 24) & 0xFF;
-            rS += (p >> 16) & 0xFF;
-            gS += (p >> 8) & 0xFF;
-            bS += p & 0xFF;
+    tbb::parallel_for(tbb::blocked_range<int>(0, workH), [&](const tbb::blocked_range<int>& r) {
+        for (int y = r.begin(); y != r.end(); ++y) {
+            uint64_t rS = 0, gS = 0, bS = 0, aS = 0;
+            int rowOffset = y * workW;
+            int srcRowOffset = (yStart + y) * width + xStart;
 
-            int idx = y * workW + x;
-            if (y == 0) {
+            for (int x = 0; x < workW; ++x) {
+                uint32_t p = src[srcRowOffset + x];
+                aS += (p >> 24) & 0xFF;
+                rS += (p >> 16) & 0xFF;
+                gS += (p >> 8) & 0xFF;
+                bS += p & 0xFF;
+
+                int idx = rowOffset + x;
                 intA[idx] = aS; intR[idx] = rS; intG[idx] = gS; intB[idx] = bS;
-            } else {
-                int prev = (y - 1) * workW + x;
-                intA[idx] = aS + intA[prev]; intR[idx] = rS + intR[prev];
-                intG[idx] = gS + intG[prev]; intB[idx] = bS + intB[prev];
             }
         }
-    }
+    });
 
-    for (int y = 0; y < rh; ++y) {
-        for (int x = 0; x < rw; ++x) {
-            int gx = rx + x, gy = ry + y;
-            int lx1 = MAX(xStart, gx - radius) - xStart - 1;
-            int ly1 = MAX(yStart, gy - radius) - yStart - 1;
-            int lx2 = MIN(xEnd,   gx + radius) - xStart;
-            int ly2 = MIN(yEnd,   gy + radius) - yStart;
-
-            #define GET_SUM(buf) (buf[ly2*workW+lx2] - (lx1>=0?buf[ly2*workW+lx1]:0) - (ly1>=0?buf[ly1*workW+lx2]:0) + (lx1>=0&&ly1>=0?buf[ly1*workW+lx1]:0))
-
-            uint32_t count = (lx2 - lx1) * (ly2 - ly1);
-            uint32_t a = (uint32_t)(GET_SUM(intA) / count); // average alpha
-            uint32_t r = (uint32_t)(GET_SUM(intR) / count);
-            uint32_t g = (uint32_t)(GET_SUM(intG) / count);
-            uint32_t b = (uint32_t)(GET_SUM(intB) / count);
-
-            dst[gy * width + gx] = (a << 24) | (r << 16) | (g << 8) | b;
+    tbb::parallel_for(tbb::blocked_range<int>(0, workW), [&](const tbb::blocked_range<int>& r) {
+        for (int x = r.begin(); x != r.end(); ++x) {
+            for (int y = 1; y < workH; ++y) {
+                int idx = y * workW + x; int prev = idx - workW;
+                intA[idx] += intA[prev];  intR[idx] += intR[prev]; intG[idx] += intG[prev]; intB[idx] += intB[prev];
+            }
         }
-    }
+    });
+
+    tbb::parallel_for(tbb::blocked_range<int>(0, rh), [&](const tbb::blocked_range<int>& r) {
+        for (int y = r.begin(); y != r.end(); ++y) {
+            int gy = ry + y;
+            if (gy < 0 || gy >= height) continue;
+            int ly1 = MAX(yStart, gy - radius) - yStart - 1;
+            int ly2 = MIN(yEnd,   gy + radius) - yStart;
+            int dstRowOffset = gy * width;
+
+            for (int x = 0; x < rw; ++x) {
+                int gx = rx + x;
+                if (gx < 0 || gx >= width) continue;
+                int lx1 = MAX(xStart, gx - radius) - xStart - 1;
+                int lx2 = MIN(xEnd,   gx + radius) - xStart;
+
+                #define GET_SUM(buf) (buf[ly2*workW+lx2] - (lx1>=0?buf[ly2*workW+lx1]:0) - (ly1>=0?buf[ly1*workW+lx2]:0) + (lx1>=0&&ly1>=0?buf[ly1*workW+lx1]:0))
+
+                uint32_t count = (lx2 - lx1) * (ly2 - ly1);
+                uint32_t a = (uint32_t)(GET_SUM(intA) / count);
+                uint32_t r_val = (uint32_t)(GET_SUM(intR) / count);
+                uint32_t g = (uint32_t)(GET_SUM(intG) / count);
+                uint32_t b = (uint32_t)(GET_SUM(intB) / count);
+
+                dst[dstRowOffset + gx] = (a << 24) | (r_val << 16) | (g << 8) | b;
+                #undef GET_SUM
+            }
+        }
+    });
+
     free(intA);
 }
 
@@ -955,7 +974,6 @@ int opsPlaceStringBuffer(GlobalParams* m, int size, const char* inputstr, uint32
 	return state;
 }
 
-
 int opsPlaceStringShadowObject(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, void* mem, double sigma, int passes) {
 	sigma*=5.0;
 	int clearance = 10;
@@ -981,9 +999,12 @@ int opsPlaceStringShadowObject(GlobalParams* m, int size, const char* inputstr, 
 		for(int y=0; y<tempbuffer_height; y++) {
 			for(int x=0; x<tempbuffer_width; x++) {
 				// render temp
-				uint32_t putX = locX+x-clearance;
-				uint32_t putY = locY+y-clearance;
-				if(putX > 0 && putX <= m->width && putY > 0 && putY <= m->height) {
+				int64_t putX_signed = (int64_t)locX+x-clearance;
+				int64_t putY_signed = (int64_t)locY+y-clearance;
+				uint32_t putX = (uint32_t)putX_signed;
+				uint32_t putY = (uint32_t)putY_signed;
+				//std::cout << putX << " " << putY << "\n";
+				if(putX_signed >= 0 && putX < m->width && putY_signed >= 0 && putY < m->height) {
 					uint32_t* scrbuf = GetMemoryLocation(mem, putX, putY, m->width, m->height);
 					int from = (*GetMemoryLocation(temp_buffer, x, y, tempbuffer_width, tempbuffer_height) >> 8) & 0xFF;
 					int factor = 255-from;

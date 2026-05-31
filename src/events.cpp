@@ -580,6 +580,15 @@ bool MouseDownCases(GlobalParams* m){
 	POINT mPP;
 	GetCursorPos(&mPP);
 	ScreenToClient(m->hwnd, &mPP);
+	bool menugateway = false;
+	
+	// [Mouse Down] Menu inactive gateway
+	if (m->isMenuState && !(IfInMenu(mPP, m))) {
+		m->isMenuState = false;
+		RedrawSurface(m);
+		menugateway = true;
+		// silent: do not stop past input
+	}
 
 	if (m->isInCropMode) {
 		if (m->imgwidth < 1) {
@@ -707,17 +716,12 @@ bool MouseDownCases(GlobalParams* m){
 	}
 	
 	uint32_t id = getXbuttonID(m, mPP);
-
+	
 	// [Mouse Down] cased based toolbar buttons
-	if(PerformCasedBasedOperation(m, id) == 0) {
-		return 0;
-	}
-
-	// [Mouse Down] Menu inactive gateway
-	if (m->isMenuState && !(IfInMenu(mPP, m))) {
-		m->isMenuState = false;
-		RedrawSurface(m);
-		// silent: do not stop past input
+	if(!menugateway || id != 8) {
+		if(PerformCasedBasedOperation(m, id) == 0) {
+			return 0;
+		}
 	}
 	
 	// [Mouse Down] toolbar (nothing)

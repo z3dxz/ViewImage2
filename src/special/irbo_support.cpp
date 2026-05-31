@@ -85,11 +85,7 @@ const char* encodeirbo(const char* out_path, void* imgdata, int imgwidth, int im
     {
 		size_t j = perm[i];
 
-        memcpy(
-            (uint8_t*)shuffled + j * 4,
-            (uint8_t*) temp_img + i * 4,
-            4
-        );
+        memcpy((uint8_t*)shuffled + j * 4, (uint8_t*) temp_img + i * 4, 4);
     }
 
 	void* twobyte = malloc(twobytesize);
@@ -121,9 +117,6 @@ const char* encodeirbo(const char* out_path, void* imgdata, int imgwidth, int im
 			if(approx_cr > 15) {approx_cr = 15;}
 			if(approx_cb <= 0) {approx_cb = 0;}
 			if(approx_cr <= 0) {approx_cr = 0;}
-
-			//int approx_cb = (Cb >> 4) & 0xF;
-			//int approx_cr  =  (Cr >> 4) & 0xF;
 				
 			uint8_t chroma = (approx_cb << 4) | approx_cr;
 
@@ -162,16 +155,9 @@ const char* encodeirbo(const char* out_path, void* imgdata, int imgwidth, int im
 
 	size_t imgByteSize = twobytesize+4;
 
-    // Write data to the file
     DWORD bytesWritten;
-    WriteFile(
-        hFile,            // Handle to the file
-        data,  // Buffer to write
-        imgByteSize,   // Buffer size
-        &bytesWritten,    // Bytes written
-        0);         // Overlapped
+    WriteFile(hFile, data, imgByteSize, &bytesWritten,0);
 
-    // Close the handle once we don't need it.
     CloseHandle(hFile);
 
     FreeData(data);
@@ -259,11 +245,7 @@ void* decodeirbo(const char* filepath, int* imgwidth, int* imgheight){
     {
         size_t j = perm[i];
 
-        memcpy(
-            (uint8_t*)unshuffled + i * 4,
-            (uint8_t*)together + j * 4,
-            4
-        );
+        memcpy((uint8_t*)unshuffled + i * 4, (uint8_t*)together + j * 4, 4);
     }
 	free(together);
 
