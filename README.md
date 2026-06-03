@@ -1,3 +1,5 @@
+# [ViewImage](https://www.cosine64.com/info_pages/vi_info.html)
+
 ViewImage or "View Image" is a powerful, yet lightweight image viewer designed and targeted for Windows  
 
 <img width="1016" height="601" alt="demo" src="https://github.com/user-attachments/assets/0c9f1466-7a5a-4fb2-aeb9-81460a63ac77" />
@@ -22,6 +24,10 @@ ViewImage or "View Image" is a powerful, yet lightweight image viewer designed a
 * File support
   - Uses stb_image formats: JPEG, PNG, TGA, BMP, PSD (composited only), static GIF, HDR (only sRGB), PIC, and PNM
   - Specialty supports include SVG, SFBB, M45, and IRBO
+ 
+# System Requirements
+* Windows XP RTM or higher supported
+* Works well on wine
 
 # Why
 * Starts up fast
@@ -40,7 +46,7 @@ I hope to solve these limitations in upcoming releases
 ## Requirements / Dependencies:
   - Win32 API (Windows XP or above supported)
   - LunaSVG for optional SVG support (_SVG compile flag in CMakeLists)
-  - Freetype w/ TBB
+  - Freetype
 ## How to compile / How to use CMake
   ```
   mkdir build
