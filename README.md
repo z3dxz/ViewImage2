@@ -1,6 +1,6 @@
 # [ViewImage](https://www.cosine64.com/info_pages/vi_info.html)
 
-ViewImage or "View Image" is a powerful, yet lightweight image viewer designed and targeted for Windows  
+ViewImage or "View Image" is a powerful, yet lightweight image viewer designed and targeted for Windows XP, Vista, 7, 8, 8.1, 10, or 11
 
 <img width="1016" height="601" alt="demo" src="https://github.com/user-attachments/assets/0c9f1466-7a5a-4fb2-aeb9-81460a63ac77" />
 
@@ -26,7 +26,7 @@ ViewImage or "View Image" is a powerful, yet lightweight image viewer designed a
   - Specialty supports include SVG, SFBB, M45, and IRBO
  
 # System Requirements
-* Windows XP RTM or higher supported
+* Windows XP RTM or higher supported despite modern functionality
 * Works well on wine
 
 # Why
@@ -55,4 +55,5 @@ I hope to solve these limitations in upcoming releases
   make
   ```
 replace make with ninja if desired  
-On windows, it is recommended that MSYS with MinGW is used. Alternatives can be used as well.
+On windows, CMake compilation is tested with MSYS, but is is recommended to use w64devkit with freetype compiled from source, you can find that [here](https://github.com/skeeto/w64devkit)  
+w64devkit also targets binaries supporting Windows XP without the need for v141_xp
