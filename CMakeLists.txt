@@ -38,7 +38,6 @@ find_package(Freetype REQUIRED)
 
 find_package(TBB REQUIRED)
 
-
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 add_executable(viewimage ${SRC_FILES} )
 else ()

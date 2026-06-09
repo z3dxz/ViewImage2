@@ -5,8 +5,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <tbb/parallel_for.h>
-#include <tbb/blocked_range.h>
+#include <execution>
 #include "headers/ops.hpp"
 #include "headers/imgload.hpp"
 #include "../res/resource.h"
@@ -659,6 +658,7 @@ uint32_t lerp_gc(uint32_t color1, uint32_t color2, float alpha) {
 
 #define MAX(a,b) ((a) > (b) ? (a) : (b))
 #define MIN(a,b) ((a) < (b) ? (a) : (b))
+
 void boxBlurRegion(uint32_t* src, uint32_t* dst, int width, int height, uint32_t kernelSize, int rx, int ry, int rw, int rh) {
     if (kernelSize < 2) return;
 
@@ -675,38 +675,42 @@ void boxBlurRegion(uint32_t* src, uint32_t* dst, int width, int height, uint32_t
     if (!intA) return;
     uint64_t *intR = intA + chanSize, *intG = intR + chanSize, *intB = intG + chanSize;
 
-    tbb::parallel_for(tbb::blocked_range<int>(0, workH), [&](const tbb::blocked_range<int>& r) {
-        for (int y = r.begin(); y != r.end(); ++y) {
-            uint64_t rS = 0, gS = 0, bS = 0, aS = 0;
-            int rowOffset = y * workW;
-            int srcRowOffset = (yStart + y) * width + xStart;
+    std::vector<int> loopH(workH);
+    std::iota(loopH.begin(), loopH.end(), 0);
 
-            for (int x = 0; x < workW; ++x) {
-                uint32_t p = src[srcRowOffset + x];
-                aS += (p >> 24) & 0xFF;
-                rS += (p >> 16) & 0xFF;
-                gS += (p >> 8) & 0xFF;
-                bS += p & 0xFF;
+    std::for_each(std::execution::par, loopH.begin(), loopH.end(), [=](int y) {
+        uint64_t rS = 0, gS = 0, bS = 0, aS = 0;
+        int rowOffset = y * workW;
+        int srcRowOffset = (yStart + y) * width + xStart;
 
-                int idx = rowOffset + x;
-                intA[idx] = aS; intR[idx] = rS; intG[idx] = gS; intB[idx] = bS;
-            }
+        for (int x = 0; x < workW; ++x) {
+            uint32_t p = src[srcRowOffset + x];
+            aS += (p >> 24) & 0xFF;
+            rS += (p >> 16) & 0xFF;
+            gS += (p >> 8) & 0xFF;
+            bS += p & 0xFF;
+
+            int idx = rowOffset + x;
+            intA[idx] = aS; intR[idx] = rS; intG[idx] = gS; intB[idx] = bS;
         }
     });
 
-    tbb::parallel_for(tbb::blocked_range<int>(0, workW), [&](const tbb::blocked_range<int>& r) {
-        for (int x = r.begin(); x != r.end(); ++x) {
-            for (int y = 1; y < workH; ++y) {
-                int idx = y * workW + x; int prev = idx - workW;
-                intA[idx] += intA[prev];  intR[idx] += intR[prev]; intG[idx] += intG[prev]; intB[idx] += intB[prev];
-            }
+    std::vector<int> loopW(workW);
+    std::iota(loopW.begin(), loopW.end(), 0);
+
+    std::for_each(std::execution::par, loopW.begin(), loopW.end(), [=](int x) {
+        for (int y = 1; y < workH; ++y) {
+            int idx = y * workW + x; int prev = idx - workW;
+            intA[idx] += intA[prev];  intR[idx] += intR[prev]; intG[idx] += intG[prev]; intB[idx] += intB[prev];
         }
     });
 
-    tbb::parallel_for(tbb::blocked_range<int>(0, rh), [&](const tbb::blocked_range<int>& r) {
-        for (int y = r.begin(); y != r.end(); ++y) {
-            int gy = ry + y;
-            if (gy < 0 || gy >= height) continue;
+    std::vector<int> loopRH(rh);
+    std::iota(loopRH.begin(), loopRH.end(), 0);
+
+    std::for_each(std::execution::par, loopRH.begin(), loopRH.end(), [=](int y) {
+        int gy = ry + y;
+        if (gy >= 0 && gy < height) {
             int ly1 = MAX(yStart, gy - radius) - yStart - 1;
             int ly2 = MIN(yEnd,   gy + radius) - yStart;
             int dstRowOffset = gy * width;
