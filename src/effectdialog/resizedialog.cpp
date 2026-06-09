@@ -49,7 +49,10 @@ int firsth;
 
 
 
-LRESULT CALLBACK TXTProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData) {
+static WNDPROC old_txt_proc = NULL;
+static WNDPROC old_btn_proc = NULL;
+
+LRESULT CALLBACK TXTProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
     switch (msg)
     {
         case WM_CTLCOLOREDIT:
@@ -67,7 +70,7 @@ LRESULT CALLBACK TXTProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, UINT
             GetWindowRect(hwnd, &rect);
             OffsetRect(&rect, -rect.left, -rect.top);
             
-            LRESULT result = DefSubclassProc(hwnd, msg, wparam, lparam);
+            LRESULT result = CallWindowProc(old_txt_proc, hwnd, msg, wparam, lparam);
 
             HPEN brush = CreatePen(PS_SOLID, 1, RGB(128,128,128));
             HGDIOBJ oldPen = SelectObject(hdc, brush);
@@ -88,16 +91,16 @@ LRESULT CALLBACK TXTProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, UINT
                 if (wparam != '\b' && wparam != '\r' && wparam != '\t' && wparam != '\x1A')
                     return 0;
             }
-            return DefSubclassProc(hwnd, msg, wparam, lparam);
+	        return CallWindowProc(old_txt_proc, hwnd, msg, wparam, lparam);
         }
         default:
-            return DefSubclassProc(hwnd, msg, wparam, lparam);
+	        return CallWindowProc(old_txt_proc, hwnd, msg, wparam, lparam);
         }
 
         return 0;
 }
 
-LRESULT CALLBACK ButtonPaint(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData) {
+LRESULT CALLBACK ButtonPaint(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
     static HFONT hVerdana = CreateFont(15, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, 
                                        ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, 
                                        CLEARTYPE_QUALITY, VARIABLE_PITCH | FF_SWISS, "SegoeUI");
@@ -162,7 +165,7 @@ LRESULT CALLBACK ButtonPaint(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, 
         }
 
         case WM_NCDESTROY: {
-            return DefSubclassProc(hwnd, msg, wparam, lparam);
+	        return CallWindowProc(old_btn_proc, hwnd, msg, wparam, lparam);
         }
 
         case WM_LBUTTONDOWN:
@@ -170,11 +173,11 @@ LRESULT CALLBACK ButtonPaint(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, 
         case WM_MOUSEMOVE:
         case WM_MOUSELEAVE: {
             InvalidateRect(hwnd, NULL, FALSE);
-            return DefSubclassProc(hwnd, msg, wparam, lparam);
+	        return CallWindowProc(old_btn_proc, hwnd, msg, wparam, lparam);
         }
 
         default:
-            return DefSubclassProc(hwnd, msg, wparam, lparam);
+	        return CallWindowProc(old_btn_proc, hwnd, msg, wparam, lparam);
     }
 }
 LRESULT CALLBACK ResizeDialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
@@ -205,13 +208,14 @@ LRESULT CALLBACK ResizeDialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpa
         LH = GetDlgItem(hwnd, lockh);
 
 
-        SetWindowSubclass(hWidthEdit, TXTProc, 0, 0);
-        SetWindowSubclass(hHeightEdit, TXTProc, 0, 0);
+        old_txt_proc = (WNDPROC)SetWindowLongPtr(hWidthEdit, GWLP_WNDPROC, (LONG_PTR)TXTProc);
+        SetWindowLongPtr(hHeightEdit, GWLP_WNDPROC, (LONG_PTR)TXTProc);
 
-        SetWindowSubclass(Confirm, ButtonPaint, 0, 0);
-        SetWindowSubclass(No, ButtonPaint, 0, 0);
-        SetWindowSubclass(LW, ButtonPaint, 0, 0);
-        SetWindowSubclass(LH, ButtonPaint, 0, 0);
+        old_btn_proc = (WNDPROC)SetWindowLongPtr(Confirm, GWLP_WNDPROC, (LONG_PTR)ButtonPaint);
+        SetWindowLongPtr(Confirm, GWLP_WNDPROC, (LONG_PTR)ButtonPaint);
+        SetWindowLongPtr(No, GWLP_WNDPROC, (LONG_PTR)ButtonPaint);
+        SetWindowLongPtr(LW, GWLP_WNDPROC, (LONG_PTR)ButtonPaint);
+        SetWindowLongPtr(LH, GWLP_WNDPROC, (LONG_PTR)ButtonPaint);
 
         SendMessage(LW, BM_SETIMAGE, (WPARAM)IMAGE_ICON, (LPARAM)unlockic);
         SendMessage(LH, BM_SETIMAGE, (WPARAM)IMAGE_ICON, (LPARAM)unlockic);

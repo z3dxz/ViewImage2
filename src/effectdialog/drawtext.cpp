@@ -12,8 +12,9 @@ static GlobalParams* m;
 
 void UpdateImage(GlobalParams* m);
 
-static LRESULT CALLBACK TrackbarJumpSubclass(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam, UINT_PTR id, DWORD_PTR ref)
-{
+static WNDPROC old_proc = NULL;
+static LRESULT CALLBACK TrackbarJumpSubclass(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+
 	static BOOL dragging;
 	RECT rc;
 	int min, max, pos;
@@ -61,7 +62,7 @@ static LRESULT CALLBACK TrackbarJumpSubclass(HWND hwnd, UINT msg, WPARAM wParam,
 		return 0;
 	}
 
-	return DefSubclassProc(hwnd, msg, wParam, lParam);
+	return CallWindowProc(old_proc, hwnd, msg, wParam, lParam);
 }
 
 COLORREF boxColor = RGB(255, 0, 0); // Initial color red
@@ -161,7 +162,7 @@ void InitDialogControls(HWND hwnd) {
     tss = GetDlgItem(hwnd, TextSizeSlider);
     fnameid = GetDlgItem(hwnd, FontNameID);
 
-	SetWindowSubclass(tss, TrackbarJumpSubclass, 1, 0);
+    old_proc = (WNDPROC)SetWindowLongPtr(tss, GWLP_WNDPROC, (LONG_PTR)TrackbarJumpSubclass);
 
     SetWindowText(adtdb, text.c_str());
 

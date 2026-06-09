@@ -38,6 +38,9 @@ static void ConfirmEffect() {
 
 LRESULT CALLBACK SliderProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
 
+
+static WNDPROC old_proc = NULL;
+
 static LRESULT CALLBACK DialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 
     switch (msg) {
@@ -57,7 +60,7 @@ static LRESULT CALLBACK DialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lp
         SendMessage(gslider, TBM_SETRANGE, TRUE, MAKELPARAM(0, 40));
         SendMessage(gslider, TBM_SETPOS, TRUE, 0);
 
-        SetWindowSubclass(gslider, SliderProc, 0, 0);
+        old_proc = (WNDPROC)SetWindowLongPtr(gslider, GWLP_WNDPROC, (LONG_PTR)SliderProc);
 
         RedrawSurface(m);
         return FALSE;
@@ -153,7 +156,7 @@ LRESULT CALLBACK SliderProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam, U
 		return 0;
 	}
 
-	return DefSubclassProc(hwnd, msg, wParam, lParam);
+	return CallWindowProc(old_proc, hwnd, msg, wParam, lParam);
 }
 
 /*
