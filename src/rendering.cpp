@@ -58,47 +58,45 @@ void RenderToolbarIcon(GlobalParams* m, int index, int locationX, uint32_t color
 }
 
 void RenderFullscreenIcon(GlobalParams* m, bool aeromode){
+	if(m->width <= 535) return;
 
-	// fullscreen icon
-	if (m->width > 535) {
-		POINT mp;
-		GetCursorPos(&mp);
-		ScreenToClient(m->hwnd, &mp);
-		bool nearf = false;
-		if ((mp.x > m->width - 36 && mp.x < m->width - 13) && (mp.y > 12 && mp.y < 33)) { //fullscreen icon location check coordinates (ALWAYS KEEP)
-			nearf = true;
-		}
-
-		if(nearf) {
-			// what happens when you hover over the screen button
-			//-- The outline
-			dDrawRoundedRectangle(m, m->width-36, 12, 24, 23, 0xFFFFFF, 0.2f);
-			dDrawRoundedRectangle(m, m->width-37, 11, 26, 25, 0x000000, 1.0f);
-
-
-			//-- Fullscreen icon tooltip
-			SwitchFont(m->SegoeUI);
-			if (m->fullscreen) {
-				PlaceStringShadow(m, 13, "Exit Fullscreen (F11)", m->width - 120, 48, 0xFFFFFF, m->def_txt_shadow_softness, 1,1, 2);
-			}
-			else {
-				PlaceStringShadow(m, 13, "Fullscreen (F11)", m->width - 100, 48, 0xFFFFFF, m->def_txt_shadow_softness, 1,1, 2);
-			}
-		}
-
-		// outline for aero
-		if(aeromode) {
-			dDrawRoundedRectangle(m, m->width-31, 17, 14, 13, 0x80000000, 0.5f);
-			dDrawRoundedRectangle(m, m->width-29, 21, 10, 7, 0x80000000, 0.5f);
-		}
-
-		// actually draw the fullscreen icon
-		float t = 0.5f;
-		if (nearf) {
-			t = 1.0f;
-		}
-		PlaceFromAtlas(m, m->fullscreenIconData, 12, 11, 0, 0, m->width-30, 18, 12, 11, 0xFFFFFFFF, t);
+	POINT mp;
+	GetCursorPos(&mp);
+	ScreenToClient(m->hwnd, &mp);
+	
+	bool nearf = false;
+	if ((mp.x > m->width - 36 && mp.x < m->width - 13) && (mp.y > 12 && mp.y < 33)) { //fullscreen icon location check coordinates (ALWAYS KEEP)
+		nearf = true;
 	}
+
+	if(nearf) {
+		// what happens when you hover over the screen button
+		//-- The outline
+		dDrawRoundedRectangle(m, m->width-36, 12, 24, 23, 0xFFFFFF, 0.2f);
+		dDrawRoundedRectangle(m, m->width-37, 11, 26, 25, 0x000000, 1.0f);
+
+		//-- Fullscreen icon tooltip
+		SwitchFont(m->SegoeUI);
+		if (m->fullscreen) {
+			PlaceStringShadow(m, 13, "Exit Fullscreen (F11)", m->width - 120, 48, 0xFFFFFF, m->def_txt_shadow_softness, 1,1, 2);
+		}
+		else {
+			PlaceStringShadow(m, 13, "Fullscreen (F11)", m->width - 100, 48, 0xFFFFFF, m->def_txt_shadow_softness, 1,1, 2);
+		}
+	}
+
+	// outline for aero
+	if(aeromode) {
+		dDrawRoundedRectangle(m, m->width-31, 17, 14, 13, 0x80000000, 0.5f);
+		dDrawRoundedRectangle(m, m->width-29, 21, 10, 7, 0x80000000, 0.5f);
+	}
+
+	// actually draw the fullscreen icon
+	float t = 0.5f;
+	if (nearf) {
+		t = 1.0f;
+	}
+	PlaceFromAtlas(m, m->fullscreenIconData, 12, 11, 0, 0, m->width-30, 18, 12, 11, 0xFFFFFFFF, t);
 	
 }
 

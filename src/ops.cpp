@@ -13,10 +13,7 @@
 #define max(a,b)            (((a) > (b)) ? (a) : (b))
 #define min(a,b)            (((a) < (b)) ? (a) : (b))
 
-
-
 uint8_t ivv = 0;
-
 
 typedef HRESULT(WINAPI* DwmSetWindowAttribute_t)(HWND, DWORD, LPCVOID, DWORD);
 bool DwmDarken(HWND hwnd) {
@@ -105,42 +102,15 @@ bool isFile(const char* str, const char* suffix) {
 unsigned char* LoadImageFromResource(int resourceId, int& width, int& height, int& channels)
 {
 	HMODULE hModule = GetModuleHandle(nullptr);
-	if (!hModule)
-	{
-		std::cerr << "Failed to get module handle" << std::endl;
-		return nullptr;
-	}
 
 	HRSRC hResource = FindResource(hModule, MAKEINTRESOURCE(resourceId), "PNG");
-	if (!hResource)
-	{
-		std::cerr << "Failed to find resource " << resourceId << std::endl;
-		return nullptr;
-	}
-
 	HGLOBAL hResourceData = LoadResource(hModule, hResource);
-	if (!hResourceData)
-	{
-		std::cerr << "Failed to load resource data" << std::endl;
-		return nullptr;
-	}
-
 	const void* resourceData = LockResource(hResourceData);
-	if (!resourceData)
-	{
-		std::cerr << "Failed to lock resource data" << std::endl;
-		FreeResource(hResourceData);
-		return nullptr;
-	}
-
 	const size_t resourceSize = SizeofResource(hModule, hResource);
 
 	unsigned char* imageData = stbi_load_from_memory(reinterpret_cast<const stbi_uc*>(resourceData), resourceSize, &width, &height, &channels, 4);
-
-	if (!imageData)
-	{
-		std::cerr << "Failed to load image from resource " << resourceId << ": " << stbi_failure_reason() << std::endl;
-	}
+	
+	if (!imageData) std::cerr << "Failed to load image from resource " << resourceId << ": " << stbi_failure_reason() << std::endl;
 
 	FreeResource(hResourceData);
 
@@ -148,47 +118,47 @@ unsigned char* LoadImageFromResource(int resourceId, int& width, int& height, in
 }
 
 void PrintImageToPrinter(uint32_t* image, int width, int height, HDC printerDC) {
-
+	if (!image || !printerDC) return;
+	
 	uint32_t* temp = (uint32_t*)malloc(width * height * 4);
 	for (int i = 0; i < width * height; i++) {
 		*(temp+i) = (*(image+i));
 	}
 
-	if (!image) {
-
-		return;
-	}
-
-	BITMAPINFO bmpInfo = {};
-	bmpInfo.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-	bmpInfo.bmiHeader.biWidth = width;
-	bmpInfo.bmiHeader.biHeight = -height; // Negative height for top-down DIB
-	bmpInfo.bmiHeader.biPlanes = 1;
-	bmpInfo.bmiHeader.biBitCount = 4 * 8; // Number of bits per pixel
-	bmpInfo.bmiHeader.biCompression = BI_RGB;
+	BITMAPINFO bmi = {};
+	bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+	bmi.bmiHeader.biWidth = width;
+	bmi.bmiHeader.biHeight = -height;
+	bmi.bmiHeader.biPlanes = 1;
+	bmi.bmiHeader.biBitCount = 4 * 8;
+	bmi.bmiHeader.biCompression = BI_RGB;
 
 	DOCINFO docInfo = {};
 	docInfo.cbSize = sizeof(DOCINFO);
 	docInfo.lpszDocName = TEXT("Image Print");
-	StartDoc(printerDC, &docInfo);
-	StartPage(printerDC);
 
-	int printerWidth = GetDeviceCaps(printerDC, HORZRES);
-	int printerHeight = GetDeviceCaps(printerDC, VERTRES);
+    if (StartDoc(printerDC, &docInfo) > 0) {
+        if (StartPage(printerDC) > 0) {
 
-	float scaleX = static_cast<float>(printerWidth) / width;
-	float scaleY = static_cast<float>(printerHeight) / height;
+			int printerWidth = GetDeviceCaps(printerDC, HORZRES);
+			int printerHeight = GetDeviceCaps(printerDC, VERTRES);
 
-	int destWidth = static_cast<int>(width * scaleX);
-	int destHeight = static_cast<int>(height * scaleY);
+			float scale= min((float)printerWidth/(float)width, (float)printerHeight/(float)height);
 
-	StretchDIBits(printerDC, 0, 0,destWidth, destHeight, 0, 0, width, height, temp, &bmpInfo, DIB_RGB_COLORS, SRCCOPY);
+			int destWidth = static_cast<int>(width * scale);
+			int destHeight = static_cast<int>(height * scale);
 
-	EndPage(printerDC);
-	EndDoc(printerDC);
+            int destX = (printerWidth - destWidth) / 2;
+            int destY = (printerHeight - destHeight) / 2;
+
+			StretchDIBits(printerDC, destX,destY,destWidth, destHeight, 0, 0, width, height, temp, &bmi, DIB_RGB_COLORS, SRCCOPY);
+
+			EndPage(printerDC);
+		}
+		EndDoc(printerDC);
+	}
 
 	FreeData(temp);
-
 }
 
 void Print(GlobalParams* m) {
@@ -1007,7 +977,7 @@ int opsPlaceStringShadowObject(GlobalParams* m, int size, const char* inputstr, 
 				int64_t putY_signed = (int64_t)locY+y-clearance;
 				uint32_t putX = (uint32_t)putX_signed;
 				uint32_t putY = (uint32_t)putY_signed;
-				//std::cout << putX << " " << putY << "\n";
+				
 				if(putX_signed >= 0 && putX < m->width && putY_signed >= 0 && putY < m->height) {
 					uint32_t* scrbuf = GetMemoryLocation(mem, putX, putY, m->width, m->height);
 					int from = (*GetMemoryLocation(temp_buffer, x, y, tempbuffer_width, tempbuffer_height) >> 8) & 0xFF;
