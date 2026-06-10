@@ -61,8 +61,6 @@ void ResizeBuffers(GlobalParams* m) {
 void ResetCoordinates(GlobalParams* m) {
 
 	if (m->imgwidth > 0) {
-
-		
 		m->CoordLeft = ((float)m->width - m->imgwidth * m->mscaler) / 2.0f + m->iLocX;
 		m->CoordTop = ((float)m->height - m->imgheight * m->mscaler) / 2.0f + m->iLocY;
 
@@ -84,10 +82,8 @@ void Size(GlobalParams* m) {
 			resizeCompleted = false;
 		}
 
-		// Asynchronously resize buffers
 		std::future<void> asyncResize = std::async(std::launch::async, ResizeBuffers, m);
 
-		// Wait for the async operation to complete
 		{
 			std::unique_lock<std::mutex> lock(mtx);
 			if (!cv.wait_for(lock, std::chrono::milliseconds(1000), [] { return resizeCompleted; })) {
