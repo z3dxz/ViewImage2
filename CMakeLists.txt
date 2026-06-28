@@ -35,9 +35,6 @@ find_library(SHLWAPI_LIB shlwapi)
 find_library(WINMM winmm)
 
 find_package(Freetype REQUIRED)
-
-find_package(TBB REQUIRED)
-
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 add_executable(viewimage ${SRC_FILES} )
 else ()
@@ -52,8 +49,8 @@ target_compile_definitions(viewimage PRIVATE
 	BUILD_SYSTEM="CMake"
 )
 
-set_target_properties(viewimage PROPERTIES OUTPUT_NAME "viewimage-x64")
+set_target_properties(viewimage PROPERTIES OUTPUT_NAME "viewimage_2.7")
 
 # Link the library to the target
-target_link_libraries(viewimage PRIVATE ${COMCTL32_LIB} ${UXTHEME_LIB} ${SHLWAPI_LIB} ${WINMM} TBB::tbb Freetype::Freetype)
+target_link_libraries(viewimage PRIVATE ${COMCTL32_LIB} ${UXTHEME_LIB} ${SHLWAPI_LIB} ${WINMM} Freetype::Freetype)
 target_link_libraries(viewimage PRIVATE lunasvg)
