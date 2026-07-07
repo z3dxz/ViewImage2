@@ -69,6 +69,7 @@ double gaussian(double x, double sigma);
 void gaussian_blur_real(uint32_t* input_buffer, uint32_t* output_buffer, int lW, int lH, double sigma, uint32_t width, uint32_t height, uint32_t offX, uint32_t offY);
 
 void boxBlurRegion(uint32_t* src, uint32_t* dst, int width, int height, uint32_t kernelSize, int rx, int ry, int rw, int rh);
+
 uint32_t multiplyColors(uint32_t color1, uint32_t color2);
 bool CopyImageToClipboard(GlobalParams* m, void* imageData, int width, int height);
 bool PasteImageFromClipboard(GlobalParams* m);

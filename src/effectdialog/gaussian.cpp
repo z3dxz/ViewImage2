@@ -23,8 +23,6 @@ int ShowGaussianDialog(GlobalParams* m0) {
 static void ApplyEffectToBuffer(float amount) {
     uint32_t* from = (uint32_t*)m->imgdata;
     uint32_t* to = (uint32_t*)m->imagepreview;
-    //fast_gaussian_blur(from, to, m->imgwidth, m->imgheight, 4, 4.0f, 10, Border::kKernelCrop);
-    //std::swap(m->imgdata, m->imagepreview);
     
     // gaussian B previously
     gaussian_blur_real(from, to, m->imgwidth, m->imgheight, amount, m->imgwidth, m->imgheight, 0, 0);
@@ -36,7 +34,7 @@ static void ConfirmEffect() {
     m->shouldSaveShutdown = true;
 }
 
-LRESULT CALLBACK SliderProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
+LRESULT CALLBACK SliderProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 
 static WNDPROC old_proc = NULL;
@@ -46,6 +44,10 @@ static LRESULT CALLBACK DialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lp
     switch (msg) {
 
     case WM_INITDIALOG: {
+
+        if (m->imagepreview != NULL) {
+            free(m->imagepreview);
+        }
 
         m->imagepreview = malloc(m->imgwidth * m->imgheight * 4);
         memcpy(m->imagepreview, m->imgdata, m->imgwidth * m->imgheight * 4);
@@ -70,24 +72,25 @@ static LRESULT CALLBACK DialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lp
     }
     case WM_COMMAND: {
         switch (LOWORD(wparam)) {
-        case IDOK: {
-            // Confirm
-            ConfirmEffect();
+            case IDOK: {
+                // Confirm
+                ConfirmEffect();
 
-            m->isImagePreview = false;
-            if (m->imagepreview) {
-                FreeData(m->imagepreview);
+                m->isImagePreview = false;
+                if (m->imagepreview) {
+                    FreeData(m->imagepreview);
+                }
+                EndDialog(hwnd, IDCANCEL);
+                break;
             }
-            EndDialog(hwnd, IDCANCEL);
-            break;
-        }
-        case IDCANCEL: {
-            m->isImagePreview = false;
-            if (m->imagepreview) {
-                FreeData(m->imagepreview);
+            case IDCANCEL: {
+                m->isImagePreview = false;
+                if (m->imagepreview) {
+                    FreeData(m->imagepreview);
+                }
+                EndDialog(hwnd, IDCANCEL);
+                break;
             }
-            EndDialog(hwnd, IDCANCEL);
-        }
         }
         break;
     case WM_CLOSE: {
@@ -96,6 +99,7 @@ static LRESULT CALLBACK DialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lp
             FreeData(m->imagepreview);
         }
         EndDialog(hwnd, IDCANCEL);
+        break;
     }
     default:
         return FALSE;
@@ -104,8 +108,8 @@ static LRESULT CALLBACK DialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lp
     return TRUE;
 }
 
-LRESULT CALLBACK SliderProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam, UINT_PTR id, DWORD_PTR ref)
-{
+LRESULT CALLBACK SliderProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+
 	static BOOL dragging;
 	RECT rc;
 	int min, max, pos;
@@ -116,7 +120,6 @@ LRESULT CALLBACK SliderProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam, U
 	case WM_LBUTTONDOWN:
 		dragging = TRUE;
 		SetCapture(hwnd);
-
 	case WM_MOUSEMOVE: {
 		if (!dragging || !(wParam & MK_LBUTTON))
 			break;
@@ -149,19 +152,17 @@ LRESULT CALLBACK SliderProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam, U
         
 		return 0;
     }
-	case WM_LBUTTONUP:
+	case WM_LBUTTONUP: {
 		dragging = FALSE;
 		ReleaseCapture();
         
 		return 0;
 	}
+    case WM_NCDESTROY: {
+        SetWindowLongPtr(hwnd, GWLP_WNDPROC, (LONG_PTR)old_proc);
+        break;
+    }
+    }
 
 	return CallWindowProc(old_proc, hwnd, msg, wParam, lParam);
 }
-
-/*
-
-            float posg = (float)SendMessage(hwnd, TBM_GETPOS, 0, 0);
-            
-            ApplyEffectToBuffer(posg);
-*/

@@ -80,7 +80,9 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 
 	// get aero info
 	if(SupportsAero()) {
-		gp.aeromode = true;
+		if (strcmp(BUILD_TYPE, "Debug") != 0) {
+			gp.aeromode = true;
+    	}
 	}
 
 	// get argument info

@@ -10,6 +10,7 @@
 #include "headers/imgload.hpp"
 #include "../res/resource.h"
 #include "vendor/stb_image_resize2.h"
+#include "vendor/libgaussianblur/gaussianblur.h"
 #define max(a,b)            (((a) > (b)) ? (a) : (b))
 #define min(a,b)            (((a) < (b)) ? (a) : (b))
 
@@ -487,7 +488,7 @@ bool AutoAdjustLevels(GlobalParams* m, uint32_t* buffer, double sigma) {
 	// gaussian B previously
 	gaussian_blur_real((uint32_t*)buffer, tempd, m->imgwidth, m->imgheight, sigma, m->imgwidth, m->imgheight, 0, 0);
 
-	m->isMenuState = false;	
+	m->isMenuState = false;
 	int width = m->imgwidth;
 	int height = m->imgheight;
 
@@ -708,9 +709,8 @@ void boxBlurRegion(uint32_t* src, uint32_t* dst, int width, int height, uint32_t
     free(intA);
 }
 
-// Gaussian blur function
-void gaussian_blur_real(uint32_t* input_buffer, uint32_t* output_buffer, int lW, int lH, double sigma, uint32_t width, uint32_t height, uint32_t offX, uint32_t offY) {
-    if (sigma <= 0.0) {
+void gaussian_blur_series_box_blurs(uint32_t* input_buffer, uint32_t* output_buffer, int lW, int lH, double sigma, uint32_t width, uint32_t height, uint32_t offX, uint32_t offY) {
+	if (sigma <= 0.0) {
         for (int y = 0; y < lH; ++y) {
             for (int x = 0; x < lW; ++x) {
                 output_buffer[(offY + y) * width + (offX + x)] = 
@@ -731,6 +731,12 @@ void gaussian_blur_real(uint32_t* input_buffer, uint32_t* output_buffer, int lW,
     boxBlurRegion(input_buffer, output_buffer, width, height, (m > 0 ? wu : wl), offX, offY, lW, lH);
     boxBlurRegion(output_buffer, output_buffer, width, height, (m > 1 ? wu : wl), offX, offY, lW, lH);
     boxBlurRegion(output_buffer, output_buffer, width, height, (m > 2 ? wu : wl), offX, offY, lW, lH);
+}
+
+
+// Gaussian blur function
+void gaussian_blur_real(uint32_t* input_buffer, uint32_t* output_buffer, int lW, int lH, double sigma, uint32_t width, uint32_t height, uint32_t offX, uint32_t offY) {
+	gaussian_blur_series_box_blurs(input_buffer, output_buffer, lW, lH, sigma, width, height, offX, offY);
 }
 
 uint32_t change_alpha(uint32_t color, uint8_t new_alpha) {
@@ -795,16 +801,17 @@ FT_Face LoadFont(GlobalParams* m, std::string fontA) {
 	if (m->fontsfolder == "") {
 		initfontfolder(m);
 	}
-	std::string font_s = (m->fontsfolder + "\\" + fontA);
+
+	std::string font_windows_path = (m->fontsfolder + "\\" + fontA);
+	std::string font_exe_path = (ExePath() + "\\" + fontA);
+
 	FT_Face k;
-	if (!(FT_New_Face(ft, font_s.c_str(), 0, &k))) {
+
+	if (!(FT_New_Face(ft, font_exe_path.c_str(), 0, &k))) {
 		return k;
 	}
 
-	// try again
-	std::string cdir = ExePath();
-	font_s = (cdir + "\\" + fontA);
-	if (!(FT_New_Face(ft, font_s.c_str(), 0, &k))) {
+	if (!(FT_New_Face(ft, font_windows_path.c_str(), 0, &k))) {
 		return k;
 	}
 
