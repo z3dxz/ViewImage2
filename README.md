@@ -56,5 +56,3 @@ I hope to solve these limitations in upcoming releases
   ```
 replace make with ninja if desired  
 On windows, CMake compilation is recommended to used with w64devkit, with freetype compiled from source, you can find that [here](https://github.com/skeeto/w64devkit)
-Also tested using MSYS but not recommended
-w64devkit also targets binaries supporting Windows XP without the need for v141_xp
