@@ -26,7 +26,7 @@ ViewImage or "View Image" is a powerful, yet lightweight image viewer designed a
   - Specialty supports include SVG, SFBB, M45, and IRBO
  
 # System Requirements
-* Windows XP RTM or higher supported despite modern functionality
+* Windows XP RTM-SP3 / Vista / 7 / 8 / 8.1 / 10 / 11
 * Works well on wine
 
 # Why
