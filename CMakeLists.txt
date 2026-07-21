@@ -35,6 +35,10 @@ find_library(UXTHEME_LIB uxtheme)
 find_library(SHLWAPI_LIB shlwapi)
 find_library(WINMM winmm)
 
+configure_file(res/OCRAEXT.ttf OCRAEXT.ttf COPYONLY)
+configure_file(res/segoeui.ttf segoeui.ttf COPYONLY)
+configure_file(res/verdana.ttf verdana.ttf COPYONLY)
+
 find_package(Freetype REQUIRED)
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 add_executable(viewimage ${SRC_FILES} )
@@ -42,7 +46,6 @@ else ()
 set(CMAKE_CXX_FLAGS_DEBUG "-g")
 add_executable(viewimage WIN32 ${SRC_FILES} )
 endif ()
-
 
 string(TIMESTAMP BUILD_TIME "%Y-%m-%d %H:%M:%S")
 target_compile_definitions(viewimage PRIVATE BUILD_TYPE="$<CONFIG>" BUILD_SYSTEM="CMake")

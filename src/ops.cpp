@@ -737,6 +737,34 @@ void gaussian_blur_series_box_blurs(uint32_t* input_buffer, uint32_t* output_buf
 // Gaussian blur function
 void gaussian_blur_real(uint32_t* input_buffer, uint32_t* output_buffer, int lW, int lH, double sigma, uint32_t width, uint32_t height, uint32_t offX, uint32_t offY) {
 	gaussian_blur_series_box_blurs(input_buffer, output_buffer, lW, lH, sigma, width, height, offX, offY);
+	return;
+    const int coef = 4;
+    int vW = lW / coef;
+    int vH = lH / coef;
+    if (vW <= 0 || vH <= 0) return;
+
+	std::vector<uint32_t> region(lW * lH);
+    for (int y = 0; y < lH; ++y) {
+        for (int x = 0; x < lW; ++x) {
+            region[y * lW + x] = *GetMemoryLocation(input_buffer, x + offX, y + offY, width, height);
+        }
+    }
+
+    std::vector<uint8_t> blur_bytes(vW * vH * 4);
+
+	stbir_resize_uint8_srgb(reinterpret_cast<const unsigned char*>(region.data()), lW, lH, 0, reinterpret_cast<unsigned char*>(blur_bytes.data()), vW, vH, 0, STBIR_RGBA);
+
+    Image image = { std::move(blur_bytes) , ImgGeom(vH, vW, 4) };
+	gaussianblur::gaussianblur(image, sigma/((double)coef), true);
+
+    std::vector<uint32_t> upscaled_buffer(lW * lH);
+	stbir_resize_uint8_srgb(image.data.data(), vW, vH, 0, reinterpret_cast<unsigned char*>(upscaled_buffer.data()), lW, lH, 0, STBIR_RGBA);
+
+	for (int y = 0; y < lH; ++y) {
+        for (int x = 0; x < lW; ++x) {
+            *GetMemoryLocation(output_buffer, x + offX, y + offY, width, height) = upscaled_buffer[y * lW + x];
+        }
+    }
 }
 
 uint32_t change_alpha(uint32_t color, uint8_t new_alpha) {
@@ -957,7 +985,7 @@ int opsPlaceStringBuffer(GlobalParams* m, int size, const char* inputstr, uint32
 
 int opsPlaceStringShadowObject(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, void* mem, double sigma, int passes) {
 	sigma*=5.0;
-	int clearance = 10;
+	int clearance = 20;
 	unsigned int approx_textwidth = std::string(inputstr).length()*size;
 
 	unsigned int tempbuffer_width = approx_textwidth+clearance*2;

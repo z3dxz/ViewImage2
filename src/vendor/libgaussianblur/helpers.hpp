@@ -103,7 +103,7 @@ typedef struct {
 typedef struct {
   std::vector<uint8_t> data;
   ImgGeom geom;
-} Image;
+}Image;
 
 typedef struct {
   int rows;
