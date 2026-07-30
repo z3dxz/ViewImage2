@@ -1,0 +1,219 @@
+#include <iostream>
+#include <string>
+#include <cmath>
+#include <windows.h>
+#include <gl/gl.h>
+#include "../headers/ops.hpp"
+#include "../headers/guirender.hpp"
+
+unsigned int imgdatatxt = 0;
+unsigned int checkertxt = 0;
+
+// Extension constant
+#ifndef GL_BGRA_EXT
+#define GL_BGRA_EXT 0x80E1
+#endif
+
+HGLRC hglrc;
+uint32_t lastImgW = 0, lastImgH = 0;
+uint32_t potImgW = 0, potImgH = 0;
+
+uint32_t NextPowerOfTwo(uint32_t n) {
+    if (n == 0) return 1; n--; n |= n >> 1; n |= n >> 2; n |= n >> 4; n |= n >> 8; n |= n >> 16;
+    return n + 1;
+}
+
+void SetupPixelFormat(GlobalParams* m) {
+    PIXELFORMATDESCRIPTOR pfd = { 0 };
+    pfd.nSize = sizeof(PIXELFORMATDESCRIPTOR);
+    pfd.nVersion = 1;
+    pfd.dwFlags = PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER | PFD_DRAW_TO_WINDOW;
+    pfd.iPixelType = PFD_TYPE_RGBA;
+    pfd.cColorBits = 24;
+    pfd.cDepthBits = 24;
+    pfd.iLayerType = PFD_MAIN_PLANE;
+    int pixelFormat = ChoosePixelFormat(m->hdc, &pfd);
+    if (pixelFormat == 0) {
+        MessageBoxA(NULL, "ChoosePixelFormat Failed", "OpenGL Fatal Error", MB_OK | MB_ICONERROR);
+        return;
+    }
+    if (!SetPixelFormat(m->hdc, pixelFormat, &pfd)) {
+        MessageBoxA(NULL, "SetPixelFormat Failed", "OpenGL Fatal Error", MB_OK | MB_ICONERROR);
+    }
+}
+
+void MakeCheckerboard() {
+    uint32_t* checker = new uint32_t[4];
+    checker[0] = 0xFF181818;
+    checker[3] = 0xFF181818;
+    checker[1] = 0xFF121212;
+    checker[2] = 0xFF121212;
+    if (checkertxt) glDeleteTextures(1, &checkertxt);
+    glGenTextures(1, &checkertxt);
+    glBindTexture(GL_TEXTURE_2D, checkertxt);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 2, 2, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 2, 2, GL_BGRA_EXT, GL_UNSIGNED_BYTE, checker);
+    delete[] checker;
+}
+
+void DrawCheckerboard(GlobalParams* m) {
+    if (!checkertxt) return;
+    glEnable(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, checkertxt);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glColor3f(1.0f, 1.0f, 1.0f);
+    glBegin(GL_QUADS);
+    float tile2X = ((float)m->width / 2.0f / 9.0f);
+    float tile2Y = ((float)m->height / 2.0f / 9.0f);
+    glTexCoord2f(0.0f, 0.0f); glVertex2f(0, 0);
+    glTexCoord2f(tile2X, 0.0f); glVertex2f(m->width, 0);
+    glTexCoord2f(tile2X, tile2Y); glVertex2f(m->width, m->height);
+    glTexCoord2f(0.0f, tile2Y); glVertex2f(0, m->height);
+    glEnd();
+    glDisable(GL_TEXTURE_2D);
+}
+
+
+void InitializeOpenGL(GlobalParams* m) {
+
+    SetupPixelFormat(m);
+    hglrc = wglCreateContext(m->hdc);
+    if (!hglrc) {
+        MessageBoxA(NULL, "wglCreateContext Failed", "OpenGL Fatal Error", MB_OK | MB_ICONERROR);
+        return;
+    }
+    if (!wglMakeCurrent(m->hdc, hglrc)) {
+        MessageBoxA(NULL, "wglMakeCurrent Failed", "OpenGL Fatal Error", MB_OK | MB_ICONERROR);
+        return;
+    }
+    glClearColor(0.0f, 0.5f, 0.5f, 1.0f);
+    MakeCheckerboard();
+}
+
+void NewImgDataTxt(GlobalParams* m) {
+    if (imgdatatxt) glDeleteTextures(1, &imgdatatxt);
+    potImgW = NextPowerOfTwo(m->imgwidth);
+    potImgH = NextPowerOfTwo(m->imgheight);
+    glGenTextures(1, &imgdatatxt);
+    glBindTexture(GL_TEXTURE_2D, imgdatatxt);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, potImgW, potImgH, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+}
+
+void UpdateImage(GlobalParams* m, uint32_t* renderbuffer) {
+    if (!renderbuffer || !m->imgdata) return;
+    if (lastImgW != m->imgwidth || lastImgH != m->imgheight || !imgdatatxt) {
+        NewImgDataTxt(m);
+        lastImgW = m->imgwidth;
+        lastImgH = m->imgheight;
+    }
+    glBindTexture(GL_TEXTURE_2D, imgdatatxt);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, m->imgwidth, m->imgheight, GL_BGRA_EXT, GL_UNSIGNED_BYTE, renderbuffer);
+}
+
+bool followsPattern(int number) {
+    double logBase2 = log2((double)number / 100.0);
+    return logBase2 == floor(logBase2);
+}
+
+void DrawImage(GlobalParams* m) {
+    if (!imgdatatxt || !m->imgdata) return;
+    const int offX = (int)roundf(((float)m->width - m->imgwidth * m->mscaler) / 2.0f + m->iLocX);
+    const int offY = (int)roundf(((float)m->height - m->imgheight * m->mscaler) / 2.0f + m->iLocY);
+    const int distX = offX + (int)roundf((float)m->imgwidth * m->mscaler);
+    const int distY = offY + (int)roundf((float)m->imgheight * m->mscaler);
+    float maxImgU = (float)m->imgwidth / (float)potImgW;
+    float maxImgV = (float)m->imgheight / (float)potImgH;
+
+    glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+    glEnable(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, imgdatatxt);
+    GLint filter = (m->smoothing) ? GL_LINEAR : GL_NEAREST;
+    if (followsPattern((int)(m->mscaler * 100))) {
+        filter = GL_NEAREST;
+    }
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
+
+    glBegin(GL_QUADS);
+
+    glTexCoord2f(0.0f, 0.0f); glVertex2f(offX, offY);
+    glTexCoord2f(0.0f, maxImgV);   glVertex2f(offX, distY);
+    glTexCoord2f(maxImgU, maxImgV); glVertex2f(distX, distY);
+    glTexCoord2f(maxImgU, 0.0f); glVertex2f(distX, offY);
+    glEnd();
+    glDisable(GL_TEXTURE_2D);
+}
+
+int redraw_timer = 10;
+bool need_redraw_image = false;
+
+void RedrawScene(GlobalParams* m);
+
+
+void PerformRedraw(GlobalParams* m){
+    if(redraw_timer>0) {
+        redraw_timer--;
+
+        RedrawScene(m);
+    }
+
+}
+
+void RedrawSurface(GlobalParams* m, bool updateimage) {
+    redraw_timer = 10;
+    if(updateimage) {
+        need_redraw_image = true;
+    }
+}
+
+void RedrawScene(GlobalParams* m) {
+    glPushAttrib(GL_CURRENT_BIT | GL_ENABLE_BIT | GL_TEXTURE_BIT);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glViewport(0, 0, m->width, m->height);
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+    glOrtho(0.0, m->width, m->height, 0.0, -1.0, 1.0);
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+    
+    uint32_t* renderbuffer = (uint32_t*)m->imgdata;
+    if (m->isImagePreview) renderbuffer = (uint32_t*)m->imagepreview;
+    if (renderbuffer && m->imgdata) {
+        if (lastImgW != m->imgwidth || lastImgH != m->imgheight || !imgdatatxt) {
+            NewImgDataTxt(m);
+        }
+        lastImgW = m->imgwidth;
+        lastImgH = m->imgheight;
+    }
+
+    if (need_redraw_image) {
+        UpdateImage(m, renderbuffer);
+        need_redraw_image = false;
+    }
+
+    DrawCheckerboard(m);
+    DrawImage(m);
+    DrawGUI(m);
+    SwapBuffers(m->hdc);
+
+    glMatrixMode(GL_MODELVIEW);
+    glPopMatrix();
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+    glPopAttrib();
+}
+
+void CleanupOpenGL(GlobalParams* m) {
+    if (imgdatatxt) glDeleteTextures(1, &imgdatatxt);
+    if (checkertxt) glDeleteTextures(1, &checkertxt);
+	
+    wglMakeCurrent(NULL, NULL);
+    wglDeleteContext(hglrc);
+    ReleaseDC(m->hwnd, m->hdc);
+}

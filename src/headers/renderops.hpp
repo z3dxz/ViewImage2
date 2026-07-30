@@ -6,6 +6,13 @@
 #include <cmath>
 #include <memory>
 #include <execution>
+#include <windows.h>
+#include <iostream>
+#include <string>
+
+void InitializeRenderOperations(GlobalParams* m);
+void DeInitializeRenderOperations();
+
 
 enum GradientDirection {
 	GradientLeftRight,
@@ -20,12 +27,6 @@ void CircleGenerator(GlobalParams* m, int circleDiameter, int locX, int locY, ui
 void drawLine(GlobalParams* m, int startX, int startY, int len, bool horizontal, uint32_t color, float opacity);
 void dDrawFilledRectangle(GlobalParams* m, int xloc, int yloc, int width, int height, uint32_t color, float opacity);
 void PlaceFromAtlas(GlobalParams* m, void* source, int sourceWidth, int sourceHeight, int sourceX, int sourceY, int destX, int destY, int width, int height, uint32_t color_tint, float opacity);
-
-void PlaceImageNN(GlobalParams* m, int rendertoolbar, void* memory, bool invert, POINT p, bool clip, RECT region);
-
-void PlaceImageBI(GlobalParams* m, int rendertoolbar, void* memory, bool invert, POINT p, bool clip, RECT region);
-
-void Tint(GlobalParams* m);
 
 void boxBlur(GlobalParams* m, uint32_t kernelSize, int mode, int startOffset, int vsize);
 void gaussian_blur(GlobalParams* m, int lW, int lH, double sigma, uint32_t offX, uint32_t offY);

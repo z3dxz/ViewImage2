@@ -91,7 +91,6 @@ void LoadupFonts(std::vector<FontST>* fonts) {
             }
             
             else {
-                Beep(4000, 1000);
                 MessageBox(m->hwnd, "Error reading windows registry for font names", "Error", MB_OK | MB_ICONERROR);
                 break;
             }

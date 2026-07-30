@@ -14,48 +14,20 @@
 #include <mutex>
 #include <condition_variable>
 #include <random>
-
-void GuidedRedrawSurface(GlobalParams* m);
-
 void ToggleFullscreen(GlobalParams* m);
 
 std::mutex mtx;
 std::condition_variable cv;
 bool resizeCompleted = false;
 
+// say goodbye after opengl
 void ResizeBuffers(GlobalParams* m) {
 	RECT ws = { 0 };
 	GetClientRect(m->hwnd, &ws);
 	int newWidth = ws.right - ws.left;
 	int newHeight = ws.bottom - ws.top;
-
-	if (newWidth < 1) { newWidth = 1; }
-	if (newHeight < 1) { newHeight = 1; }
-
-	void* newScrdata = realloc(m->scrdata, newWidth * newHeight * 4);
-	std::vector<uint32_t> newIth(newWidth);
-	std::vector<uint32_t> newItv(newHeight);
-
-	if (newScrdata) {
-		m->width = newWidth;
-		m->height = newHeight;
-		m->scrdata = newScrdata;
-		m->ith = std::move(newIth);
-		m->itv = std::move(newItv);
-		for (uint32_t i = 0; i < m->width; i++)
-			m->ith[i] = i;
-		for (uint32_t i = 0; i < m->height; i++)
-			m->itv[i] = i;
-	}
-	else {
-		if (newScrdata) FreeData(newScrdata);
-	}
-
-	{
-		std::lock_guard<std::mutex> lock(mtx);
-		resizeCompleted = true;
-	}
-	cv.notify_one();
+	m->width = newWidth;
+	m->height = newHeight;
 }
 
 void ResetCoordinates(GlobalParams* m) {
@@ -77,22 +49,10 @@ void ResetCoordinates(GlobalParams* m) {
 
 
 void Size(GlobalParams* m) {
-	if (m->scrdata) { {
-			std::lock_guard<std::mutex> lock(mtx);
-			resizeCompleted = false;
-		}
-
-		std::future<void> asyncResize = std::async(std::launch::async, ResizeBuffers, m);
-
-		{
-			std::unique_lock<std::mutex> lock(mtx);
-			if (!cv.wait_for(lock, std::chrono::milliseconds(1000), [] { return resizeCompleted; })) {
-			}
-		}
-		// continue
-		autozoom(m);
-		RedrawSurface(m);
-	}
+	// go back to this
+	ResizeBuffers(m);
+	autozoom(m);
+	RedrawSurface(m);
 }
 
 HANDLE hMutex;
@@ -133,12 +93,6 @@ bool Initialization(GlobalParams* m, int argc, LPWSTR* argv) {
 	m->SegoeUI = LoadFont(m, "SegoeUI.ttf");
 	m->OCRAExt = LoadFont(m, "OCRAEXT.ttf");
 
-	size_t scrsize = m->width * m->height * 4;
-	m->scrdata = malloc(scrsize);
-	for (uint32_t i = 0; i < m->width * m->height; i++) {
-		*((uint32_t*)m->scrdata+i) = 0x008080; // TEAL color
-	}
-
 	m->toolbarData = LoadImageFromResource(TOOLBAR_RES, m->widthos, m->heightos, m->channelos);
 
 	m->menu_shadow = LoadImageFromResource(MENUSHADOW, m->menu_s_x, m->menu_s_y, m->channelos);
@@ -154,7 +108,6 @@ bool Initialization(GlobalParams* m, int argc, LPWSTR* argv) {
 	m->fullscreenIconData = LoadImageFromResource(FS_ICON, null1, null2, null3);
 	m->dmguideIconData = LoadImageFromResource(DMGUIDEICON, null1, null2, null3);
 	m->cropImageData = LoadImageFromResource(CROPICON, null1, null2, null3);
-
 
 	// TEMPORARY FILES STUFF
 
@@ -174,15 +127,18 @@ bool Initialization(GlobalParams* m, int argc, LPWSTR* argv) {
 		bool isempty = PathIsDirectoryEmpty(firstfolder.c_str());
 		if (!isempty) {
 			m->deletingtemporaryfiles = true;
+
+			// nonreplace image
 			RedrawSurface(m);
 
 			// for notice
 			m->deletingtemporaryfiles = false;
+
+			// nonreplace image
 			RedrawSurface(m);
 			DeleteTempFiles(m, firstfolder);
 
 			CreateDirectory(firstfolder.c_str(), NULL);
-
 		}
 	}
 
@@ -215,8 +171,6 @@ bool Initialization(GlobalParams* m, int argc, LPWSTR* argv) {
 	std::cout << "S: " << secondArg << "\n";
 	std::cout << "T: " << thirdArg << "\n";
 
-	m->loading = true;
-		RedrawSurface(m);
 	if (firstArg != "") {
 		if (!OpenImageFromPath(m, firstArg, false)) {
 			MessageBox(m->hwnd, "Unable to open image", "Error", MB_OK | MB_ICONERROR);
@@ -224,8 +178,6 @@ bool Initialization(GlobalParams* m, int argc, LPWSTR* argv) {
 			return false;
 		}
 	}
-	m->loading = false;
-		RedrawSurface(m);
 		
 	Size(m);
 
@@ -330,19 +282,19 @@ void PerformWASDMagic(GlobalParams* m) {
 	std::string vv = std::to_string(m->wasdX);
 
 	MouseMove(m, false);
-	GuidedRedrawSurface(m);
+
+	// nonreplace image
+	RedrawSurface(m);
 }
+
+
 void UndoBus(GlobalParams*m );
 void OpenImageEffectsMenu(GlobalParams* m) {
 	m->menuVector = {
 
 		{"Automatic Adjust",
 			[m]() -> bool {
-				m->loading = true;
-				RedrawSurface(m);
 				bool did = AutoAdjustLevels(m, (uint32_t*)m->imgdata, 7.0);
-				m->loading = false;
-				RedrawSurface(m);
 				return true;
 			},78,13, &m->item_enabled, true
 		},
@@ -350,6 +302,7 @@ void OpenImageEffectsMenu(GlobalParams* m) {
 		{"Brightness/Contrast{s}",
 			[m]() -> bool {
 				m->isMenuState = false;
+				// nonreplace image
 				RedrawSurface(m);
 				ShowBrightnessContrastDialog(m);
 				return true;
@@ -377,7 +330,7 @@ void OpenImageEffectsMenu(GlobalParams* m) {
 						*loc = (a << 24) | (r << 16) | (g << 8) | b;
 					}
 				}
-				RedrawSurface(m);
+				RedrawSurface(m, true);
 				return true;
 			},65,13, &m->item_enabled, true
 		},
@@ -386,6 +339,7 @@ void OpenImageEffectsMenu(GlobalParams* m) {
 		{"Gaussian Blur{s}",
 			[m]() -> bool {
 				m->isMenuState = false;
+				// nonreplace image
 				RedrawSurface(m);
 				ShowGaussianDialog(m);
 				return true;
@@ -396,6 +350,7 @@ void OpenImageEffectsMenu(GlobalParams* m) {
 			[m]() -> bool {
 
 				m->isMenuState = false;
+				// nonreplace image
 				RedrawSurface(m);
 				ShowDrawTextDialog(m);
 				return true;
@@ -409,8 +364,8 @@ void OpenImageEffectsMenu(GlobalParams* m) {
 				TurnOffDraw(m);
 				m->drawmode = false;
 				m->isInCropMode = true;
+				// nonreplace image
 				RedrawSurface(m);
-
 				return true;
 			},52,13, &m->item_enabled, true
 		},
@@ -420,7 +375,7 @@ void OpenImageEffectsMenu(GlobalParams* m) {
 				createUndoStep(m,true);
 				memcpy(m->imgdata, m->imgoriginaldata, m->imgwidth * m->imgheight * 4);
 				m->shouldSaveShutdown = true;
-				GuidedRedrawSurface(m);
+				RedrawSurface(m, true);
 				return true;
 			},78,0, &m->isimage_menucondition, true
 		},
@@ -429,6 +384,9 @@ void OpenImageEffectsMenu(GlobalParams* m) {
 	m->menuX = GetLocationFromButton(m, 8); // 8 = effects
 	m->menuY = m->toolheight;
 	m->isMenuState = true;
+
+	// calls when image effects menu opens on option 8 (effects)
+	// nonreplace image
 	RedrawSurface(m);
 }
 
@@ -485,13 +443,14 @@ int PerformCasedBasedOperation(GlobalParams* m, uint32_t id) {
 	case 4:
 		// zoom fit
 		autozoom(m);
-		RedrawSurface(m);
 		return 0;
 	case 5:
+
 		// zoom original
 		m->mscaler = 1.0f;
-		RedrawSurface(m);
 
+		// nonreplace image
+		RedrawSurface(m);
 		return 0;
 	case 6:
 		// rotate
@@ -501,6 +460,7 @@ int PerformCasedBasedOperation(GlobalParams* m, uint32_t id) {
 	case 7: {
 		// draw
 		m->drawmode = !m->drawmode;
+		// nonreplace image
 		RedrawSurface(m);
 		return 0;
 	}
@@ -508,7 +468,8 @@ int PerformCasedBasedOperation(GlobalParams* m, uint32_t id) {
 		// effects
 		if(m->isMenuState) {
 			m->isMenuState = false;
-			GuidedRedrawSurface(m);
+			// nonreplace image
+			RedrawSurface(m);
 			return 0;
 		}
 
@@ -581,6 +542,7 @@ bool MouseDownCases(GlobalParams* m){
 	// [Mouse Down] Menu inactive gateway
 	if (m->isMenuState && !(IfInMenu(mPP, m))) {
 		m->isMenuState = false;
+		// nonreplace image
 		RedrawSurface(m);
 		menugateway = true;
 		// silent: do not stop past input
@@ -601,16 +563,22 @@ bool MouseDownCases(GlobalParams* m){
 
 	if (m->eyedroppermode) {
 		// eyedropper here
-		bool smooth = m->smoothing;
-		m->smoothing = false;
+		
+		int k1 = (int)((mPP.x - m->CoordLeft) / m->mscaler);
+		int v1 = (int)((mPP.y - m->CoordTop) / m->mscaler);
+		if(k1 >= 0 && k1 < m->imgwidth && v1 >= 0 && v1 < m->imgheight) {
+			std::cout << k1 << " " << v1 << "\n";
+			uint32_t color = *GetMemoryLocation(m->imgdata, k1, v1, m->imgwidth, m->imgheight);
+			m->a_drawColor = color;
+			m->eyedroppermode = false;
+			MouseMove(m);
+			m->drawtype = 1;
+		}
+
+		// nonreplace image
 		RedrawSurface(m);
-		uint32_t color = *GetMemoryLocation(m->scrdata, mPP.x, mPP.y, m->width, m->height);
-		m->a_drawColor = change_alpha(color, 255);
-		m->eyedroppermode = false;
-		MouseMove(m);
-		m->smoothing = smooth;
-		m->drawtype = 1;
-		RedrawSurface(m);
+
+		
 		return 0;
 	}
 
@@ -650,12 +618,14 @@ bool MouseDownCases(GlobalParams* m){
 				m->a_drawColor = InvertCC(c, true);
 				m->drawtype = 1;
 			}
+			// nonreplace image
 			RedrawSurface(m);
 			return 0;
 		}
 		if ((mPP.x > softBeginX && mPP.x < softEndX) && (mPP.y > softBeginY && mPP.y < softEndY)) { // soft had
 			// open soft hard
 			m->a_softmode = !m->a_softmode;
+			// nonreplace image
 			RedrawSurface(m);
 			return 0;
 		}
@@ -679,24 +649,28 @@ bool MouseDownCases(GlobalParams* m){
 		if((mPP.y > (m->dmguide_y) && mPP.y <= (m->dmguide_y+43))) {
 			// pen
 			m->drawtype = 1;
+			// nonreplace image
 			RedrawSurface(m);
 			return 0;
 		}
 		if((mPP.y > (m->dmguide_y+43) && mPP.y <= (m->dmguide_y+84))) {
 			// erase
 			m->drawtype = 0;
+			// nonreplace image
 			RedrawSurface(m);
 			return 0;
 		}
 		if((mPP.y > (m->dmguide_y+84) && mPP.y <= (m->dmguide_y+125))) {
 			// transparent
 			m->drawtype = 3;
+			// nonreplace image
 			RedrawSurface(m);
 			return 0;
 		}
 		if((mPP.y > (m->dmguide_y+125) && mPP.y <= (m->dmguide_y+168))) {
 			// eyedropper
 			m->eyedroppermode = true;
+			// nonreplace image
 			RedrawSurface(m);
 			return 0;
 		}
@@ -927,47 +901,12 @@ void placeDraw(GlobalParams* m, POINT* pos) {
 
     end = clock();
     m->ms_time = (double)(end - start) / CLOCKS_PER_SEC;
+
+	RedrawSurface(m, true);
 }
 
 
 bool firsttime = true;
-
-void GuidedRedrawSurface(GlobalParams* m) {
-	ResetCoordinates(m);
-
-	if (m->CoordTop > (m->toolheight-2)) {
-		if (firsttime) {
-			RedrawSurface(m);
-			firsttime = false;
-		}
-		else {
-			HRGN rgn = CreateRectRgn(0, m->toolheight, m->width, m->height);
-			SelectClipRgn(m->hdc, rgn);
-			RedrawSurface(m, true, true);
-			DeleteObject(rgn);
-		}
-	}
-	else {
-		firsttime = true;
-		RedrawSurface(m);
-	}
-}
-
-void GuidedToolbarRedrawSurface(GlobalParams* m, int clip){
-	// the 25 represents the clip, the 30 represents the cutoff
-	if(m->full_redraw_surface_the_first_time) {
-		RedrawSurface(m);
-		m->full_redraw_surface_the_first_time = false;
-	}
-	else {
-		HRGN rgn = CreateRectRgn(0, 0, m->width, m->toolheight+clip);
-		SelectClipRgn(m->hdc, rgn);
-		RECT rgn_surf = {0, 0, m->width,  m->toolheight+clip+5}; // + 5 due to left dmguide toolbar blur mess up // def value : 25 : 30
-
-		RedrawSurface(m, false, true, false, true, rgn_surf);
-		DeleteObject(rgn);
-	}
-}
 
 void MouseMoveCases(POINT pos, POINT globalpos, LPSTR* cursor, HINSTANCE* cursorinstance, GlobalParams* m) {
 	// i would probably min this
@@ -1045,7 +984,7 @@ void MouseMoveCases(POINT pos, POINT globalpos, LPSTR* cursor, HINSTANCE* cursor
 			if (m->rightP < m->leftP) { m->rightP = m->leftP; }
 			if (m->bottomP < m->topP) { m->bottomP = m->topP; }
 		}
-
+		// nonreplace image
 		RedrawSurface(m);
 		return;
 	} else if (m->eyedroppermode) {
@@ -1059,14 +998,15 @@ void MouseMoveCases(POINT pos, POINT globalpos, LPSTR* cursor, HINSTANCE* cursor
 		m->iLocX = m->lockimgoffx - (m->LockmPos.x - globalpos.x);
 		m->iLocY = m->lockimgoffy - (m->LockmPos.y - globalpos.y);
 		
-		GuidedRedrawSurface(m);
+		// nonreplace image
+		RedrawSurface(m);
 		return;
 	}
 	else if (m->brush_size_slider.md) {
 		*cursor = IDC_SIZEWE;
 
 		float findMid = (float)(pos.x - (m->brush_size_slider.x+(*m->brush_size_slider.parentX))) / (float)((m->brush_size_slider.endX)-(m->brush_size_slider.x));
-		m->testfloat = findMid;
+
 		if (findMid > 0.0f) {
 			float eff = sqrt(m->imgheight-1);
 			m->drawSize = pow((findMid*eff),2)+1;
@@ -1076,16 +1016,13 @@ void MouseMoveCases(POINT pos, POINT globalpos, LPSTR* cursor, HINSTANCE* cursor
 			m->drawSize = 1.0f;
 		}
 		
-		if (m->drawMenuOffsetY > m->toolheight) {
-			RedrawSurface(m);
-		} else {
-			GuidedToolbarRedrawSurface(m, 25);
-		}
+		// nonreplace image
+		RedrawSurface(m);
 	}
 	else if (m->brush_opacity_slider.md) {
 		*cursor = IDC_SIZEWE;
 		float findMid = (float)(pos.x - (m->brush_opacity_slider.x+(*m->brush_opacity_slider.parentX))) / (float)((m->brush_opacity_slider.endX)-(m->brush_opacity_slider.x));
-		m->testfloat = findMid;
+
 		if (findMid >= 0.0f && findMid <= 1.0f) {
 			m->a_opacity = findMid;
 		}
@@ -1096,56 +1033,41 @@ void MouseMoveCases(POINT pos, POINT globalpos, LPSTR* cursor, HINSTANCE* cursor
 			m->a_opacity = 1.0f;
 		}
 
-		if (m->drawMenuOffsetY > m->toolheight) {
-			RedrawSurface(m);
-		} else {
-			GuidedToolbarRedrawSurface(m, 25);
-		}
+		// nonreplace image
+		RedrawSurface(m);
 	} else if (m->isMenuState && IfInMenu(pos, m)) {
-		HRGN rgn = CreateRectRgn(m->actmenuX, m->actmenuY, m->actmenuX + m->menuSX, m->actmenuY + m->menuSY);
-		SelectClipRgn(m->hdc, rgn);
-		RECT rgn_surf = {m->actmenuX, m->actmenuY, m->actmenuX + m->menuSX, m->actmenuY + m->menuSY};
 		
 		int selected = (pos.y-(m->actmenuY+2))/m->mH;
 		if (selected >= 0 && selected < m->menuVector.size() && *(m->menuVector[selected].enable_condition) ) {
 			*cursor = IDC_HAND;
 		}
 
-		RedrawSurface(m, true, true, false, true, rgn_surf);
-		DeleteObject(rgn);
+		// nonreplace image
+		RedrawSurface(m);
 		return;
 	}
 	else if (m->drawmousedown) {
 		placeDraw(m, &globalpos);
-		GuidedRedrawSurface(m);
 		return;
 	}
 	else if (pos.y <= m->toolheight) {
-		m->lock = true;
 		int last = m->selectedbutton;
 		m->selectedbutton = getXbuttonID(m, pos);
 		
 		if (m->selectedbutton >= 0 && m->selectedbutton < m->toolbartable.size()) {
 			*cursor = IDC_HAND;
 		}
-		int clip = 25;
 
-		if(m->drawmode && m->selectedbutton == 7 || last == 7) { // 7 due to the annotate guide, needs "more" redraw surface
-			clip = 100;
-		}
-
-		GuidedToolbarRedrawSurface(m, clip);
+		// nonreplace image
+		RedrawSurface(m);
 		return;
 	} else {
-		// I think this is the change when you hover out of the toolbar
-		if (m->lock) {
+		// no longer selected, off toolbar
+		if(m->selectedbutton >= 0) {
 			m->selectedbutton = -1;
+			// nonreplace image
 			RedrawSurface(m);
-			m->lock = false;
 		}
-		// annotation circle
-		GuidedRedrawSurface(m);
-		return;
 	}
 }
 
@@ -1153,7 +1075,6 @@ void MouseMoveCases(POINT pos, POINT globalpos, LPSTR* cursor, HINSTANCE* cursor
 LPSTR lastcursor=0;
 HCURSOR realcursor;
 void MouseMove(GlobalParams* m, bool isCalledWhenMouseAcuallyMoved){
-	
 	LPSTR cursor = IDC_ARROW;
 	HINSTANCE cursorinstance = NULL;
 
@@ -1183,21 +1104,18 @@ void MouseMove(GlobalParams* m, bool isCalledWhenMouseAcuallyMoved){
 
 	POINT globalpos = { 0 };
 	GetCursorPos(&globalpos);
-
-	MouseMoveCases(pos, globalpos, &cursor, &cursorinstance, m);
-
+	
 	bool isInMenu = IfInMenu(pos, m) && m->isMenuState;
 	bool isInImage = IsInImage(pos, m);
 
-	bool as = false;
 	if (m->drawmode && isInImage && !isInMenu && !m->Middledown) {
 		cursorinstance = GetModuleHandle(NULL);
 		cursor = MAKEINTRESOURCE(IDC_CURSOR1);
-		as = true;
+		// annotation circle
+		if (!m->drawmousedown) RedrawSurface(m);
 	}
 
-	if (m->eyedroppermode) {
-	}
+	MouseMoveCases(pos, globalpos, &cursor, &cursorinstance, m);
 
 	if(lastcursor != cursor) {
     	realcursor = LoadCursor(cursorinstance, cursor);
@@ -1222,7 +1140,6 @@ INT_PTR CALLBACK DialogProc(HWND hwndDlg, UINT umsg, WPARAM wparam, LPARAM lpara
 	case WM_TIMER: {
 		if (m_proc->ProcessOfMakingUndoStep == 0) {
 			EndDialog(hwndDlg, 0);
-
 		}
 		return TRUE;
 	}
@@ -1236,9 +1153,11 @@ INT_PTR CALLBACK DialogProc(HWND hwndDlg, UINT umsg, WPARAM wparam, LPARAM lpara
 void showMessageWhileProcessing(GlobalParams* m) {
 	m_proc = m;
 	m->tint = true;
+	// nonreplace image
 	RedrawSurface(m);
 	DialogBox(GetModuleHandle(NULL), MAKEINTRESOURCE(LoadingHalt), m->hwnd, DialogProc);
 	m->tint = false;
+	// nonreplace image
 	RedrawSurface(m);
 }
 
@@ -1324,7 +1243,6 @@ void createUndoStep(GlobalParams* m, bool async) {
 	if (!async) {
 		if (m->ProcessOfMakingUndoStep > 0) {
 			m->loading = true;
-			RedrawSurface(m);
 			showMessageWhileProcessing(m);
 		}
 	}
@@ -1364,7 +1282,6 @@ void UndoBus(GlobalParams* m) {
 	}
 	if (m->ProcessOfMakingUndoStep > 0) {
 		m->loading = true;
-		RedrawSurface(m);
 		showMessageWhileProcessing(m);
 	}
 
@@ -1398,7 +1315,8 @@ void UndoBus(GlobalParams* m) {
     }
 	classUndo = false;
 	m->loading = false;
-	RedrawSurface(m);
+
+	RedrawSurface(m, true);
 }
 
 void RedoBus(GlobalParams* m) {
@@ -1407,7 +1325,6 @@ void RedoBus(GlobalParams* m) {
 	}
 	if (m->ProcessOfMakingUndoStep > 0) {
 		m->loading = true;
-		RedrawSurface(m);
 		showMessageWhileProcessing(m);
 	}
 
@@ -1441,8 +1358,8 @@ void RedoBus(GlobalParams* m) {
 	}
 	classUndo = false;
 	m->loading = false;
-	RedrawSurface(m);
-	
+
+	RedrawSurface(m, true);
 }
 
 void ToggleFullscreen(GlobalParams* m) { 
@@ -1452,7 +1369,7 @@ void ToggleFullscreen(GlobalParams* m) {
 		m->fullscreen = false; // to fix fullscreen "testing" issue with toolheight
 		SetWindowPlacement(m->hwnd, &m->wpPrev);
 		SetWindowPos(m->hwnd, NULL, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
-		
+		// nonreplace image
 		RedrawSurface(m);
 	}
 	else {
@@ -1462,6 +1379,7 @@ void ToggleFullscreen(GlobalParams* m) {
 		GetWindowPlacement(m->hwnd, &m->wpPrev);
 		SetWindowLong(m->hwnd, GWL_STYLE, WS_POPUP | WS_VISIBLE);
 		SetWindowPos(m->hwnd, 0, 0, 0, screenX, screenY, 0);
+		// nonreplace image
 		RedrawSurface(m);
 	}
 }
@@ -1470,7 +1388,6 @@ void zoomcycle(GlobalParams* m, float factor) {
 	for (int i = 0; i < 10; i++) { // Use the "for" loop to recursively make more perfect to reduce rounding errors
 		float factor_s = factor / m->mscaler;
 		NewZoom(m, factor_s, true, false);
-		GuidedRedrawSurface(m);
 	}
 }
 
@@ -1492,11 +1409,13 @@ void KeyDown(GlobalParams* m, WPARAM wparam, LPARAM lparam) {
 	if ((GetKeyState(VK_ESCAPE) & 0x8000)) {
 		m->eyedroppermode = false;
 		m->isInCropMode = false;
+		// nonreplace image
 		RedrawSurface(m);
 	}
 
 	if (((GetKeyState(VK_SHIFT) & 0x8000) && wparam == 'Z')&& m->drawmode) { // Eyedropper
 		m->eyedroppermode = true;
+		// nonreplace image
 		RedrawSurface(m);
 	}
 
@@ -1508,6 +1427,7 @@ void KeyDown(GlobalParams* m, WPARAM wparam, LPARAM lparam) {
 
 	// FOR KEYBOARD NAVIGATION
 	if (((GetKeyState(VK_CONTROL) & 0x8000) && (GetKeyState(VK_MENU) & 0x8000)) && (m->imgwidth >= 1)) { // ALSO FOUND IN REDRAW SURFACE TO DRAW TXT
+		// nonreplace image
 		RedrawSurface(m);
 
 		if (wparam >= '1' && wparam <= '9'){
@@ -1538,6 +1458,7 @@ void KeyDown(GlobalParams* m, WPARAM wparam, LPARAM lparam) {
 			SetWindowPlacement(m->hwnd, &m->wpPrev);
 			SetWindowPos(m->hwnd, NULL, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
 			m->fullscreen = false;
+			// nonreplace image
 			RedrawSurface(m);
 		}
 	}
@@ -1593,7 +1514,6 @@ void KeyDown(GlobalParams* m, WPARAM wparam, LPARAM lparam) {
 
 	if (wparam == '5') {
 		autozoom(m);
-		GuidedRedrawSurface(m);
 	}
 
 	if (wparam == '6') {
@@ -1635,12 +1555,7 @@ void KeyDown(GlobalParams* m, WPARAM wparam, LPARAM lparam) {
 
 	if (wparam == 'A' && GetKeyState(VK_SHIFT) & 0x8000) {
 		// AutoAdjust
-		m->loading = true;
-		RedrawSurface(m);
 		bool did = AutoAdjustLevels(m, (uint32_t*)m->imgdata, 7.0);
-
-		m->loading = false;
-		RedrawSurface(m);
 	}
 
 	if (wparam == 'R' && GetKeyState(VK_CONTROL) & 0x8000) {
@@ -1654,6 +1569,7 @@ void KeyDown(GlobalParams* m, WPARAM wparam, LPARAM lparam) {
 	
 	if (wparam == 'G') {
 		m->drawmode = !m->drawmode;
+		// nonreplace image
 		RedrawSurface(m);
 	}
 
@@ -1732,6 +1648,8 @@ void RightDownCases(GlobalParams* m){
 				[m]() -> bool {
 					m->isMenuState = false;
 					m->smoothing = !m->smoothing;
+					// opengl notice: this should no longer be a m-> variable and should be tied to the opengl renderer
+					// nonreplace image
 					RedrawSurface(m);
 					return true;
 				},13,0, &m->isimage_menucondition, true
@@ -1764,7 +1682,8 @@ void RightDownCases(GlobalParams* m){
 				Beep(2000, 50);
 
 				m->shouldSaveShutdown = true;
-				RedrawSurface(m);
+
+				RedrawSurface(m, true);
 
 				return true;
 			},91,13, &m->isimage_menucondition, true
@@ -1773,6 +1692,7 @@ void RightDownCases(GlobalParams* m){
 			{"Resize Image [CTRL+R]{s}",
 				[m]() -> bool {
 					m->isMenuState = false;
+					// nonreplace image
 					RedrawSurface(m);
 					ShowResizeDialog(m);
 					//ResizeImageToSize(m);
@@ -1787,6 +1707,7 @@ void RightDownCases(GlobalParams* m){
 						SetWindowPos(m->hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 						m->menuVector[6].atlasX = 26;
 						aot = false;
+					// nonreplace image
 						RedrawSurface(m);
 						Beep(1000, 100);
 					}
@@ -1794,6 +1715,7 @@ void RightDownCases(GlobalParams* m){
 						SetWindowPos(m->hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 						m->menuVector[6].atlasX = 39;
 						aot = true;
+						// nonreplace image
 						RedrawSurface(m);
 						Beep(2000, 100);
 					}
@@ -1811,6 +1733,7 @@ void RightDownCases(GlobalParams* m){
 		m->menuX = mPP.x;
 		m->menuY = mPP.y;
 		m->isMenuState = true;
+		// nonreplace image
 		RedrawSurface(m);
 	}
 
@@ -1833,6 +1756,8 @@ void MiddleDownCases(GlobalParams* m){
 	GetCursorPos(&m->LockmPos);
 
 	m->isMenuState = false;
+	
+	// nonreplace image
 	RedrawSurface(m);
 	
 	m->movemousedown = true;
@@ -1891,6 +1816,8 @@ void RightUpCases(GlobalParams* m) {
 
 void RightUp(GlobalParams* m) {
 	m->Rightdown = false;
+	
+	// nonreplace image
 	RedrawSurface(m);
 	
 	RightUpCases(m);
@@ -1927,6 +1854,8 @@ void MouseWheel(GlobalParams* m, WPARAM wparam, LPARAM lparam) {
 			}
 			if (m->drawSize < 1) { m->drawSize = 1; }
 			if (m->drawSize > 100.0f) { m->drawSize = 100.0f; }
+
+			// nonreplace image
 			RedrawSurface(m);
 			return;
 		}
@@ -1940,6 +1869,8 @@ void MouseWheel(GlobalParams* m, WPARAM wparam, LPARAM lparam) {
 			}
 			if (m->a_opacity < 0.01f) { m->a_opacity = 0.01f; }
 			if (m->a_opacity > 1.0f) { m->a_opacity = 1.0f; }
+
+			// nonreplace image
 			RedrawSurface(m);
 			return;
 		}
@@ -1960,11 +1891,13 @@ void MouseWheel(GlobalParams* m, WPARAM wparam, LPARAM lparam) {
 
 	if ((GetKeyState(VK_MENU) & 0x8000)&&m->drawmode) {// why do they call the alt key VK_MENU
 		m->drawSize *= v;
+		// nonreplace image
 		RedrawSurface(m);
 	}
 	else {
 		NewZoom(m, v, true, true);
 	}
 
-	
+	// nonreplace image
+	RedrawSurface(m);
 }

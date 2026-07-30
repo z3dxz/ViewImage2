@@ -1,10 +1,10 @@
 
-#include "headers/rendering.hpp"
+#include "../headers/rendering.hpp"
 #include <vector>
 #include <thread>
 #include <time.h>
 #include <wincodec.h>
-#include "headers/renderops.hpp"
+#include "../headers/renderops.hpp"
 
 #define max(a,b)            (((a) > (b)) ? (a) : (b))
 #define min(a,b)            (((a) < (b)) ? (a) : (b))
@@ -72,16 +72,16 @@ void RenderFullscreenIcon(GlobalParams* m, bool aeromode){
 	if(nearf) {
 		// what happens when you hover over the screen button
 		//-- The outline
-		dDrawRoundedRectangle(m, m->width-36, 12, 24, 23, 0xFFFFFF, 0.2f);
-		dDrawRoundedRectangle(m, m->width-37, 11, 26, 25, 0x000000, 1.0f);
+		dDrawRoundedRectangle(m, m->width-36, 12, 24, 23, 0xFFFFFFFF, 0.2f);
+		dDrawRoundedRectangle(m, m->width-37, 11, 26, 25, 0xFF000000, 1.0f);
 
 		//-- Fullscreen icon tooltip
 		SwitchFont(m->SegoeUI);
 		if (m->fullscreen) {
-			PlaceStringShadow(m, 13, "Exit Fullscreen (F11)", m->width - 120, 48, 0xFFFFFF, m->def_txt_shadow_softness, 1,1, 2);
+			PlaceStringShadow(m, 13, "Exit Fullscreen (F11)", m->width - 120, 48, 0xFFFFFFFF, m->def_txt_shadow_softness, 1,1, 2);
 		}
 		else {
-			PlaceStringShadow(m, 13, "Fullscreen (F11)", m->width - 100, 48, 0xFFFFFF, m->def_txt_shadow_softness, 1,1, 2);
+			PlaceStringShadow(m, 13, "Fullscreen (F11)", m->width - 100, 48, 0xFFFFFFFF, m->def_txt_shadow_softness, 1,1, 2);
 		}
 	}
 
@@ -107,12 +107,12 @@ void RenderToolbarContainer(GlobalParams* m) {
 		blur_toolbar(m);
 	}
 	// the background
-	dDrawFilledRectangle(m, 0, 1, m->width, m->toolheight-1, 0x0C0C0C, 0.65f);
+	dDrawFilledRectangle(m, 0, 1, m->width, m->toolheight-1, 0xFF0C0C0C, 0.65f);
 
 	// The three border lines
-	drawLine(m, 0, 0, m->width, true, 0x333333, 1.0f);
-	drawLine(m, 0, m->toolheight-2, m->width, true, 0xFFFFFF, 0.2f);
-	drawLine(m, 0, m->toolheight-1, m->width, true, 0x000000, 1.0f);
+	drawLine(m, 0, 0, m->width, true, 0xFF333333, 1.0f);
+	drawLine(m, 0, m->toolheight-2, m->width, true, 0xFFFFFFFF, 0.2f);
+	drawLine(m, 0, m->toolheight-1, m->width, true, 0xFF000000, 1.0f);
 }
 
 void RenderToolbarContainerAero(GlobalParams* m) {
@@ -167,11 +167,13 @@ void DrawVersion(GlobalParams* m, bool aeromode) {
 	// version
 	SwitchFont(m->OCRAExt);
 	int yloc = 15;
+
 	if(m->width <= 540) {
 		yloc = m->toolheight + 4;
 	}
+
 	std::string str = REAL_BIG_VERSION;
-	uint32_t vcolor = m->aeromode ? 0xFFFFFFFF : 0xFFb0b0b0;
+	uint32_t vcolor = m->aeromode ? 0xFFFFFFFFFF : 0xFFFFb0b0b0;
 	if(str.find('*') != std::string::npos) {
 		vcolor = 0xFFFF8080;
 	}
@@ -221,12 +223,12 @@ void RenderToolbarTooltips(GlobalParams* m) {
 		// actual tooltips
 		gaussian_blur(m, (txt.length() * 8) + 12, 20, 4.0f, loc-1, m->toolheight+4);
 
-		dDrawFilledRectangle(m, loc-1, m->toolheight + 4, (txt.length() * 8) + 12, 20, 0x000000, 0.4f);
-		dDrawRoundedRectangle(m, loc - 1, m->toolheight + 4, (txt.length() * 8) + 12, 20, 0xFFFFFF, 0.3f);
-		dDrawRoundedRectangle(m, loc - 2, m->toolheight + 3, (txt.length() * 8) + 14, 22, 0x000000, 0.8f);
+		dDrawFilledRectangle(m, loc-1, m->toolheight + 4, (txt.length() * 8) + 12, 20, 0xFF000000, 0.4f);
+		dDrawRoundedRectangle(m, loc - 1, m->toolheight + 4, (txt.length() * 8) + 12, 20, 0xFFFFFFFF, 0.3f);
+		dDrawRoundedRectangle(m, loc - 2, m->toolheight + 3, (txt.length() * 8) + 14, 22, 0xFF000000, 0.8f);
 
 		SwitchFont(m->OCRAExt);
-		PlaceStringShadow(m, 14, txt.c_str(), loc + 3, m->toolheight + 4, 0xFFFFFF, 0.34f, 1, 1, 1);
+		PlaceStringShadow(m, 14, txt.c_str(), loc + 3, m->toolheight + 4, 0xFFFFFFFF, 0.34f, 1, 1, 1);
 	} else {
 		int off = -20;
 		uint32_t shiftx = loc+2;
@@ -245,7 +247,7 @@ void RenderToolbarTooltips(GlobalParams* m) {
 }
 
 void DrawMenuIcon(GlobalParams* m, int locationX, int locationY, int atlasX, int atlasY, int opacity2) {
-	PlaceFromAtlas(m, m->menu_icon_atlas, m->menu_atlas_SizeX, m->menu_atlas_SizeY, atlasX, atlasY, locationX, locationY, 12, 12, 0xFF6060, 1.0f);
+	PlaceFromAtlas(m, m->menu_icon_atlas, m->menu_atlas_SizeX, m->menu_atlas_SizeY, atlasX, atlasY, locationX, locationY, 12, 12, 0xFFFF6060, 1.0f);
 }
 
 // rendermenu, placemenu
@@ -266,9 +268,9 @@ void DrawMenu(GlobalParams* m) { // render menu draw menu
 	m->actmenuY = posY;
 
 	gaussian_blur(m, miX-4, miY-4, 4.0f, posX+2, posY+2);
-	dDrawRoundedFilledRectangle(m, posX, posY, miX, miY, 0x000000, 0.65f);
-	dDrawRoundedRectangle(m, posX+1, posY+1, miX-2, miY-2, 0xFFFFFF, 0.2f);
-	dDrawRoundedRectangle(m, posX, posY, miX, miY, 0x000000, 1.0f);
+	dDrawRoundedFilledRectangle(m, posX, posY, miX, miY, 0xFF000000, 0.65f);
+	dDrawRoundedRectangle(m, posX+1, posY+1, miX-2, miY-2, 0xFFFFFFFF, 0.2f);
+	dDrawRoundedRectangle(m, posX, posY, miX, miY, 0xFF000000, 1.0f);
 
 	POINT mp;
 	GetCursorPos(&mp);
@@ -281,12 +283,11 @@ void DrawMenu(GlobalParams* m) { // render menu draw menu
 		int hoverSizeX = miX - 8;
 		int hoverSizeY = mH - 3;
 		// This is for hovering over your favorite menu button
-		dDrawRoundedFilledRectangle(m, hoverLocX, hoverLocY, hoverSizeX, hoverSizeY, 0xFF8080, 0.3f);   // FILL
-		dDrawRoundedRectangle(m, hoverLocX, hoverLocY, hoverSizeX, hoverSizeY, 0xFFFFFF, 0.3f);         // white
-		dDrawRoundedRectangle(m, hoverLocX - 1, hoverLocY - 1, hoverSizeX + 2, hoverSizeY + 2, 0x000000, 1.0f); // black BORDER!
+		dDrawRoundedFilledRectangle(m, hoverLocX, hoverLocY, hoverSizeX, hoverSizeY, 0xFFFF8080, 0.3f);   // FILL
+		dDrawRoundedRectangle(m, hoverLocX, hoverLocY, hoverSizeX, hoverSizeY, 0xFFFFFFFF, 0.3f);         // white
+		dDrawRoundedRectangle(m, hoverLocX - 1, hoverLocY - 1, hoverSizeX + 2, hoverSizeY + 2, 0xFF000000, 1.0f); // black BORDER!
 	}
 	
-
 	SwitchFont(m->Verdana);
 	for (int i = 0; i < m->menuVector.size(); i++) {
 		bool enabled = *(m->menuVector[i].enable_condition);
@@ -300,9 +301,9 @@ void DrawMenu(GlobalParams* m) { // render menu draw menu
 		int opacity = 255;
 		if(!enabled) {
 			opacity = 128;
-			PlaceString(m, 12, mystr.c_str(), posX + 26, (mH * i) + posY + 9, 0x808080);
+			PlaceString(m, 12, mystr.c_str(), posX + 26, (mH * i) + posY + 9, 0xFF808080);
 		} else {
-			PlaceStringShadow(m, 12, mystr.c_str(), posX + 26, (mH * i) + posY + 9, 0xF0F0F0, 0.5, 1, 1, 1, 0xFF000000);
+			PlaceStringShadow(m, 12, mystr.c_str(), posX + 26, (mH * i) + posY + 9, 0xFFF0F0F0, 0.5, 1, 1, 1, 0xFF000000);
 		}
 		
 		DrawMenuIcon(m, posX + 10, (mH* i) + posY + 10, m->menuVector[i].atlasX, m->menuVector[i].atlasY, opacity);
@@ -311,7 +312,7 @@ void DrawMenu(GlobalParams* m) { // render menu draw menu
 		if (i == m->menuVector.size()-1) continue;
 
 		if (strstr(m->menuVector[i].name.c_str(), "{s}")) { // seperator
-			dDrawFilledRectangle(m, posX + 8, posY + mH + (mH * i) + 2, miX - 16, 1, 0xFFFFFF, 0.25f);
+			dDrawFilledRectangle(m, posX + 8, posY + mH + (mH * i) + 2, miX - 16, 1, 0xFFFFFFFF, 0.25f);
 		}
 	}
 }
@@ -346,9 +347,9 @@ void DrawBottomFakeToolbar(GlobalParams* m) {
 
 	boxBlur(m, 15, 2, m->height - m->toolheight+1, m->toolheight-1);
 
-	dDrawFilledRectangle(m, 0, m->height-m->toolheight+2, m->width, m->toolheight-2, 0x050505, 0.65f);
-	dDrawFilledRectangle(m, 0, m->height-m->toolheight+2, m->width, 1, 0xFFFFFF, 0.2f);
-	dDrawFilledRectangle(m, 0, m->height-m->toolheight+1, m->width, 1, 0x000000, 1.0f);
+	dDrawFilledRectangle(m, 0, m->height-m->toolheight+2, m->width, m->toolheight-2, 0xFF050505, 0.65f);
+	dDrawFilledRectangle(m, 0, m->height-m->toolheight+2, m->width, 1, 0xFFFFFFFF, 0.2f);
+	dDrawFilledRectangle(m, 0, m->height-m->toolheight+1, m->width, 1, 0xFF000000, 1.0f);
 
 }
 
@@ -357,7 +358,7 @@ void DrawDrawModeMenu(GlobalParams* m){
 	int lcd = m->lcd;
 	if(aeromode) m->lcd = false;
 
-	uint32_t textc = 0xFFFFFF;
+	uint32_t textc = 0xFFFFFFFF;
 	//if (m->width < 620) { return; }
 	SwitchFont(m->SegoeUI);
 	m->drawMenuOffsetX = 434; // CHANGED WHEN ADDING SEPERATORS  // -------changed when added copy----- // changed when padded icon less // changed when squishing a little
@@ -456,35 +457,13 @@ void DrawDrawModeMenu(GlobalParams* m){
 	if(aeromode) m->lcd = lcd;
 }
 
-
-void UpdateBuffer(GlobalParams* m)
-{
-    BITMAPINFO bmi = {0};
-	bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-	bmi.bmiHeader.biWidth = m->width;
-	bmi.bmiHeader.biHeight = -m->height;
-	bmi.bmiHeader.biPlanes = 1;
-	bmi.bmiHeader.biBitCount = 32;
-	bmi.bmiHeader.biCompression = BI_RGB;
-	// fun
-	/*
-	for(int i=0; i<100; i++) {
-		int x = rand()%(m->width-40); int y = rand()%(m->width-40);
-		StretchDIBits(m->hdc, x,m->height-y-40, 40, 40, x,y, 40, 40, m->scrdata, &bmi, DIB_RGB_COLORS, SRCCOPY);
-	}
-	*/
-
-	StretchDIBits(m->hdc, 0, 0, m->width, m->height, 0, 0, m->width, m->height, m->scrdata, &bmi, DIB_RGB_COLORS, SRCCOPY);
-	
-}
-
 void RenderCropGUI(GlobalParams* m) {
 	// crop UI
 
-	dDrawFilledRectangle(m, 0, 0, m->width, m->height, 0x000000, 0.7f);
+	dDrawFilledRectangle(m, 0, 0, m->width, m->height, 0xFF000000, 0.7f);
 
 	SwitchFont(m->OCRAExt);
-	PlaceString(m, 14, "Move handles with mouse then right click to confirm changes", 10, 10, 0xFFFFFF);
+	PlaceString(m, 14, "Move handles with mouse then right click to confirm changes", 10, 10, 0xFFFFFFFF);
 
 	uint32_t distLeft, distRight, distTop, distBottom;
 	GetCropCoordinates(m, &distLeft, &distRight, &distTop, &distBottom);
@@ -518,7 +497,7 @@ void DrawAnnotationCircle(GlobalParams* m, POINT p){
 
 			float dia = actdrawsize * m->mscaler-2;
 			if(dia > 4.0f) {
-				CircleGenerator(m, dia, realx, realy, 0x808080, CanRenderToolbarMacro);
+				CircleGenerator(m, dia, realx, realy, 0xFF808080, CanRenderToolbarMacro);
 		}
 	}
 }
@@ -533,9 +512,9 @@ void RenderDrawModeGuide(GlobalParams* m){
 
 	gaussian_blur(m, sx-2, sy-2, 4.0f, x+1, y+1);
 	
-	dDrawFilledRectangle(m, x + 1, y + 1, sx-2, sy-2, 0x000000, 0.4f);
-	dDrawRoundedRectangle(m, x + 1, y + 1, sx-2, sy-2, 0xFFFFFF, 0.3f);
-	dDrawRoundedRectangle(m, x, y, sx, sy, 0x000000, 0.8f);
+	dDrawFilledRectangle(m, x + 1, y + 1, sx-2, sy-2, 0xFF000000, 0.4f);
+	dDrawRoundedRectangle(m, x + 1, y + 1, sx-2, sy-2, 0xFFFFFFFF, 0.3f);
+	dDrawRoundedRectangle(m, x, y, sx, sy, 0xFF000000, 0.8f);
 
 	int ilocx = 5;
 	int ilocy = 47;
@@ -544,20 +523,20 @@ void RenderDrawModeGuide(GlobalParams* m){
 
 	// not hover, but selected
 
-	if ((GetKeyState(VK_CONTROL) & 0x8000 && GetKeyState(VK_SHIFT) & 0x8000) || m->drawtype == 3) {
+	if ((GetKeyState(VK_CONTROL) & 0xFF8000 && GetKeyState(VK_SHIFT) & 0xFF8000) || m->drawtype == 3) {
 		// transparent
-		dDrawRoundedRectangle(m, ilocx+2, ilocy+84, 37, 37, 0xFFFFFF, 0.4f);
+		dDrawRoundedRectangle(m, ilocx+2, ilocy+84, 37, 37, 0xFFFFFFFF, 0.4f);
 	}
-	else if (GetKeyState(VK_CONTROL) & 0x8000 || m->Rightdown || (m->drawtype == 0)) {
+	else if (GetKeyState(VK_CONTROL) & 0xFF8000 || m->Rightdown || (m->drawtype == 0)) {
 		// erase
-		dDrawRoundedRectangle(m, ilocx+2, ilocy+43, 37, 37, 0xFFFFFF, 0.4f);
+		dDrawRoundedRectangle(m, ilocx+2, ilocy+43, 37, 37, 0xFFFFFFFF, 0.4f);
 	} else {
 		// pen
-		dDrawRoundedRectangle(m, ilocx+2, ilocy+2, 37, 37, 0xFFFFFF, 0.4f);
+		dDrawRoundedRectangle(m, ilocx+2, ilocy+2, 37, 37, 0xFFFFFFFF, 0.4f);
 	}
 
 	if(m->eyedroppermode) {
-		dDrawRoundedRectangle(m, ilocx+2, ilocy+125, 37, 37, 0xFFFFFF, 0.4f);
+		dDrawRoundedRectangle(m, ilocx+2, ilocy+125, 37, 37, 0xFFFFFFFF, 0.4f);
 	}
 
 	// hover
@@ -596,7 +575,7 @@ void RenderDrawModeGuide(GlobalParams* m){
 	std::string txts[] = {"Draw", "Erase", "Transparent", "Eyedropper"};
 
 	if(button != -1) {
-		dDrawRoundedRectangle(m, ilocx+2, ilocy+offsets[button], 37, 37, 0xFFFFFF, 0.2f);
+		dDrawRoundedRectangle(m, ilocx+2, ilocy+offsets[button], 37, 37, 0xFFFFFFFF, 0.2f);
 
 		// tooltip
 
@@ -606,70 +585,34 @@ void RenderDrawModeGuide(GlobalParams* m){
 		std::string txt = txts[button];
 		gaussian_blur(m, (txt.length() * 8) + 12, 20, 4.0f, loc-1, m->toolheight+4+yloc);
 		
-		dDrawFilledRectangle(m, loc-1, m->toolheight + 4+yloc, (txt.length() * 8) + 12, 20, 0x000000, 0.4f);
-		dDrawRoundedRectangle(m, loc - 1, m->toolheight + 4+yloc, (txt.length() * 8) + 12, 20, 0xFFFFFF, 0.3f);
-		dDrawRoundedRectangle(m, loc - 2, m->toolheight + 3+yloc, (txt.length() * 8) + 14, 22, 0x000000, 0.8f);
+		dDrawFilledRectangle(m, loc-1, m->toolheight + 4+yloc, (txt.length() * 8) + 12, 20, 0xFF000000, 0.4f);
+		dDrawRoundedRectangle(m, loc - 1, m->toolheight + 4+yloc, (txt.length() * 8) + 12, 20, 0xFFFFFFFF, 0.3f);
+		dDrawRoundedRectangle(m, loc - 2, m->toolheight + 3+yloc, (txt.length() * 8) + 14, 22, 0xFF000000, 0.8f);
 
 		SwitchFont(m->OCRAExt);
-		PlaceStringShadow(m, 14, txt.c_str(), loc + 3, m->toolheight + 4+yloc, 0xFFFFFF, 0.34f, 1, 1, 1);
+		PlaceStringShadow(m, 14, txt.c_str(), loc + 3, m->toolheight + 4+yloc, 0xFFFFFFFF, 0.34f, 1, 1, 1);
 		
 	}
 }
 
-void RedrawSurfaceTextDialog(GlobalParams* m) {
-	RedrawSurface(m);
-}
-
 bool last_render_toolbar = false;
 
-void RedrawSurface(GlobalParams* m, bool onlyImage, bool doesManualClip, bool bypassSleep, bool clip, RECT region) {
+void DrawGUI(GlobalParams* m) {
 
-	if (!doesManualClip) {
-		SelectClipRgn(m->hdc, nullptr);
-		m->full_redraw_surface_the_first_time = true;
-	}
-
-	if(!bypassSleep) {
-		if (m->sleepmode && (!m->isImagePreview)) {
-			return;
-		}
-	}
-	
-	if (m->width < 20) { return; }
+	// Initialize the GUI Renderer
+	InitializeRenderOperations(m);
 
 	POINT p;
 	GetCursorPos(&p);
 	ScreenToClient(m->hwnd, &p);
 
-	// set the coordinates for the image
-	if ((!onlyImage)) {
-		ResetCoordinates(m);
-	}
+	ResetCoordinates(m);
 
 	// update menu conditions
 	m->undo_menucondition = m->undoStep > 0;
 	m->redo_menucondition = (m->undoStep) < ((int)m->undoData.size() - 1); // got from RedoBus
 
 	m->isimage_menucondition = (m->imgwidth>0 && m->imgheight>0 && m->imgdata);
-
-	void* drawingbuffer = m->imgdata;
-	if (m->isImagePreview) {
-		drawingbuffer = m->imagepreview;
-	}
-	
-	if (drawingbuffer) {
-		if ((m->smoothing && ((!m->movemousedown) || m->drawmode)) && !m->isInCropMode) {
-			PlaceImageBI(m, CanRenderToolbarMacro, drawingbuffer, true, p, clip, region);
-		}
-		else {
-			PlaceImageNN(m, CanRenderToolbarMacro, drawingbuffer, true, p, clip, region);
-		}
-	} else if (m->imgwidth > 1) {
-		MessageBox(m->hwnd, "Failed to obtain drawing buffer", "Error", MB_OK | MB_ICONERROR);
-		exit(0);
-	} else {
-		PlaceImageNN(m, CanRenderToolbarMacro, nullptr, true, p, clip, region);
-	} 
 
 	// draw 1px frame
 	if (!m->isInCropMode) {
@@ -692,29 +635,24 @@ void RedrawSurface(GlobalParams* m, bool onlyImage, bool doesManualClip, bool by
 			DwmExtend(m->hwnd, 0);
 		}
 	}
-
+	
 	last_render_toolbar = toolbar && (!m->fullscreen);
 	
-	if ((toolbar) && (!onlyImage)) {
+	if ((toolbar)) {
 		RenderToolbar(m, m->aeromode && (!m->fullscreen));
 	}
 
-	if ((toolbar)) {
+	if (toolbar) {
 		RenderToolbarTooltips(m);
 	}
 
-	bool shouldIDrawTheDrawingToolbar = !onlyImage;
-	if (m->drawMenuOffsetY > m->toolheight) {
-		shouldIDrawTheDrawingToolbar = true;
-	}
-	if (m->drawmode && (shouldIDrawTheDrawingToolbar) && (((!m->fullscreen && m->height >= 250) || p.y < m->toolheight) || m->drawMenuOffsetY > 1)) {
+	if (m->drawmode && (((!m->fullscreen && m->height >= 250) || p.y < m->toolheight) || m->drawMenuOffsetY > 1)) {
 		DrawDrawModeMenu(m);
 	}
 
 	if (m->isInCropMode) {
 		RenderCropGUI(m);
 	}
-
 
 	if (m->isMenuState) {
 		DrawMenu(m);
@@ -726,19 +664,15 @@ void RedrawSurface(GlobalParams* m, bool onlyImage, bool doesManualClip, bool by
 		DrawAnnotationCircle(m, p);
 	}
 
-	if (m->tint || m->deletingtemporaryfiles) {
-		Tint(m);
-	}
-
 	if (m->loading) {
 		SwitchFont(m->SegoeUI);
-		PlaceStringShadow(m, 20, "Loading", 10, m->toolheight + 10, 0xFFFFFF, m->def_txt_shadow_softness, 1,1, 2);
+		PlaceStringShadow(m, 20, "Loading", 10, m->toolheight + 10, 0xFFFFFFFF, m->def_txt_shadow_softness, 1,1, 2);
 	}
 
 	if (m->deletingtemporaryfiles) {
 		SwitchFont(m->OCRAExt);
-		PlaceString(m, 30, "-- Maintenance --", 33, 50, 0xFFFFFF);
-		PlaceString(m, 50, "Deleting temporary files", 33, 100, 0xFFFFFF);
+		PlaceString(m, 30, "-- Maintenance --", 33, 50, 0xFFFFFFFF);
+		PlaceString(m, 50, "Deleting temporary files", 33, 100, 0xFFFFFFFF);
 	}
 
 	// move indicator for draw text
@@ -754,22 +688,18 @@ void RedrawSurface(GlobalParams* m, bool onlyImage, bool doesManualClip, bool by
 	if (m->debugmode) {
 		char debug[256];
 		sprintf(debug, "WASDX: %f: MS: %f: RES: %f: Undo Queue: %d:Undo Step: %d: LD: %d | RD: %d | ", m->wasdX, m->ms_time, m->a_resolution, m->ProcessOfMakingUndoStep, m->undoStep, m->Leftdown, m->Rightdown);
-		PlaceString(m, 16, debug, 12, m->toolheight + 8, 0x808080);
+		PlaceString(m, 16, debug, 12, m->toolheight + 8, 0xFF808080);
 	}
 
 	if(m->draw_updates_debug) {
-		uint32_t testc = 0xFF00FF;
+		uint32_t testc = 0xFFFF00FF;
 		if(rand()%2==0) {
-			testc = 0x00FF00;
+			testc = 0xFF00FF00;
 		}
 		dDrawFilledRectangle(m, 0, 0, m->width, m->height, testc, 0.5f);
 	}
 
-	// update buffer
-	UpdateBuffer(m);
-
 	// Update window title
-	
 	std::string aststring = "";
 	if (m->shouldSaveShutdown) {
 		aststring = "*";
@@ -783,4 +713,7 @@ void RedrawSurface(GlobalParams* m, bool onlyImage, bool doesManualClip, bool by
 		titlebar_string += " (Annotate)";
 	}
 	SetWindowText(m->hwnd, titlebar_string.c_str());
+
+	DeInitializeRenderOperations();
+
 }

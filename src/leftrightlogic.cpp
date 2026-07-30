@@ -98,18 +98,6 @@ bool index(GlobalParams* m){
 	return true;
 }
 
-void process_on(GlobalParams *m) {
-	m->halt = true;
-	m->loading = true;
-	RedrawSurface(m);
-}
-
-void process_off(GlobalParams *m){
-	m->halt = false;
-	m->loading = false;
-	RedrawSurface(m);
-}
-
 enum Result {
 	NotIndexed,
 	NotReady,
@@ -131,9 +119,9 @@ Result Inc(GlobalParams *m, int incremental){
 		return EndOfArray;
 	}
 	
-	process_on(m);
+	m->halt = true;
 	LoadImageResult loadimg = OpenImageFromPath(m, kvector[want], true);
-	process_off(m);
+	m->halt = false;
 
 	if(loadimg == LI_Failed) {
 		currentIndex+= incremental;

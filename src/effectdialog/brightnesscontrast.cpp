@@ -100,6 +100,7 @@ static LRESULT CALLBACK DialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lp
         SendMessage(cslider, TBM_SETTICFREQ, 100, 0);
         SendMessage(cslider, TBM_SETPOS, TRUE, 0);
 
+		// nonreplace image
         RedrawSurface(m);
         return FALSE;
     }
@@ -114,7 +115,8 @@ static LRESULT CALLBACK DialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lp
         int contrast = posc;
 
         ApplyEffectToBuffer(brightness, contrast);
-        RedrawSurface(m);
+        
+        RedrawSurface(m, true);
 
         return TRUE;
     }

@@ -219,11 +219,7 @@ std::optional<uint32_t*> GetImageFromClipboard(GlobalParams* m, int& width, int&
 				char path[MAX_PATH];
 				if (DragQueryFileA(hDrop, 0, path, MAX_PATH))
 				{
-					m->loading = true;
-					RedrawSurface(m);
 					OpenImageFromPath(m, path, false);
-					m->loading = false;
-					RedrawSurface(m);
 					m->shouldSaveShutdown = false;
 					CloseClipboard();
 					return {};

@@ -14,6 +14,7 @@
 #include "headers/globalvar.hpp"
 #include "headers/imgload.hpp"
 #include "headers/events.hpp"
+#include "headers/opengl.hpp"
 // draw vars
 
 GlobalParams gp;
@@ -81,7 +82,7 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 	// get aero info
 	if(SupportsAero()) {
 		if (strcmp(BUILD_TYPE, "Debug") != 0) {
-			gp.aeromode = true;
+			gp.aeromode = false; // due to opengl, disabled temporarially
     	}
 	}
 
@@ -121,12 +122,14 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 
 	gp.hdc = GetDC(gp.hwnd);
 
+	// Initialize OpenGL
+	InitializeOpenGL(&gp);
+
 	if (!Initialization(&gp, argc, argv)) {
 		return 0;
 	}
 
-	// WASD Replaced with TIMER! Look under WNDPROC Below
-	SetTimer(gp.hwnd, 1, 12, NULL);
+	SetTimer(gp.hwnd, 1, (int)(1/60)+1, NULL);
 
 	MSG msg{};
 
@@ -161,6 +164,10 @@ LRESULT CALLBACK CheckEssential(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 			lpMMI->ptMinTrackSize.y = 220;
 			break;
 		}
+		case WM_TIMER: {
+			PerformRedraw(&gp);
+			break;
+		}
 		case WM_SIZE: {
 			Size(&gp);
 			break;
@@ -169,6 +176,7 @@ LRESULT CALLBACK CheckEssential(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 			bool enabledtodisable = gp.aeromode&&(!SupportsAero());
 			if(enabledtodisable) {
 				gp.aeromode = false;
+				// nonreplace image
 				RedrawSurface(&gp);
 				InvalidateRect(hwnd, NULL, TRUE);
 			}
@@ -177,6 +185,7 @@ LRESULT CALLBACK CheckEssential(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 		case WM_CLOSE: {
 			if (doIFSave(&gp)) {
 				gp.loading = true;
+				// nonreplace image
 				RedrawSurface(&gp);
 				DeleteTempFiles(&gp, gp.undofolder);
 				DestroyWindow(hwnd);
@@ -188,24 +197,14 @@ LRESULT CALLBACK CheckEssential(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 			return 0;
 		}\
 		case WM_PAINT: {
-			UpdateBuffer(&gp);
+			RedrawSurface(&gp);
 			return DefWindowProc(hwnd, msg, wparam, lparam);
 		}
 		case WM_SETFOCUS: {
-			gp.sleepmode = false;
-			if (gp.scrdata && gp.width > 1) {
-				if(gp.drawtext_access_dialog_hwnd) {
-				RedrawSurfaceTextDialog(&gp);
-				}
-				else {
-					RedrawSurface(&gp);
-				}
-			}
+			RedrawSurface(&gp);
 			break;
 		}\
 		case WM_KILLFOCUS: {
-
-			gp.sleepmode = true;
 			break;
 		}
 	}
@@ -272,7 +271,6 @@ LRESULT CALLBACK WndProcNormal(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam
 	case WM_TIMER: {
 
 		PerformWASDMagic(&gp);
-
 		break;
 	}
 	case WM_DROPFILES: {
@@ -286,18 +284,13 @@ LRESULT CALLBACK WndProcNormal(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam
 			char path[MAX_PATH];
 			if (DragQueryFileA(hDrop, 0, path, MAX_PATH))
 			{
-				gp.loading = true;
-				RedrawSurface(&gp);
-
 				OpenImageFromPath(&gp, path, false);
-
-				gp.loading = false;
-				RedrawSurface(&gp);
 			}
 		}
 		
 		DragFinish(hDrop);
-		RedrawSurface(&gp, false, false, true);
+		// nonreplace image
+		RedrawSurface(&gp);
 		return 0;
 	}
 	case WM_LBUTTONDOWN:
@@ -341,9 +334,8 @@ LRESULT CALLBACK WndProcNormal(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam
 		KeyDown(&gp, wparam, lparam);
 		break;
 	}
-
-	
 	case WM_KEYUP: {
+		// nonreplace image
 		RedrawSurface(&gp);
 		break;
 	}

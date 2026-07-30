@@ -3,7 +3,7 @@ include(FetchContent)
 add_compile_definitions(_SVG)
 
 cmake_minimum_required(VERSION 3.24)
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 project(viewimage VERSION 2.6)
@@ -34,6 +34,7 @@ find_library(COMCTL32_LIB comctl32)
 find_library(UXTHEME_LIB uxtheme)
 find_library(SHLWAPI_LIB shlwapi)
 find_library(WINMM winmm)
+find_package(OpenGL REQUIRED)
 
 configure_file(res/OCRAEXT.ttf OCRAEXT.ttf COPYONLY)
 configure_file(res/segoeui.ttf segoeui.ttf COPYONLY)
@@ -50,8 +51,8 @@ endif ()
 string(TIMESTAMP BUILD_TIME "%Y-%m-%d %H:%M:%S")
 target_compile_definitions(viewimage PRIVATE BUILD_TYPE="$<CONFIG>" BUILD_SYSTEM="CMake")
 
-set_target_properties(viewimage PROPERTIES OUTPUT_NAME "viewimage_2.7")
+set_target_properties(viewimage PROPERTIES OUTPUT_NAME "ViewImage")
 
 # Link the library to the target
-target_link_libraries(viewimage PRIVATE ${COMCTL32_LIB} ${UXTHEME_LIB} ${SHLWAPI_LIB} ${WINMM} Freetype::Freetype)
+target_link_libraries(viewimage PRIVATE ${COMCTL32_LIB} ${UXTHEME_LIB} ${SHLWAPI_LIB} ${WINMM} Freetype::Freetype OpenGL::GL)
 target_link_libraries(viewimage PRIVATE lunasvg)

@@ -64,6 +64,7 @@ static LRESULT CALLBACK DialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lp
 
         old_proc = (WNDPROC)SetWindowLongPtr(gslider, GWLP_WNDPROC, (LONG_PTR)SliderProc);
 
+        // nonreplace image
         RedrawSurface(m);
         return FALSE;
     }
@@ -148,7 +149,8 @@ LRESULT CALLBACK SliderProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		SendMessage(hwnd, TBM_SETPOS, TRUE, pos);
 
         ApplyEffectToBuffer(pos);
-        RedrawSurface(m);
+
+        RedrawSurface(m, true);
         
 		return 0;
     }

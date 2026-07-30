@@ -128,7 +128,8 @@ static void ApplyEffectToBuffer(void* fromBuffer, void* toBuffer) {
 
     memcpy(toBuffer, fromBuffer, m->imgwidth * m->imgheight * 4);
     opsPlaceStringBuffer(m, m->sizetextvar, text.c_str(), m->locationXtextvar, m->locationYtextvar, InvertCC(textColor, true), toBuffer, m->imgwidth, m->imgheight, fromBuffer);
-    RedrawSurfaceTextDialog(m);
+    
+    RedrawSurface(m, true);
 }
 
 static void ConfirmEffect() {
@@ -248,7 +249,7 @@ static LRESULT CALLBACK DialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lp
 
             InitDialogControls(hwnd);
 
-            RedrawSurfaceTextDialog(m);
+            RedrawSurface(m, true);
             didinit = true;
             UpdateImage(m);
             PerformDrawTextRealignment();

@@ -59,7 +59,6 @@ struct GlobalParams {
 	// memory
 	void* imgdata;
 	void* imgoriginaldata;
-	void* scrdata;
 
 	void* imagepreview;
 	bool isImagePreview = false;
@@ -134,16 +133,15 @@ struct GlobalParams {
 	int CoordBottom = 0;
 	
 	// mouse stuff
-		bool lock = true;
-		int lockimgoffx;
-		int lockimgoffy;
-		POINT LockmPos;
-		bool isSize;
-		//int lastMouseX;
-		//int lastMouseY; // for drawing only
-		// not used anymore due to WASD magic
-		int lastK;
-		int lastV; // use these instead
+	int lockimgoffx;
+	int lockimgoffy;
+	
+	POINT LockmPos;
+
+	bool isSize;
+
+	int lastK; // wasd magic
+	int lastV;
 		
 	// Slider
 	Slider brush_size_slider;
@@ -179,8 +177,6 @@ struct GlobalParams {
 	std::vector<MenuItem> menuVector;
 
 	// drawing/annotating
-
-	
 	bool drawmode = false;
 
 	bool eyedroppermode = false;
@@ -191,12 +187,8 @@ struct GlobalParams {
 	float a_opacity = 1.0f;
 	float a_resolution = 30.0f;
 
-	float testfloat = 0.0f;
-
 	bool debugmode = false;
 	bool draw_updates_debug = false;
-
-	bool sleepmode = false;
 
 	bool tint = false;
 
@@ -226,7 +218,6 @@ struct GlobalParams {
 	float wasdX = 0;
 	float wasdY = 0;
 	bool SetLastMouseForWASDInputCaptureProtectionLock = false;
-
 
 	bool isJoystick = false;
 	JOYINFOEX joyInfoEx;
@@ -259,14 +250,11 @@ struct GlobalParams {
 	bool undo_menucondition = false;
 	bool redo_menucondition = false;
 	bool isimage_menucondition = false;	
-		
+	
 	LARGE_INTEGER previousTime;
 	LARGE_INTEGER frequency; // for wasd magic
 
 	bool aeromode = false;
-
-	bool full_redraw_surface_the_first_time = true; // fully redraw the surface the first time mouse enters the toolbar to clear any changes present inside the image AKA annotation circle
-
 };	
 
 

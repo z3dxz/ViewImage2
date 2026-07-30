@@ -10,7 +10,6 @@
 #include "headers/imgload.hpp"
 #include "../res/resource.h"
 #include "vendor/stb_image_resize2.h"
-#include "vendor/libgaussianblur/gaussianblur.h"
 #define max(a,b)            (((a) > (b)) ? (a) : (b))
 #define min(a,b)            (((a) < (b)) ? (a) : (b))
 
@@ -34,9 +33,6 @@ bool DwmDarken(HWND hwnd) {
 	}
 
 	HRESULT hr = pDwmSetWindowAttribute(hwnd, 20, &enable, sizeof(enable));
-	if (FAILED(hr)) {
-		std::cerr << "DwmSetWindowAttribute failed with HRESULT: " << hr << std::endl;
-	}
 
 	FreeLibrary(hDwmApi);
 	return true;
@@ -117,6 +113,7 @@ unsigned char* LoadImageFromResource(int resourceId, int& width, int& height, in
 
 	return imageData;
 }
+
 
 void PrintImageToPrinter(uint32_t* image, int width, int height, HDC printerDC) {
 	if (!image || !printerDC) return;
@@ -219,7 +216,8 @@ void ConfirmCrop(GlobalParams* m) {
 	
 	autozoom(m);
 	m->isInCropMode = false;
-	RedrawSurface(m);
+
+	RedrawSurface(m, true);
 }
 
 
@@ -246,7 +244,8 @@ void ResizeImageToSize(GlobalParams* m, int nwidth, int nheight) {
 	m->imgwidth = nwidth;
 	m->imgheight = nheight;
 	autozoom(m);
-	RedrawSurface(m);
+
+	RedrawSurface(m, true);
 }
 
 void rotatememory(GlobalParams* m, int owidth, int oheight, int nwidth, int nheight, void** memory) {
@@ -279,7 +278,8 @@ void rotateImage90Degrees(GlobalParams* m) {
 	m->imgheight = newh;
 	m->shouldSaveShutdown = true;
 	autozoom(m);
-	RedrawSurface(m);
+	
+	RedrawSurface(m, true);
 }
 
 int GetIndividualButtonPush(GlobalParams* m, int index) {
@@ -401,6 +401,8 @@ void autozoom(GlobalParams* m) {
 	m->mscaler = fzoom;
 	//if (mscaler > 1.0f && imgheight > 5) mscaler = 1.0f;
 
+	// nonreplace image
+	RedrawSurface(m);
 }
 
 
@@ -430,6 +432,7 @@ void NewZoom(GlobalParams* m, float v, int mouse, bool shouldRoundZoom) {
 		m->mscaler = roundzoom(m->mscaler);
 	}
 
+	// nonreplace image
 	RedrawSurface(m);
 }
 
@@ -482,6 +485,9 @@ void init_gamma_table(float gamma) {
 }
 
 bool AutoAdjustLevels(GlobalParams* m, uint32_t* buffer, double sigma) {
+	m->loading = true;
+	// nonreplace imge
+	RedrawSurface(m);
 	// temporary blurred image buffer
 	uint32_t* tempd = (uint32_t*)malloc(m->imgwidth*m->imgheight*4);
 
@@ -567,7 +573,9 @@ bool AutoAdjustLevels(GlobalParams* m, uint32_t* buffer, double sigma) {
 
 	Beep(4000, 40);
 
-	RedrawSurface(m);
+	m->loading = false;
+
+	RedrawSurface(m, true);
 	return true;
 }
 
@@ -738,41 +746,12 @@ void gaussian_blur_series_box_blurs(uint32_t* input_buffer, uint32_t* output_buf
 void gaussian_blur_real(uint32_t* input_buffer, uint32_t* output_buffer, int lW, int lH, double sigma, uint32_t width, uint32_t height, uint32_t offX, uint32_t offY) {
 	gaussian_blur_series_box_blurs(input_buffer, output_buffer, lW, lH, sigma, width, height, offX, offY);
 	return;
-    const int coef = 4;
-    int vW = lW / coef;
-    int vH = lH / coef;
-    if (vW <= 0 || vH <= 0) return;
-
-	std::vector<uint32_t> region(lW * lH);
-    for (int y = 0; y < lH; ++y) {
-        for (int x = 0; x < lW; ++x) {
-            region[y * lW + x] = *GetMemoryLocation(input_buffer, x + offX, y + offY, width, height);
-        }
-    }
-
-    std::vector<uint8_t> blur_bytes(vW * vH * 4);
-
-	stbir_resize_uint8_srgb(reinterpret_cast<const unsigned char*>(region.data()), lW, lH, 0, reinterpret_cast<unsigned char*>(blur_bytes.data()), vW, vH, 0, STBIR_RGBA);
-
-    Image image = { std::move(blur_bytes) , ImgGeom(vH, vW, 4) };
-	gaussianblur::gaussianblur(image, sigma/((double)coef), true);
-
-    std::vector<uint32_t> upscaled_buffer(lW * lH);
-	stbir_resize_uint8_srgb(image.data.data(), vW, vH, 0, reinterpret_cast<unsigned char*>(upscaled_buffer.data()), lW, lH, 0, STBIR_RGBA);
-
-	for (int y = 0; y < lH; ++y) {
-        for (int x = 0; x < lW; ++x) {
-            *GetMemoryLocation(output_buffer, x + offX, y + offY, width, height) = upscaled_buffer[y * lW + x];
-        }
-    }
 }
 
 uint32_t change_alpha(uint32_t color, uint8_t new_alpha) {
 	return (color & 0xFFFFFF) | (static_cast<uint32_t>(new_alpha) << 24);
 }
 
-
-// Freetype Globals
 FT_Library ft;
 FT_Face* currentFace;
 
@@ -797,7 +776,6 @@ std::string GetWindowsFontsFolder() {
 		return std::string(fontPath);
 	}
 
-	// If everything fails, return an empty string
 	return "Fail";
 }
 
@@ -847,7 +825,6 @@ FT_Face LoadFont(GlobalParams* m, std::string fontA) {
 	MessageBox(m->hwnd, er.c_str(), "Error Loading Font", MB_OK | MB_ICONERROR);
 	return nullptr;
 }
-
 
 void SwitchFont(FT_Face& font) {
 	currentFace = &font;

@@ -148,8 +148,9 @@ bool ActuallySaveImage(GlobalParams* m, std::string res){
 	std::string ext = f.extension().string();
 
 	m->loading = true;
+
+	// nonreplace image
 	RedrawSurface(m);
-	//CombineBuffer(m, (uint32_t*)m->imgdata, (uint32_t*)m->imgannotate, m->imgwidth, m->imgheight, true);
 
 	InvertAllColorChannels((uint32_t*)m->imgdata, m->imgwidth, m->imgheight);
 	int yes = 0;
@@ -185,12 +186,9 @@ bool ActuallySaveImage(GlobalParams* m, std::string res){
 		return false;
 	}
 
-
-	//FreeCombineBuffer(m);
 	m->shouldSaveShutdown = false;
 	OpenImageFromPath(m, res, false);
-	m->loading = false;
-	RedrawSurface(m);
+	// loading should be turned off here
 	return true;
 }
 
@@ -239,8 +237,13 @@ bool AllocateBlankImage(GlobalParams* m, uint32_t color) {
 
 	clear_kvector();
 
+
 	m->loading = true;
+
+
+	// nonreplace image
 	RedrawSurface(m);
+	
 	//Sleep(430);
 
 	m->fpath = "Untitled";
@@ -290,7 +293,8 @@ bool AllocateBlankImage(GlobalParams* m, uint32_t color) {
 
 	m->loading = false;
 
-	RedrawSurface(m);
+	RedrawSurface(m, true);
+
 	return true;
 }
 /*
@@ -319,7 +323,7 @@ LoadImageResult OpenImageFromPath(GlobalParams* m, std::string kpath, bool isLef
 	}
 	
 	m->loading = true;
-	
+	// nonreplace image
 	RedrawSurface(m);
 	
 	m->fpath = kpath;
@@ -356,7 +360,8 @@ LoadImageResult OpenImageFromPath(GlobalParams* m, std::string kpath, bool isLef
 
 	m->shouldSaveShutdown = false;
 	m->loading = false;
-	RedrawSurface(m);
+
+	RedrawSurface(m, true);
 	return LI_Success;
 }
 
@@ -393,11 +398,6 @@ void PrepareOpenImage(GlobalParams* m) {
 
 
 	if (res != "Invalid") {
-		//m->imgwidth = 0;
-		m->loading = true;
-		RedrawSurface(m);
 		OpenImageFromPath(m, res, false);
-		m->loading = false;
-		RedrawSurface(m);
 	} 
 }
