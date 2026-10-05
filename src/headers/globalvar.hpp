@@ -267,7 +267,7 @@ struct GlobalParams {
 	PFNGLBLENDFUNCSEPARATEPROC glBlendFuncSeparate = NULL; // opengl 1.4 blending for aero mode
 
 	float uiscale = 1.0f;
-	bool ui_s_test = true;
+	bool ui_s_test = false;
 	POINT mpos;
 	POINT mrawpos;
 	POINT gmpos;
