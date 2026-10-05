@@ -1,10 +1,26 @@
-
-#include "../headers/renderops.hpp"
+#include "renderops.hpp"
 #include <gl/gl.h>
+#include <cmath>
+#include <vector>
+#include "rgblur.hpp"
+#include "font.hpp"
 
-void InitializeRenderOperations(GlobalParams* m) {
+int  cfont;
+
+FT_Face current;
+
+void SwitchFont(FT_Face font) {
+    current = font;
 }
-void DeInitializeRenderOperations(){
+
+void FilterByScale(float uiscale) {
+    if(uiscale != 1.0f) {
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    } else {
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    }
 }
 
 void CircleGenerator(GlobalParams* m, int circleDiameter, int locX, int locY, uint32_t color, bool onlyUnderToolbar) {
@@ -13,70 +29,42 @@ void CircleGenerator(GlobalParams* m, int circleDiameter, int locX, int locY, ui
     float b = (color & 0xFF) / 255.0f;
     glColor4f(r, g, b, 1.0f);
 
-	glBegin(GL_LINE_LOOP);
-	int seg = 32;
-    for(int i = 0; i < seg; i++)
-    {
-        float theta = 2.0f * 3.1415926f * float(i) / float(seg);
+    const int seg = 32;
+    GLfloat vertices[seg * 2];
 
+    for (int i = 0; i < seg; i++) {
+        float theta = 2.0f * 3.1415926f * float(i) / float(seg);
         float x = circleDiameter * cosf(theta) * 0.5f;
         float y = circleDiameter * sinf(theta) * 0.5f;
 
-        glVertex2f(x + locX, y + locY);//output vertex
-
+        vertices[i * 2]     = x + locX;
+        vertices[i * 2 + 1] = y + locY;
     }
-	glEnd();
+
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glVertexPointer(2, GL_FLOAT, 0, vertices);
+    
+    glLineWidth(m->uiscale);
+    glDrawArrays(GL_LINE_LOOP, 0, seg);
+
+    glDisableClientState(GL_VERTEX_ARRAY);
 }
 
 int PlaceString(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color) {
-    if (!inputstr || *inputstr == '\0') return 0;
-
-    HDC hdc = wglGetCurrentDC();
-    if (!hdc) return 0;
-
-    GLuint base_list = glGenLists(96);
-    if (base_list == 0) return 0;
-
-    HFONT font = CreateFontA(
-        -size, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-        ANSI_CHARSET, OUT_TT_PRECIS, CLIP_DEFAULT_PRECIS,
-        ANTIALIASED_QUALITY, FF_DONTCARE | DEFAULT_PITCH, "Verdana"
-    );
-
-    HGDIOBJ old_font = SelectObject(hdc, font);
-    wglUseFontBitmapsA(hdc, 32, 96, base_list);
-    SelectObject(hdc, old_font);
-    DeleteObject(font);
-
-    glPushAttrib(GL_CURRENT_BIT | GL_LIST_BIT | GL_TRANSFORM_BIT);
-
-    float r = ((color >> 16) & 0xFF) / 255.0f;
-    float g = ((color >> 8) & 0xFF) / 255.0f;
-    float b = (color & 0xFF) / 255.0f;
-    glColor4f(r, g, b, 1.0f);
-
-    glRasterPos2i(locX, locY + size);
-
-    glListBase(base_list - 32);
-    glCallLists((GLsizei)strlen(inputstr), GL_UNSIGNED_BYTE, inputstr);
-
-    glPopAttrib();
-    glDeleteLists(base_list, 96);
-
+    PlaceStringBuf(current, size, inputstr, locX, locY, color, m->uiscale, false);
     return 1;
 }
 
-int PlaceStringShadow(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, float sigma, int shadowOffsetX, int shadowOffsetY, int passes, uint32_t shadowColor) {
-
-	PlaceString(m, size, inputstr, locX, locY, color);
-	
-	//bool b = opsPlaceStringShadowObject(m, size, inputstr, locX+shadowOffsetX, locY+shadowOffsetY, shadowColor, m->scrdata, sigma, passes);
-	//bool e = opsPlaceStringBuffer(m, size, inputstr, locX, locY, color, m->scrdata, m->width, m->height, m->scrdata);
-
-	return 0;
+int PlaceStringShadow(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color) {
+    PlaceStringBuf(current, size, inputstr, locX, locY, color, m->uiscale, true);
+    return 0;
 }
 
 void drawLine(GlobalParams* m, int startX, int startY, int len, bool horizontal, uint32_t color, float opacity) {
+    startX *= m->uiscale;
+    startY *= m->uiscale;
+    len *= m->uiscale;
+
     float r = ((color >> 16) & 0xFF) / 255.0f;
     float g = ((color >> 8) & 0xFF) / 255.0f;
     float b = (color & 0xFF) / 255.0f;
@@ -94,74 +82,233 @@ void drawLine(GlobalParams* m, int startX, int startY, int len, bool horizontal,
         y1 = startY + len;
     }
 
-    glBegin(GL_QUADS);
-    glVertex2f(x0, y0);
-    glVertex2f(x1, y0);
-    glVertex2f(x1, y1);
-    glVertex2f(x0, y1);
-    glEnd();
+    GLfloat vertices[] = {
+        x0, y0,
+        x1, y0,
+        x1, y1,
+        x0, y1
+    };
+
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glVertexPointer(2, GL_FLOAT, 0, vertices);
+    
+    FilterByScale(m->uiscale);
+    glDrawArrays(GL_QUADS, 0, 4);
+
+    glDisableClientState(GL_VERTEX_ARRAY);
 }
 
 void dDrawFilledRectangle(GlobalParams* m, int xloc, int yloc, int width, int height, uint32_t color, float opacity) {
-	float r = ((color >> 16) & 0xFF) / 255.0f;
-	float g = ((color >> 8) & 0xFF) / 255.0f;
-	float b = (color & 0xFF) / 255.0f;
+    xloc *= m->uiscale;
+    yloc *= m->uiscale;
+    width *= m->uiscale;
+    height *= m->uiscale;
 
-	glColor4f(r, g, b, opacity);
+    float r = ((color >> 16) & 0xFF) / 255.0f;
+    float g = ((color >> 8) & 0xFF) / 255.0f;
+    float b = (color & 0xFF) / 255.0f;
 
-	int endX = xloc + width;
-	int endY = yloc + height;
+    glColor4f(r, g, b, opacity);
 
-	glBegin(GL_QUADS);
-	glVertex2i(xloc, yloc);
-	glVertex2i(endX, yloc);
-	glVertex2i(endX, endY);
-	glVertex2i(xloc, endY);
-	glEnd();
+    GLfloat endX = (GLfloat)(xloc + width);
+    GLfloat endY = (GLfloat)(yloc + height);
+    GLfloat startX = (GLfloat)xloc;
+    GLfloat startY = (GLfloat)yloc;
+
+    GLfloat vertices[] = {
+        startX, startY,
+        endX,   startY,
+        endX,   endY,
+        startX, endY
+    };
+
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glVertexPointer(2, GL_FLOAT, 0, vertices);
+    
+    glDrawArrays(GL_QUADS, 0, 4);
+
+    glDisableClientState(GL_VERTEX_ARRAY);
 }
 
-void PlaceFromAtlas(GlobalParams* m, void* source, int sourceWidth, int sourceHeight, int sourceX, int sourceY, int destX, int destY, int width, int height, uint32_t color_tint, float opacity) {
-    glPushAttrib(GL_ENABLE_BIT | GL_CURRENT_BIT | GL_PIXEL_MODE_BIT);
+void PlaceFromAtlas(GlobalParams* m, GLAtlasTxt element, int sourceX, int sourceY, int destX, int destY, int width, int height, uint32_t color_tint, float opacity) {
 
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    destX *= m->uiscale;
+    destY *= m->uiscale;
 
-    float r = ((color_tint >> 16) & 0xFF) / 255.0f;
-    float g = ((color_tint >> 8) & 0xFF) / 255.0f;
-    float b = (color_tint & 0xFF) / 255.0f;
+    int adjwidth = width * m->uiscale;
+    int adjheight = height * m->uiscale;
 
-    glPixelTransferf(GL_RED_SCALE, r); glPixelTransferf(GL_GREEN_SCALE, g); glPixelTransferf(GL_BLUE_SCALE, b); glPixelTransferf(GL_ALPHA_SCALE, opacity);
+    if (!element.valid || !element.id) {
+        std::cout << "Can't place: not valid\n";
+        return;
+    };
 
-    glPixelStorei(GL_UNPACK_ROW_LENGTH, sourceWidth);
-    glPixelStorei(GL_UNPACK_SKIP_PIXELS, sourceX);
-    glPixelStorei(GL_UNPACK_SKIP_ROWS, sourceY);
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+    uint8_t r = ((color_tint >> 16) & 0xFF);
+    uint8_t g = ((color_tint >> 8)  & 0xFF);
+    uint8_t b = (color_tint         & 0xFF);
+    uint8_t a = (uint8_t)(opacity * 255.0f);
+    glColor4ub(r,g,b,a);
 
-    glPixelZoom(1.0f, -1.0f);
+    glEnable(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, element.id);
 
-    glRasterPos2i(destX, destY);
 
-    glDrawPixels(width, height, GL_BGRA_EXT, GL_UNSIGNED_BYTE, source);
+    FilterByScale(m->uiscale);
 
-    glPixelZoom(1.0f, 1.0f);
+    GLfloat vertices[] = {
+        (GLfloat)destX,         (GLfloat)destY,
+        (GLfloat)destX + adjwidth, (GLfloat)destY,
+        (GLfloat)destX + adjwidth, (GLfloat)destY + adjheight,
+        (GLfloat)destX,         (GLfloat)destY + adjheight
+    };
 
-    glPixelTransferf(GL_RED_SCALE, 1.0f);
-    glPixelTransferf(GL_GREEN_SCALE, 1.0f);
-    glPixelTransferf(GL_BLUE_SCALE, 1.0f);
-    glPixelTransferf(GL_ALPHA_SCALE, 1.0f);
+    float texLeft   = (float)sourceX / (float)element.w;
+    float texRight  = (float)(sourceX + width) / (float)element.w;
+    float texTop    = (float)sourceY / (float)element.h;
+    float texBottom = (float)(sourceY + height) / (float)element.h;
 
-    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-    glPixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
-    glPixelStorei(GL_UNPACK_SKIP_ROWS, 0);
+    GLfloat texCoords[] = {
+        texLeft,  texTop,
+        texRight, texTop,
+        texRight, texBottom,
+        texLeft,  texBottom
+    };
 
-    glPopAttrib();
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+    glVertexPointer(2, GL_FLOAT, 0, vertices);
+    glTexCoordPointer(2, GL_FLOAT, 0, texCoords);
+
+    glDrawArrays(GL_QUADS, 0, 4);
+
+    glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+    glDisableClientState(GL_VERTEX_ARRAY);
+
+    glDisable(GL_TEXTURE_2D);
+}
+
+
+
+void dDrawRectangle(GlobalParams* m, int xloc, int yloc, int width, int height, uint32_t color, float opacity) {
+    xloc *= m->uiscale;
+    yloc *= m->uiscale;
+    width *= m->uiscale;
+    height *= m->uiscale;
+    
+    if (width <= 0 || height <= 0) return;
+
+    float r = ((color >> 16) & 0xFF) / 255.0f;
+    float g = ((color >> 8) & 0xFF) / 255.0f;
+    float b = (color & 0xFF) / 255.0f;
+    glColor4f(r, g, b, opacity);
+
+    GLfloat x0 = (GLfloat)xloc;
+    GLfloat y0 = (GLfloat)yloc;
+
+    GLfloat x1 = (GLfloat)(xloc + width - 1);
+    GLfloat y1 = (GLfloat)(yloc + height - 1);
+
+    GLfloat vertices[] = {
+        x0, y0,
+        x1, y0,
+        x1, y1,
+        x0, y1
+    };
+
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glVertexPointer(2, GL_FLOAT, 0, vertices);
+    glLineWidth(m->uiscale);
+    glDrawArrays(GL_LINE_LOOP, 0, 4);
+    glDisableClientState(GL_VERTEX_ARRAY);
+}
+
+void dDrawRoundedRectangle(GlobalParams* m, int xloc, int yloc, int width, int height, uint32_t color, float opacity) {
+    xloc *= m->uiscale;
+    yloc *= m->uiscale;
+    width *= m->uiscale;
+    height *= m->uiscale;
+
+    if (width <= 0 || height <= 0) return;
+
+    float r = ((color >> 16) & 0xFF) / 255.0f;
+    float g = ((color >> 8) & 0xFF) / 255.0f;
+    float b = (color & 0xFF) / 255.0f;
+    glColor4f(r, g, b, opacity);
+
+    GLfloat x0 = (GLfloat)xloc;
+    GLfloat y0 = (GLfloat)yloc;
+
+    GLfloat x1 = (GLfloat)(xloc + width - 1);
+    GLfloat y1 = (GLfloat)(yloc + height - 1);
+
+    GLfloat vertices[] = {
+        x0 + 1.0f, y0,
+        x1 - 1.0f, y0,
+        x1,        y0 + 1.0f,
+        x1,        y1 - 1.0f,
+        x1 - 1.0f, y1,
+        x0 + 1.0f, y1,
+        x0,        y1 - 1.0f,
+        x0,        y0 + 1.0f
+    };
+
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glVertexPointer(2, GL_FLOAT, 0, vertices);
+    glLineWidth(m->uiscale);
+    glDrawArrays(GL_LINE_LOOP, 0, 8);
+    glDisableClientState(GL_VERTEX_ARRAY);
+}
+
+void dDrawRoundedFilledRectangle(GlobalParams* m, int xloc, int yloc, int width, int height, uint32_t color, float opacity) {
+    xloc *= m->uiscale;
+    yloc *= m->uiscale;
+    width *= m->uiscale;
+    height *= m->uiscale;
+    
+    if (width <= 0 || height <= 0) return;
+
+    float r = ((color >> 16) & 0xFF) / 255.0f;
+    float g = ((color >> 8) & 0xFF) / 255.0f;
+    float b = (color & 0xFF) / 255.0f;
+    glColor4f(r, g, b, opacity);
+
+    GLfloat x0 = (GLfloat)xloc;
+    GLfloat y0 = (GLfloat)yloc;
+    GLfloat x1 = (GLfloat)(xloc + width);
+    GLfloat y1 = (GLfloat)(yloc + height);
+
+    GLfloat vertices[] = {
+        x0 + 1.0f, y0,
+        x1 - 1.0f, y0,
+        x1 - 1.0f, y1,
+        x0 + 1.0f, y1,
+        x0,        y0 + 1.0f,
+        x0 + 1.0f, y0 + 1.0f,
+        x0 + 1.0f, y1 - 1.0f,
+        x0,        y1 - 1.0f,
+        x1 - 1.0f, y0 + 1.0f,
+        x1,        y0 + 1.0f,
+        x1,        y1 - 1.0f,
+        x1 - 1.0f, y1 - 1.0f
+    };
+
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glVertexPointer(2, GL_FLOAT, 0, vertices);
+    glDrawArrays(GL_QUADS, 0, 12);
+    glDisableClientState(GL_VERTEX_ARRAY);
+}
+
+void InitializeRenderOperations(GlobalParams* m) {
+}
+void DeInitializeRenderOperations(){
 }
 
 void blur_toolbar(GlobalParams* m) {
-	
+    gaussian_blur_render(m, m->width, m->toolheight, 4.0f, 0, 0);
 }
 
 void gaussian_blur(GlobalParams* m, int lW, int lH, double sigma, uint32_t offX, uint32_t offY) {
+    gaussian_blur_render(m, lW, lH, sigma, offX, offY);
 
 }
 

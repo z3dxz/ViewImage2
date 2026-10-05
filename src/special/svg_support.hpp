@@ -1,6 +1,7 @@
 #pragma once
 #ifdef _SVG
 
+#include "../headers/ops.hpp"
 
 #include <lunasvg.h>
 #include <iostream>

@@ -147,10 +147,7 @@ bool ActuallySaveImage(GlobalParams* m, std::string res){
 
 	std::string ext = f.extension().string();
 
-	m->loading = true;
-
-	// nonreplace image
-	RedrawSurface(m);
+	TurnOnLoad(m);
 
 	InvertAllColorChannels((uint32_t*)m->imgdata, m->imgwidth, m->imgheight);
 	int yes = 0;
@@ -182,13 +179,15 @@ bool ActuallySaveImage(GlobalParams* m, std::string res){
 
 	if(!yes) {
 		MessageBox(0, failstring.c_str(), "Failed to save image", MB_OK | MB_ICONERROR);
-		m->loading = false;
+		TurnOffLoad(m);
 		return false;
 	}
 
 	m->shouldSaveShutdown = false;
 	OpenImageFromPath(m, res, false);
-	// loading should be turned off here
+
+	// loading should be turned off here, but do it anyway
+	TurnOffLoad(m);
 	return true;
 }
 
@@ -225,7 +224,7 @@ bool doIFSave(GlobalParams* m) {
 
 bool AllocateBlankImage(GlobalParams* m, uint32_t color) {
 	if (!doIFSave(m)) {
-		m->loading = false;
+		TurnOffLoad(m);
 		return false;
 	}
 
@@ -237,14 +236,7 @@ bool AllocateBlankImage(GlobalParams* m, uint32_t color) {
 
 	clear_kvector();
 
-
-	m->loading = true;
-
-
-	// nonreplace image
-	RedrawSurface(m);
-	
-	//Sleep(430);
+	TurnOnLoad(m);
 
 	m->fpath = "Untitled";
 
@@ -254,9 +246,7 @@ bool AllocateBlankImage(GlobalParams* m, uint32_t color) {
 	if (m->imgoriginaldata) {
 		FreeData(m->imgoriginaldata);
 	}
-	//if (m->imgannotate) {
-	//	FreeData(m->imgannotate);
-	//}
+
 	// put thing here
 
 	int bimgw = 1280;
@@ -264,39 +254,24 @@ bool AllocateBlankImage(GlobalParams* m, uint32_t color) {
 	
 	m->imgwidth = bimgw;
 	m->imgheight = bimgh;
-	m->imgdata = malloc(bimgw * bimgh *4);
-	m->imgoriginaldata = malloc(bimgw * bimgh *4);
+	m->imgdata = vismalloc(bimgw * bimgh *4, "Blank Image: New Image");
+	m->imgoriginaldata = vismalloc(bimgw * bimgh *4, "Blank Image: New Original Image");
 	for (int y = 0; y < bimgh; y++) {
 		for (int x = 0; x < bimgw; x++) {
 			*GetMemoryLocation(m->imgdata, x, y, bimgw, bimgh) = color;
 			*GetMemoryLocation(m->imgoriginaldata, x, y, bimgw, bimgh) = color;
 		}
 	}
-	
-
-	if (!m->imgdata || !m->imgoriginaldata) {
-		MessageBox(m->hwnd, "Error Loading Image: Big memory error", "Big Error", MB_OK | MB_ICONERROR);
-		if (m->imgdata) {
-			FreeData(m->imgdata);
-		}
-		m->imgwidth = 0;
-		m->imgheight = 0;
-	}
-
-	//m->imgannotate = malloc(m->imgwidth * m->imgheight * 4);
-
-	//memset(m->imgannotate, 0x00, m->imgwidth * m->imgheight * 4);
 
 	// Auto-zoom
 	autozoom(m);
 	m->shouldSaveShutdown = false;
 
-	m->loading = false;
-
-	RedrawSurface(m, true);
+	TurnOffLoad(m);
 
 	return true;
 }
+
 /*
 Just a reference: real struct in header
 enum LoadImageResult {
@@ -309,7 +284,7 @@ enum LoadImageResult {
 LoadImageResult OpenImageFromPath(GlobalParams* m, std::string kpath, bool isLeftRight) {
 
 	if (!doIFSave(m)) {
-		m->loading = false;
+		TurnOffLoad(m);
 		return LI_NotReady;
 	}
 
@@ -322,7 +297,8 @@ LoadImageResult OpenImageFromPath(GlobalParams* m, std::string kpath, bool isLef
 		clear_kvector();
 	}
 	
-	m->loading = true;
+	TurnOnLoad(m);
+
 	// nonreplace image
 	RedrawSurface(m);
 	
@@ -338,7 +314,7 @@ LoadImageResult OpenImageFromPath(GlobalParams* m, std::string kpath, bool isLef
 	std::string error = ReplaceBitmapAndMetrics(m, m->imgdata, kpath.c_str(), &m->imgwidth, &m->imgheight);
 	if(error !=  "Success") {
 		m->shouldSaveShutdown = false;
-		m->loading = false;
+		TurnOffLoad(m);
 		std::string title = "Failed to load ";
 		title += m->fpath;
 		MessageBox(m->hwnd, error.c_str(), title.c_str(), MB_OK | MB_ICONERROR);
@@ -353,15 +329,15 @@ LoadImageResult OpenImageFromPath(GlobalParams* m, std::string kpath, bool isLef
 	}
 
 	// Success
-	m->imgoriginaldata = malloc(m->imgwidth * m->imgheight * 4);
+	m->imgoriginaldata = vismalloc(m->imgwidth * m->imgheight * 4, "New Image");
 	memcpy(m->imgoriginaldata, m->imgdata, m->imgwidth * m->imgheight * 4);
 	autozoom(m);
 	m->smoothing = ((m->imgwidth * m->imgheight) > 2500);
 
 	m->shouldSaveShutdown = false;
-	m->loading = false;
 
-	RedrawSurface(m, true);
+	TurnOffLoad(m);
+	
 	return LI_Success;
 }
 

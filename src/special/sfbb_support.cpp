@@ -16,15 +16,15 @@ const char* encodesfbb(const char* out_path, void* imgdata, int imgwidth, int im
 
     int imgByteSize = (imgwidth * imgheight * 4) + 2;
 
-    void* data = malloc(imgByteSize);
+    void* data = vismalloc(imgByteSize, "SFBB Initial Buffer for Encoding");
 
     if (!data) {
-    Beep(300, 30000);
+        Beep(300, 300);
         return "sorry, no image data";
     }
 
     if (imgwidth > 65536 || imgheight > 65536) {
-    Beep(7000, 30000);
+        Beep(7000, 300);
         return "sorry, image width or height is too big";
     }
 
@@ -101,11 +101,11 @@ const char* encodesfbb(const char* out_path, void* imgdata, int imgwidth, int im
     // Write data to the file
     DWORD bytesWritten;
     WriteFile(
-        hFile,            // Handle to the file
-        data,  // Buffer to write
-        imgByteSize,   // Buffer size
-        &bytesWritten,    // Bytes written
-        0);         // Overlapped
+        hFile,
+        data,
+        imgByteSize,
+        &bytesWritten,
+        0);
 
     // Close the handle once we don't need it.
     CloseHandle(hFile);
@@ -127,7 +127,7 @@ void* decodesfbb(const char* filepath, int* imgwidth, int* imgheight) {
     printf("File Size: %i\n", (int)fsize);
     
     int sizeOfAllocation = fsize;
-    void* data = malloc(sizeOfAllocation);
+    void* data = vismalloc(sizeOfAllocation, "SFBB Decoding Data Buffer");
     DWORD dwBytesRead = 0;
 
     if (!ReadFile(hFile, data, sizeOfAllocation, &dwBytesRead, NULL)) {
@@ -160,7 +160,7 @@ void* decodesfbb(const char* filepath, int* imgwidth, int* imgheight) {
 
     int bitmapDataSize = numOfPixels * 4;
 
-    void* bitmapData = malloc(bitmapDataSize);
+    void* bitmapData = vismalloc(bitmapDataSize, "SFBB Decoding Buffer Stage 2");
 
     int* bmp_ptr = (int*)bitmapData;
 

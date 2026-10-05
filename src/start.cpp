@@ -8,13 +8,14 @@
 #include <string>
 #include "../res/resource.h"
 #include <cstdint>
+#include "dpi.h"
 #include "headers/ops.hpp"
 //#include <dwmapi.h>
 #include <uxtheme.h>
 #include "headers/globalvar.hpp"
 #include "headers/imgload.hpp"
 #include "headers/events.hpp"
-#include "headers/opengl.hpp"
+#include "rendering/opengl.hpp"
 // draw vars
 
 GlobalParams gp;
@@ -77,18 +78,49 @@ bool SupportsAero() {
     return (isVistaOr7 && dwmEnabled);
 }
 
-int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nShowCmd) {
-
+void QueryAeroMode(bool initial){
+	bool want_aero_mode = false;
 	// get aero info
+	if(!initial) {
+		gp.aeromode = false;
+	}
 	if(SupportsAero()) {
 		if (strcmp(BUILD_TYPE, "Debug") != 0) {
-			gp.aeromode = false; // due to opengl, disabled temporarially
+			if(initial) {
+				gp.aeromode = want_aero_mode;
+			} else {
+				gp.glBlendFuncSeparate = (PFNGLBLENDFUNCSEPARATEPROC)wglGetProcAddress("glBlendFuncSeparate");
+    
+				if (!gp.glBlendFuncSeparate) {
+					gp.glBlendFuncSeparate = (PFNGLBLENDFUNCSEPARATEPROC)wglGetProcAddress("glBlendFuncSeparateEXT");
+				}
+
+				if(gp.glBlendFuncSeparate) {
+					gp.aeromode = want_aero_mode;
+				}
+			}
+			
     	}
 	}
+}
 
+
+int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nShowCmd) {
+
+	float uis = getuiscale();
+	std::cout << "UI Scale: " << uis << "\n";
+	gp.uiscale = uis;
+	if(gp.ui_s_test) {
+		gp.uiscale = 1.25f;
+	}
+
+	QueryAeroMode(true);
 	// get argument info
 	int argc;
 	LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+
+	gp.width = 1000*gp.uiscale;
+	gp.height = 563*gp.uiscale;
 
 	std::string CLASS_NAME = gp.name_full + " Primary Class";
 	std::string WINDOW_NAME = gp.name_full + " (Loading)";
@@ -125,6 +157,8 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 	// Initialize OpenGL
 	InitializeOpenGL(&gp);
 
+	QueryAeroMode(false);
+
 	if (!Initialization(&gp, argc, argv)) {
 		return 0;
 	}
@@ -160,8 +194,8 @@ LRESULT CALLBACK CheckEssential(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 	switch(msg) {
 		case WM_GETMINMAXINFO: {
 			LPMINMAXINFO lpMMI = (LPMINMAXINFO)lparam;
-			lpMMI->ptMinTrackSize.x = 505;
-			lpMMI->ptMinTrackSize.y = 220;
+			lpMMI->ptMinTrackSize.x = 505*gp.uiscale;
+			lpMMI->ptMinTrackSize.y = 220*gp.uiscale;
 			break;
 		}
 		case WM_TIMER: {

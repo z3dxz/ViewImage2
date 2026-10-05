@@ -2,13 +2,14 @@
 #define _CRT_SECURE_NO_WARNINGS
 #include "m45_support.hpp"
 #include <time.h>
+#include "../headers/ops.hpp"
 #include <algorithm>
 
-#define GetMemoryLocation(start, x, y, widthfactor) \
+#define GML(start, x, y, widthfactor) \
 	((uint32_t*)(start) + ((y) * (widthfactor)) + (x))\
 \
 
-#define GetMemoryLocationByte(start, x, y, widthfactor) \
+#define GMLByte(start, x, y, widthfactor) \
 	((uint8_t*)(start) + ((y) * (widthfactor)) + (x))\
 \
 
@@ -249,7 +250,7 @@ bool encodefile(void* idd, uint32_t iw, uint32_t ih, const char* filepath, float
 	if (ih % 2 == 1) ih--;
 	int imgByteSize = (((float)iw * (float)ih) + (((float)iw/8.0f)*((float)ih/2.0f))) + 5 + 2; // 2=intervals
 
-	void* data = malloc(imgByteSize);
+	void* data = vismalloc(imgByteSize, "M45 Data Encoding Buffer");
 
 	if (!data) {
 		//no img data
@@ -274,7 +275,7 @@ bool encodefile(void* idd, uint32_t iw, uint32_t ih, const char* filepath, float
 
 	for (int y = 0; y < ih/2; y++) {
 		for (int x = 0; x < iw; x++) {
-			uint32_t cc = (*GetMemoryLocation(idd, x, y*2, iw));
+			uint32_t cc = (*GML(idd, x, y*2, iw));
 			INT8 pix = rgbToHsv(cc).a;
 			if (pix == 0) { pix = 1; }
 			*ptr = pix;
@@ -287,7 +288,7 @@ bool encodefile(void* idd, uint32_t iw, uint32_t ih, const char* filepath, float
 
 	for (int y = 0; y < ih / 2; y++) {
 		for (int x = 0; x < iw; x++) {
-			uint32_t cc = (*GetMemoryLocation(idd, x, y * 2 + 1, iw));
+			uint32_t cc = (*GML(idd, x, y * 2 + 1, iw));
 			INT8 pix = rgbToHsv(cc).a;
 			if (pix == 0) { pix = 1; }
 			*ptr = pix;
@@ -301,23 +302,23 @@ bool encodefile(void* idd, uint32_t iw, uint32_t ih, const char* filepath, float
 
 	for (int y = 0; y < ih/2; y++) {
 		for (int x = 0; x < iw/8; x++) {
-			uint32_t c0 = (*GetMemoryLocation(idd, x * 8    , y * 2, iw));
-			uint32_t c1 = (*GetMemoryLocation(idd, x * 8 + 1, y * 2, iw));
-			uint32_t c2 = (*GetMemoryLocation(idd, x * 8 + 2, y * 2, iw));
-			uint32_t c3 = (*GetMemoryLocation(idd, x * 8 + 3, y * 2, iw));
-			uint32_t c4 = (*GetMemoryLocation(idd, x * 8 + 4, y * 2, iw));
-			uint32_t c5 = (*GetMemoryLocation(idd, x * 8 + 5, y * 2, iw));
-			uint32_t c6 = (*GetMemoryLocation(idd, x * 8 + 6, y * 2, iw));
-			uint32_t c7 = (*GetMemoryLocation(idd, x * 8 + 7, y * 2, iw));
+			uint32_t c0 = (*GML(idd, x * 8    , y * 2, iw));
+			uint32_t c1 = (*GML(idd, x * 8 + 1, y * 2, iw));
+			uint32_t c2 = (*GML(idd, x * 8 + 2, y * 2, iw));
+			uint32_t c3 = (*GML(idd, x * 8 + 3, y * 2, iw));
+			uint32_t c4 = (*GML(idd, x * 8 + 4, y * 2, iw));
+			uint32_t c5 = (*GML(idd, x * 8 + 5, y * 2, iw));
+			uint32_t c6 = (*GML(idd, x * 8 + 6, y * 2, iw));
+			uint32_t c7 = (*GML(idd, x * 8 + 7, y * 2, iw));
 
-			uint32_t c0a = (*GetMemoryLocation(idd, x * 8, y * 2+1, iw));
-			uint32_t c1a = (*GetMemoryLocation(idd, x * 8 + 1, y * 2 + 1, iw));
-			uint32_t c2a = (*GetMemoryLocation(idd, x * 8 + 2, y * 2 + 1, iw));
-			uint32_t c3a = (*GetMemoryLocation(idd, x * 8 + 3, y * 2 + 1, iw));
-			uint32_t c4a = (*GetMemoryLocation(idd, x * 8 + 4, y * 2 + 1, iw));
-			uint32_t c5a = (*GetMemoryLocation(idd, x * 8 + 5, y * 2 + 1, iw));
-			uint32_t c6a = (*GetMemoryLocation(idd, x * 8 + 6, y * 2 + 1, iw));
-			uint32_t c7a = (*GetMemoryLocation(idd, x * 8 + 7, y * 2 + 1, iw));
+			uint32_t c0a = (*GML(idd, x * 8, y * 2+1, iw));
+			uint32_t c1a = (*GML(idd, x * 8 + 1, y * 2 + 1, iw));
+			uint32_t c2a = (*GML(idd, x * 8 + 2, y * 2 + 1, iw));
+			uint32_t c3a = (*GML(idd, x * 8 + 3, y * 2 + 1, iw));
+			uint32_t c4a = (*GML(idd, x * 8 + 4, y * 2 + 1, iw));
+			uint32_t c5a = (*GML(idd, x * 8 + 5, y * 2 + 1, iw));
+			uint32_t c6a = (*GML(idd, x * 8 + 6, y * 2 + 1, iw));
+			uint32_t c7a = (*GML(idd, x * 8 + 7, y * 2 + 1, iw));
 
 			uint32_t colors[16] = { c0,c1,c2,c3,c4,c5,c6,c7,c0a,c1a,c2a,c3a,c4a,c5a,c6a,c7a };
 			uint32_t f = findMeanColor16(colors);
@@ -370,7 +371,7 @@ bool encodedata(void* idd, uint32_t iw, uint32_t ih, const char* filepath) {
 	int output_channels = 4; // Keep the same number of channels
 
 	// Allocate memory for the resized image
-	void* resized_image_data = malloc(desired_width * desired_height * output_channels);
+	void* resized_image_data = vismalloc(desired_width * desired_height * output_channels, "M45 Encoding Resized Buffer");
 
 	stbir_resize_uint8_srgb((unsigned char*)idd, iw, ih, 0, (unsigned char*)resized_image_data, desired_width, desired_height, 0, STBIR_RGBA);
 
@@ -395,7 +396,7 @@ bool encodeimage(const char* filepath) {
 	int output_channels = 4; // Keep the same number of channels
 
 	// Allocate memory for the resized image
-	void* resized_image_data = malloc(desired_width * desired_height * output_channels);
+	void* resized_image_data = vismalloc(desired_width * desired_height * output_channels, "M45 Encoding Resized Image-Bound Buffer");
 
 	stbir_resize_uint8_srgb((unsigned char*)imgdata2, imgwidth, imgheight, 0, (unsigned char*)resized_image_data, desired_width, desired_height, 0, STBIR_RGBA);
 
@@ -453,7 +454,7 @@ void* decode_m45(const char* filepath, int* imgwidth, int* imgheight) {
 	DWORD fsize = GetFileSize(hFile, 0);
 
 	int sizeOfAllocation = fsize;
-	void* data = malloc(sizeOfAllocation);
+	void* data = vismalloc(sizeOfAllocation, "Decoding Initial Buffer");
 	memset(data, 0x00, sizeOfAllocation);
 	DWORD dwBytesRead = 0;
 	DWORD dwBytesWritten = 0;
@@ -477,7 +478,7 @@ void* decode_m45(const char* filepath, int* imgwidth, int* imgheight) {
 	}
 	int bitmapDataSize = numOfPixels * 4;
 
-	void* bitmapData = malloc(bitmapDataSize);
+	void* bitmapData = vismalloc(bitmapDataSize, "Decoding Buffer Stage 2");
 	memset(bitmapData, 0x00, bitmapDataSize);
 
 	int* bmp_ptr = (int*)bitmapData;
@@ -495,18 +496,18 @@ void* decode_m45(const char* filepath, int* imgwidth, int* imgheight) {
 				int x0 = x - 3;
 				bool secondfield = false;
 
-				byte* v_ptr = GetMemoryLocationByte(field1start, x, y / 2, width);
+				byte* v_ptr = GMLByte(field1start, x, y / 2, width);
 
 				if (y % 2 == 1) {
-					v_ptr = GetMemoryLocationByte(field2start, x, y / 2, width);
+					v_ptr = GMLByte(field2start, x, y / 2, width);
 				}
 
 
-				byte* s_ptr = GetMemoryLocationByte(startc, ((x0) / 8), (y / 2), width / 8);
-				byte* s_ptr2 = GetMemoryLocationByte(startc, ((x0) / 8) + 1, (y / 2), width / 8);
+				byte* s_ptr = GMLByte(startc, ((x0) / 8), (y / 2), width / 8);
+				byte* s_ptr2 = GMLByte(startc, ((x0) / 8) + 1, (y / 2), width / 8);
 
-				byte* s_ptr3 = GetMemoryLocationByte(startc, ((x0) / 8), (y / 2) + 1, width / 8);
-				byte* s_ptr4 = GetMemoryLocationByte(startc, ((x0) / 8) + 1, (y / 2) + 1, width / 8);
+				byte* s_ptr3 = GMLByte(startc, ((x0) / 8), (y / 2) + 1, width / 8);
+				byte* s_ptr4 = GMLByte(startc, ((x0) / 8) + 1, (y / 2) + 1, width / 8);
 
 				byte* max_m = dataptr + fsize;
 
@@ -554,7 +555,7 @@ void* decode_m45(const char* filepath, int* imgwidth, int* imgheight) {
 	*imgwidth = desired_width;
 	*imgheight = desired_height;
 
-	void* resized_image_data = malloc(desired_width * desired_height * 4);
+	void* resized_image_data = vismalloc(desired_width * desired_height * 4, "M45 Decode Final Resized Buffer");
 	memset(resized_image_data, 0x00, desired_width * desired_height * 4);
 	srand(time(0));
 	stbir_resize_uint8_srgb((unsigned char*)bitmapData, width, height, 0, (unsigned char*)resized_image_data, desired_width, desired_height, 0, STBIR_RGBA);

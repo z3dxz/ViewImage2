@@ -3,10 +3,15 @@
 #include <algorithm>
 #include "globalvar.hpp"
 #include <Windows.h>
-#include "rendering.hpp"
+#include "../rendering/rendering.hpp"
 #include "events.hpp"
 #include "../vendor/stb_image.h"
 #include "../vendor/stb_image_write.h"
+#include <GL/gl.h>
+
+
+unsigned char* LoadImageFromResource(int resourceId, int* width, int* height, int* channels);
+GLAtlasTxt LoadOpenGLImageFromResource(int resourceId);
 
 inline void FreeDatac(void*& b) {
 	if (b) {
@@ -17,6 +22,15 @@ inline void FreeDatac(void*& b) {
 
 #define FreeData(x) \
 	FreeDatac((void*&)x)
+
+inline static void* vismalloc(size_t bytes, std::string taskdesc) {
+	void* data_ = malloc(bytes);
+	if(data_) return data_;
+	std::string errstr = "The task \"" + taskdesc + "\" failed to allocate a heap memory buffer!\nUsually this occurs when using very large images, especially with a x86 based executable.\nApplication will exit. You can find backups of the loaded image in the temporary files directory\n";
+	MessageBox(0, errstr.c_str(), "Fatal Error", MB_OK | MB_ICONERROR);
+	exit(0);
+	return nullptr;
+}
 		
 
 bool DwmDarken(HWND hwnd);
@@ -28,14 +42,14 @@ bool DeleteDirectory(const char* directoryPath);
 #define IfInMenu(pos, m) \
 	((pos.x > m->actmenuX && pos.y > m->actmenuY && pos.x < (m->actmenuX + m->menuSX) && pos.y < (m->actmenuY + m->menuSY)))
 
-#define bottomtoolmacro(mPP, m) ((!(m->drawMenuOffsetY > m->toolheight)) || mPP.y < m->height-m->toolheight)
+#define bottomtoolmacro(mPP, m) ((m->drawMenuOffsetY < (m->toolheight*m->uiscale)) || (mPP.y < (m->height-m->toolheight)))
 #define dmguidemacro(mPP, m) (!(m->drawmode && mPP.x > m->dmguide_x && mPP.y > m->dmguide_y && mPP.x <= m->dmguide_x+m->dmguide_sx && mPP.y <= m->dmguide_y+m->dmguide_sy ))
 #define extracases(mPP, m) (bottomtoolmacro(mPP, m) && dmguidemacro(mPP, m))
 #define IsInImage(mPP, m) \
-	((mPP.y > m->toolheight && mPP.x >= m->CoordLeft && mPP.y > m->CoordTop && mPP.x < m->CoordRight && mPP.y < m->CoordBottom) && extracases(mPP, m))
+	((mPP.y > (m->toolheight*m->uiscale) && mPP.x >= m->CoordLeft && mPP.y > m->CoordTop && mPP.x < m->CoordRight && mPP.y < m->CoordBottom) && extracases(m->mpos, m))
 
 #define IsInSlider(slider)\
-    ((mPP.x > ((slider.x+(*slider.parentX))-25) && mPP.x < ((slider.endX+(*slider.parentX))+25)) && (mPP.y > ((slider.y+(*slider.parentY))-7) && mPP.y < ((slider.endY+(*slider.parentY))+7)))
+    ((m->mpos.x > ((slider.x+(*slider.parentX))-25) && m->mpos.x < ((slider.endX+(*slider.parentX))+25)) && (m->mpos.y > ((slider.y+(*slider.parentY))-7) && m->mpos.y < ((slider.endY+(*slider.parentY))+7)))
 
 extern GlobalParams* mv;
 
@@ -46,12 +60,11 @@ extern GlobalParams* mv;
 	 ((( (((y) * (widthfactor)) + (x)) < (widthfactor*heightfactor))&&((y) * (widthfactor)) + (x) > start) ) ? ((start) + ((y) * (widthfactor)) + (x))  : ((start)) ) 
 
 bool isFile(const char* str, const char* suffix);
-unsigned char* LoadImageFromResource(int resourceId, int& width, int& height, int& channels);
 void Print(GlobalParams* m);
 void rotateImage90Degrees(GlobalParams* m);
 int GetLocationFromButton(GlobalParams* m, int index);
 int GetIndividualButtonPush(GlobalParams* m, int index);
-int getXbuttonID(GlobalParams* m, POINT mPos);
+int getXbuttonID(GlobalParams* m);
 void GetCropCoordinates(GlobalParams* m, uint32_t* outDistLeft, uint32_t* outDistRight, uint32_t* outDistTop, uint32_t* outDistBottom);
 void GetCropPercentagesFromCursor(GlobalParams* m, int cursorX, int cursorY, float* outX, float* outY);
 void ConfirmCrop(GlobalParams* m);
@@ -78,5 +91,10 @@ uint32_t change_alpha(uint32_t color, uint8_t new_alpha);
 bool AutoAdjustLevels(GlobalParams* m, uint32_t* buffer, double sigma);
 
 
-int opsPlaceStringBuffer(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, void* mem, int bufwidth, int bufheight, void* fromBuffer);
-int opsPlaceStringShadowObject(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, void* mem, double sigma, int passes);
+
+
+std::string ExePath();
+void initfontfolder(GlobalParams* m);
+FT_Face LoadFont(GlobalParams* m, std::string fontA);
+int opsPlaceStringBufferSoftware(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, void* mem, int bufwidth, int bufheight, void* fromBuffer);
+int opsPlaceStringShadowObjectSoftware(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, void* mem, double sigma, int passes);

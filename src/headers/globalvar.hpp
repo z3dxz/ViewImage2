@@ -4,10 +4,9 @@
 #include <Windows.h>
 #include <functional>
 #include <stdint.h>
-
-#include <ft2build.h>
 #include <freetype/freetype.h>
 #include <freetype/ftlcdfil.h>
+#include <GL/gl.h>
 
 struct ToolbarButtonItem {
 	int indexX = 0;
@@ -41,7 +40,18 @@ struct Slider {
 	bool md = false;
 };
 
+
+struct GLAtlasTxt {
+	GLuint id = 0;
+	int w;
+	int h;
+	bool valid = false;
+};
+
 #define REAL_BIG_VERSION "2.7*"
+
+
+typedef void (WINAPI * PFNGLBLENDFUNCSEPARATEPROC) (GLenum sfactorRGB, GLenum dfactorRGB, GLenum sfactorAlpha, GLenum dfactorAlpha);
 
 struct GlobalParams {
 	std::string name_primary = "ViewImage";
@@ -51,6 +61,7 @@ struct GlobalParams {
 
 	// deltatime
 	float ms_time = 0;
+	float dt_time = 0;
 
 	// the global window
 	HWND hwnd;
@@ -64,13 +75,12 @@ struct GlobalParams {
 	bool isImagePreview = false;
 
 	// images
-	unsigned char* toolbarData;
-	unsigned char* im;
-	unsigned char* fullscreenIconData;
-	unsigned char* dmguideIconData;
-	unsigned char* cropImageData;
-	unsigned char* menu_icon_atlas;
-	unsigned char* menu_shadow;
+	GLAtlasTxt toolbarData;
+	GLAtlasTxt im;
+	GLAtlasTxt fullscreenIconData;
+	GLAtlasTxt dmguideIconData;
+	GLAtlasTxt cropImageData;
+	GLAtlasTxt menu_icon_atlas;
 	
 	std::vector<UndoDataStruct> undoData;
 	int undoStep = 0;
@@ -83,8 +93,10 @@ struct GlobalParams {
 	std::string cd;
 
 	// size integers
-	int width = 1000;
-	int height = 563;
+	int width;
+	int height;
+	int rlwidth;
+	int rlheight;
 	int imgwidth;
 	int imgheight;
 
@@ -92,11 +104,6 @@ struct GlobalParams {
 	int heightos;
 	int channelos;
 
-	// menu shadow size
-	int menu_s_x;
-	int menu_s_y;
-
-	int dumpchannel; // UNUSED
 	int menu_atlas_SizeX;
 	int menu_atlas_SizeY;
 
@@ -122,6 +129,8 @@ struct GlobalParams {
 	int drawtype = 1; // 1 for draw: 0 for erase: 3 for transparent
 
 	int selectedbutton = -1;
+	int dmguidebutton = -1;
+	int menuselected = -1;
 
 	float iLocX = 0; // X position
 	float iLocY = 0; // Y Position
@@ -193,7 +202,6 @@ struct GlobalParams {
 	bool tint = false;
 
 	// preloaded fonts
-
 	FT_Face SegoeUI;
 	FT_Face Verdana;
 	FT_Face OCRAExt;
@@ -255,6 +263,15 @@ struct GlobalParams {
 	LARGE_INTEGER frequency; // for wasd magic
 
 	bool aeromode = false;
+	
+	PFNGLBLENDFUNCSEPARATEPROC glBlendFuncSeparate = NULL; // opengl 1.4 blending for aero mode
+
+	float uiscale = 1.0f;
+	bool ui_s_test = true;
+	POINT mpos;
+	POINT mrawpos;
+	POINT gmpos;
+
 };	
 
 
@@ -270,3 +287,23 @@ struct GlobalParams {
 	// text
 	// invert
 // crop (does change original)
+
+
+/*
+mod list 2026
+
+[w] paste image from clipboard
+Automatic adjust levels
+Brightness/contrast levels
+invert colors
+Gaussian blur
+Draw text
+Erase annotations
+Drawing / Erasing
+[?] Undo
+[?] Redo
+Apply annotations
+[w] Crop image
+[w] Resize image
+[w] Rotate image
+*/

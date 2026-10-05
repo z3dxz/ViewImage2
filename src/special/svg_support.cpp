@@ -22,8 +22,8 @@ void* decodesvg(const char* filepath, int* imgwidth, int* imgheight) {
 	*imgwidth = bitmap.width();
 	*imgheight = bitmap.height();
 
-	void* imgdata = malloc(4*bitmap.width()*bitmap.height());
-	memcpy(imgdata, bitmap.data(), 4*bitmap.width()*bitmap.height());	
+	void* imgdata = vismalloc(4*bitmap.width()*bitmap.height(), "SVG Buffer Data");
+	memcpy(imgdata, bitmap.data(), 4*bitmap.width()*bitmap.height());
 	
 	return imgdata;
 }

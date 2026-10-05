@@ -119,7 +119,7 @@ std::optional<uint32_t*> GetImageFromClipboard(GlobalParams* m, int& width, int&
 
             if (rgba)
             {
-                pixels = (uint32_t*)malloc(w * h * 4);
+                pixels = (uint32_t*)vismalloc(w * h * 4, "PNG Clipboard Fetch");
                 for (int i = 0; i < w*h; ++i)
                 {
                     uint8_t r = rgba[i*4+0];
@@ -151,7 +151,7 @@ std::optional<uint32_t*> GetImageFromClipboard(GlobalParams* m, int& width, int&
                 bool bottomUp = hdr->bV5Height > 0;
                 uint8_t* src = (uint8_t*)(hdr + 1);
 
-                pixels = (uint32_t*)malloc(w * h * 4);
+                pixels = (uint32_t*)vismalloc(w * h * 4, "CF_DIBV5 Clipboad Fetch");
                 for (int y = 0; y < h; ++y)
                 {
                     int sy = bottomUp ? (h-1-y) : y;
@@ -182,7 +182,7 @@ std::optional<uint32_t*> GetImageFromClipboard(GlobalParams* m, int& width, int&
                 bool bottomUp = hdr->biHeight > 0;
                 uint8_t* src = (uint8_t*)(hdr + 1);
 
-                pixels = (uint32_t*)malloc(w * h * 4);
+                pixels = (uint32_t*)vismalloc(w * h * 4, "CF_DIB Clipboard Fetch");
                 for (int y = 0; y < h; ++y)
                 {
                     int sy = bottomUp ? (h-1-y) : y;
@@ -240,7 +240,7 @@ bool PasteImageFromClipboard(GlobalParams* m) {
 	} else {
 		createUndoStep(m, false);
 	}
-
+    TurnOnLoad(m);
 
 	int w, h;
 	std::optional<uint32_t*> d = GetImageFromClipboard(m, w, h);
@@ -260,7 +260,7 @@ bool PasteImageFromClipboard(GlobalParams* m) {
 			m->imgwidth = w;
 			m->imgheight = h;
 
-			void* l = malloc(m->imgwidth*m->imgheight*4);
+			void* l = vismalloc(m->imgwidth*m->imgheight*4, "Clipboard Final Temporary Buffer");
 			memcpy(l, m->imgdata, m->imgwidth*m->imgheight*4);
 			m->imgoriginaldata = l;
 
@@ -273,8 +273,7 @@ bool PasteImageFromClipboard(GlobalParams* m) {
 		// already handled
 		Beep(4000, 40);
 	}
-	
-
+    TurnOffLoad(m);
 	return true;
 }
 

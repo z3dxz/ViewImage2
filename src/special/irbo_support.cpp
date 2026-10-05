@@ -75,11 +75,11 @@ const char* encodeirbo(const char* out_path, void* imgdata, int imgwidth, int im
 	
 	std::cout << "Aspect: " << aspect << "\n";
 
-	void* temp_img = malloc(pixelcount*4);
+	void* temp_img = vismalloc(pixelcount*4, "IRBO Buffer TEMPIMG");
 
 	stbir_resize_uint8_linear((unsigned char*)imgdata, imgwidth, imgheight, 0, (unsigned char*)temp_img, 512, 512, 0, STBIR_RGBA);
 
-	void* shuffled = malloc(pixelcount*4);
+	void* shuffled = vismalloc(pixelcount*4, "IRBO Buffer SHUFFLED");
 
 	for (size_t i = 0; i < pixelcount; ++i)
     {
@@ -88,7 +88,7 @@ const char* encodeirbo(const char* out_path, void* imgdata, int imgwidth, int im
         memcpy((uint8_t*)shuffled + j * 4, (uint8_t*) temp_img + i * 4, 4);
     }
 
-	void* twobyte = malloc(twobytesize);
+	void* twobyte = vismalloc(twobytesize, "IRBO Buffer TWOBYTE");
 
 	for(int y=0; y<512; y++) {
 		for(int x=0; x<512; x++) {
@@ -147,7 +147,7 @@ const char* encodeirbo(const char* out_path, void* imgdata, int imgwidth, int im
         return "sorry, no file handling";
     }
 	
-	void* data = malloc(twobytesize+4);
+	void* data = vismalloc(twobytesize+4, "IRBO Buffer DATA");
 	memcpy((uint8_t*)data, &aspect, 4);
 	memcpy((uint8_t*)data+4, twobyte, twobytesize);
 
@@ -180,7 +180,7 @@ void* decodeirbo(const char* filepath, int* imgwidth, int* imgheight){
     printf("File Size: %i\n", (int)fsize);
     
     int sizeOfAllocation = fsize;
-    void* data = malloc(sizeOfAllocation);
+    void* data = vismalloc(sizeOfAllocation, "IRBO Buffer DECODE");
     DWORD dwBytesRead = 0;
 
     if (!ReadFile(hFile, data, sizeOfAllocation, &dwBytesRead, NULL)) {
@@ -194,14 +194,14 @@ void* decodeirbo(const char* filepath, int* imgwidth, int* imgheight){
 	// decode
 	uint32_t pixelcount = 512*512;
 	float aspect = *((float*)data);
-	void* initimage = malloc(pixelcount*2);
+	void* initimage = vismalloc(pixelcount*2, "IRBO Buffer FINAL");
 	memcpy(initimage, (uint8_t*)data+4, pixelcount*2);
 	free(data);
 
 	std::vector<uint32_t> perm = build_permutation(pixelcount, seed);
 
 
-	void* together = malloc(pixelcount*4);
+	void* together = vismalloc(pixelcount*4, "IRBO Buffer COMPOSITE");
 
 	for(int y=0; y<512; y++) {
 		for(int x=0; x<512; x++) {
@@ -239,7 +239,7 @@ void* decodeirbo(const char* filepath, int* imgwidth, int* imgheight){
 	free(initimage);
 
 
-	void* unshuffled = malloc(pixelcount*4);
+	void* unshuffled = vismalloc(pixelcount*4, "IRBO Buffer Unshuffled");
 
     for (size_t i = 0; i < pixelcount; ++i)
     {
@@ -254,11 +254,11 @@ void* decodeirbo(const char* filepath, int* imgwidth, int* imgheight){
 
 	std::cout << "Aspect: " << aspect << "\n";
 	std::cout << "New Width: " << new_width << "\n";
-	void* final = malloc(new_width*512*4);
+	void* final = vismalloc(new_width*512*4, "IRBO Buffer FINAL NEW");
 	stbir_resize_uint8_linear((unsigned char*)unshuffled, 512, 512, 0, (unsigned char*)final, new_width, 512, 0, STBIR_RGBA);
 	free(unshuffled);
 
-	if(new_width > 10000 || new_width <= 0) {
+	if(new_width > 16000 || new_width <= 0) {
 		std::cout << "Width bad\n";
 		return 0;
 	}

@@ -3,7 +3,7 @@
 #include <Uxtheme.h>
 #include <iostream>
 #include <string>
-#include "../headers/renderops.hpp"
+#include "../rendering/renderops.hpp"
 bool dontdo = false;
 #include <windowsx.h>
 
@@ -69,14 +69,13 @@ COLORREF boxColor = RGB(255, 0, 0); // Initial color red
 HBRUSH hBrush = NULL;
 
 void PerformDrawTextRealignment() {
-	POINT pos;
-	GetCursorPos(&pos);
-	int mpx = pos.x;
-	int mpy = pos.y;
-	ScreenToClient(m->hwnd, &pos);
+    UpdateMousePos(m);
 
-	int k1 = (int)((float)(pos.x - m->CoordLeft) * (1.0f / m->mscaler));
-	int v1 = (int)((float)(pos.y - m->CoordTop) * (1.0f / m->mscaler));
+	int mpx = m->mrawpos.x;
+	int mpy = m->mrawpos.y;
+
+	int k1 = (int)((float)(mpx - m->CoordLeft) * (1.0f / m->mscaler));
+	int v1 = (int)((float)(mpy - m->CoordTop) * (1.0f / m->mscaler));
 
 
     m->locationXtextvar = k1 >0 ? k1 : 0;
@@ -86,7 +85,7 @@ void PerformDrawTextRealignment() {
     SendMessage(m->drawtext_access_dialog_hwnd, WM_COMMAND, 0, 0);
 	SetFocus(m->drawtext_access_dialog_hwnd);
 
-    POINT location4 = {mpx+5, mpy-80};
+    POINT location4 = {m->gmpos.x+5, m->gmpos.y-80};
 	SetWindowPos(m->drawtext_access_dialog_hwnd, 0, location4.x, location4.y, 0, 0, SWP_NOSIZE);
     ScreenToClient(m->hwnd, &location4);
     m->drawtext_guiLocX = location4.x;
@@ -124,23 +123,23 @@ int ShowDrawTextDialog(GlobalParams* m0) {
 FT_Face f = nullptr;
 static void ApplyEffectToBuffer(void* fromBuffer, void* toBuffer) {
 
-    SwitchFont(f);
+    SwitchSoftwareFont(f);
 
     memcpy(toBuffer, fromBuffer, m->imgwidth * m->imgheight * 4);
-    opsPlaceStringBuffer(m, m->sizetextvar, text.c_str(), m->locationXtextvar, m->locationYtextvar, InvertCC(textColor, true), toBuffer, m->imgwidth, m->imgheight, fromBuffer);
+    opsPlaceStringBufferSoftware(m, m->sizetextvar, text.c_str(), m->locationXtextvar, m->locationYtextvar, InvertCC(textColor, true), toBuffer, m->imgwidth, m->imgheight, fromBuffer);
     
     RedrawSurface(m, true);
 }
 
 static void ConfirmEffect() {
     createUndoStep(m, true);
+    m->shouldSaveShutdown = true;
+    TurnOnLoad(m);
    // memcpy(m->imgdata, m->imagepreview, m->imgwidth * m->imgheight * 4);
     
     ApplyEffectToBuffer(m->imgdata, m->imgdata);
-
-    m->shouldSaveShutdown = true;
+    TurnOffLoad(m);
 }
-
 
 HWND adtdb;
 HWND tss;
@@ -198,6 +197,7 @@ void UpdateImage(GlobalParams* m) {
 void freeness() {
      m->drawtext_access_dialog_hwnd = 0;
     m->isImagePreview = false;
+    RedrawSurface(m, true);
     if (m->imagepreview) {
         FreeData(m->imagepreview);
     }
@@ -243,7 +243,7 @@ static LRESULT CALLBACK DialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lp
             RECT r;
             GetWindowRect(m->hwnd, &r);
 
-            m->imagepreview = malloc(m->imgwidth * m->imgheight * 4);
+            m->imagepreview = vismalloc(m->imgwidth * m->imgheight * 4, "Draw Image Preview Buffer");
             memcpy(m->imagepreview, m->imgdata, m->imgwidth * m->imgheight * 4);
             m->isImagePreview = true;
 

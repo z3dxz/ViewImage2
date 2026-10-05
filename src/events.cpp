@@ -20,24 +20,43 @@ std::mutex mtx;
 std::condition_variable cv;
 bool resizeCompleted = false;
 
-// say goodbye after opengl
 void ResizeBuffers(GlobalParams* m) {
 	RECT ws = { 0 };
 	GetClientRect(m->hwnd, &ws);
 	int newWidth = ws.right - ws.left;
 	int newHeight = ws.bottom - ws.top;
-	m->width = newWidth;
-	m->height = newHeight;
+	m->width = newWidth/m->uiscale;
+	m->height = newHeight/m->uiscale;
+	m->rlwidth = newWidth;
+	m->rlheight = newHeight;
+}
+
+
+void TurnOnLoad(GlobalParams* m) {
+	if(m->loading) {
+		return;
+	}
+	m->loading = true;
+	RedrawForce(m);
+}
+
+
+void TurnOffLoad(GlobalParams* m) {
+	if(!m->loading) {
+		return;
+	}
+	m->loading = false;
+	RedrawForce(m, true);
 }
 
 void ResetCoordinates(GlobalParams* m) {
 
 	if (m->imgwidth > 0) {
-		m->CoordLeft = ((float)m->width - m->imgwidth * m->mscaler) / 2.0f + m->iLocX;
-		m->CoordTop = ((float)m->height - m->imgheight * m->mscaler) / 2.0f + m->iLocY;
+		m->CoordLeft = ((float)m->rlwidth - m->imgwidth * m->mscaler) / 2.0f + m->iLocX;
+		m->CoordTop = ((float)m->rlheight - m->imgheight * m->mscaler) / 2.0f + m->iLocY;
 
-		m->CoordRight = ((float)m->width + m->imgwidth * m->mscaler)/2.0f + m->iLocX;
-		m->CoordBottom = ((float)m->height + m->imgheight * m->mscaler)/2.0f + m->iLocY;
+		m->CoordRight = ((float)m->rlwidth + m->imgwidth * m->mscaler)/2.0f + m->iLocX;
+		m->CoordBottom = ((float)m->rlheight + m->imgheight * m->mscaler)/2.0f + m->iLocY;
 	}
 	else {
 		m->CoordLeft = 0;
@@ -56,6 +75,16 @@ void Size(GlobalParams* m) {
 }
 
 HANDLE hMutex;
+
+void UpdateMousePos(GlobalParams* m) {
+	GetCursorPos(&m->mpos);
+	GetCursorPos(&m->mrawpos);
+	GetCursorPos(&m->gmpos);
+	ScreenToClient(m->hwnd, &m->mpos);
+	ScreenToClient(m->hwnd, &m->mrawpos);
+	m->mpos.x /= m->uiscale;
+	m->mpos.y /= m->uiscale;
+}
 
 // initiz
 // initz
@@ -93,21 +122,17 @@ bool Initialization(GlobalParams* m, int argc, LPWSTR* argv) {
 	m->SegoeUI = LoadFont(m, "SegoeUI.ttf");
 	m->OCRAExt = LoadFont(m, "OCRAEXT.ttf");
 
-	m->toolbarData = LoadImageFromResource(TOOLBAR_RES, m->widthos, m->heightos, m->channelos);
-
-	m->menu_shadow = LoadImageFromResource(MENUSHADOW, m->menu_s_x, m->menu_s_y, m->channelos);
+	m->toolbarData = LoadOpenGLImageFromResource(TOOLBAR_RES);
 
 	// sliders
 	m->brush_size_slider = {113, 14, 214, 31, &m->drawMenuOffsetX, &m->drawMenuOffsetY, false};
 	m->brush_opacity_slider = {318, 14, 405, 31, &m->drawMenuOffsetX, &m->drawMenuOffsetY, false};
 
-	int null1, null2, null3;
-
 	// icons
-	m->menu_icon_atlas = LoadImageFromResource(ICON_MAP, m->menu_atlas_SizeX, m->menu_atlas_SizeY, m->dumpchannel);
-	m->fullscreenIconData = LoadImageFromResource(FS_ICON, null1, null2, null3);
-	m->dmguideIconData = LoadImageFromResource(DMGUIDEICON, null1, null2, null3);
-	m->cropImageData = LoadImageFromResource(CROPICON, null1, null2, null3);
+	m->menu_icon_atlas = LoadOpenGLImageFromResource(ICON_MAP);
+	m->fullscreenIconData = LoadOpenGLImageFromResource(FS_ICON);
+	m->dmguideIconData = LoadOpenGLImageFromResource(DMGUIDEICON);
+	m->cropImageData = LoadOpenGLImageFromResource(CROPICON);
 
 	// TEMPORARY FILES STUFF
 
@@ -289,6 +314,8 @@ void PerformWASDMagic(GlobalParams* m) {
 
 
 void UndoBus(GlobalParams*m );
+
+
 void OpenImageEffectsMenu(GlobalParams* m) {
 	m->menuVector = {
 
@@ -296,7 +323,7 @@ void OpenImageEffectsMenu(GlobalParams* m) {
 			[m]() -> bool {
 				bool did = AutoAdjustLevels(m, (uint32_t*)m->imgdata, 7.0);
 				return true;
-			},78,13, &m->item_enabled, true
+			},79,14, &m->item_enabled, true
 		},
 
 		{"Brightness/Contrast{s}",
@@ -306,7 +333,7 @@ void OpenImageEffectsMenu(GlobalParams* m) {
 				RedrawSurface(m);
 				ShowBrightnessContrastDialog(m);
 				return true;
-			},65,0, &m->item_enabled, true
+			},66,1, &m->item_enabled, true
 		},
 
 		{"Invert Colors",
@@ -315,6 +342,7 @@ void OpenImageEffectsMenu(GlobalParams* m) {
 				// modify
 				m->shouldSaveShutdown = true;
 				createUndoStep(m, true);
+				TurnOnLoad(m);
 				for (int y = 0; y < m->imgheight; y++) {
 					for (int x = 0; x < m->imgwidth; x++) {
 						uint32_t* loc = GetMemoryLocation(m->imgdata, x, y, m->imgwidth, m->imgheight);
@@ -330,9 +358,9 @@ void OpenImageEffectsMenu(GlobalParams* m) {
 						*loc = (a << 24) | (r << 16) | (g << 8) | b;
 					}
 				}
-				RedrawSurface(m, true);
+				TurnOffLoad(m);
 				return true;
-			},65,13, &m->item_enabled, true
+			},66,14, &m->item_enabled, true
 		},
 
 
@@ -343,7 +371,7 @@ void OpenImageEffectsMenu(GlobalParams* m) {
 				RedrawSurface(m);
 				ShowGaussianDialog(m);
 				return true;
-			},91,0, &m->item_enabled, true
+			},92,1, &m->item_enabled, true
 		},
 
 		{"Draw Text",
@@ -354,7 +382,7 @@ void OpenImageEffectsMenu(GlobalParams* m) {
 				RedrawSurface(m);
 				ShowDrawTextDialog(m);
 				return true;
-			},0,13, &m->item_enabled, true
+			},1,14, &m->item_enabled, true
 		},
 
 		{"Crop Image{s}",
@@ -367,17 +395,18 @@ void OpenImageEffectsMenu(GlobalParams* m) {
 				// nonreplace image
 				RedrawSurface(m);
 				return true;
-			},52,13, &m->item_enabled, true
+			},53,14, &m->item_enabled, true
 		},
 
 		{"Erase annotations",
 			[m]() -> bool {
 				createUndoStep(m,true);
+				TurnOnLoad(m);
 				memcpy(m->imgdata, m->imgoriginaldata, m->imgwidth * m->imgheight * 4);
 				m->shouldSaveShutdown = true;
-				RedrawSurface(m, true);
+				TurnOffLoad(m);
 				return true;
-			},78,0, &m->isimage_menucondition, true
+			},79,1, &m->isimage_menucondition, true
 		},
 	};
 
@@ -534,20 +563,19 @@ int PerformCasedBasedOperation(GlobalParams* m, uint32_t id) {
 }
 
 bool MouseDownCases(GlobalParams* m){
-	POINT mPP;
-	GetCursorPos(&mPP);
-	ScreenToClient(m->hwnd, &mPP);
+	UpdateMousePos(m);
+
+	// mpos = mPP
 	bool menugateway = false;
 	
 	// [Mouse Down] Menu inactive gateway
-	if (m->isMenuState && !(IfInMenu(mPP, m))) {
+	if (m->isMenuState && !(IfInMenu(m->mpos, m))) {
 		m->isMenuState = false;
 		// nonreplace image
 		RedrawSurface(m);
 		menugateway = true;
 		// silent: do not stop past input
 	}
-
 	if (m->isInCropMode) {
 		if (m->imgwidth < 1) {
 			PrepareOpenImage(m);
@@ -564,8 +592,8 @@ bool MouseDownCases(GlobalParams* m){
 	if (m->eyedroppermode) {
 		// eyedropper here
 		
-		int k1 = (int)((mPP.x - m->CoordLeft) / m->mscaler);
-		int v1 = (int)((mPP.y - m->CoordTop) / m->mscaler);
+		int k1 = (int)((m->mpos.x - m->CoordLeft) / m->mscaler);
+		int v1 = (int)((m->mpos.y - m->CoordTop) / m->mscaler);
 		if(k1 >= 0 && k1 < m->imgwidth && v1 >= 0 && v1 < m->imgheight) {
 			std::cout << k1 << " " << v1 << "\n";
 			uint32_t color = *GetMemoryLocation(m->imgdata, k1, v1, m->imgwidth, m->imgheight);
@@ -583,8 +611,8 @@ bool MouseDownCases(GlobalParams* m){
 	}
 
 	// [Mouse Down] Menu logic
-	if (m->isMenuState && IfInMenu(mPP, m)) {
-		int selected = (mPP.y - (m->actmenuY + 2)) / m->mH;
+	if (m->isMenuState && IfInMenu(m->mpos, m)) {
+		int selected = (m->mpos.y - (m->actmenuY + 2)) / m->mH;
 		if (selected < m->menuVector.size()) {
 			auto l = m->menuVector[selected].func;
 			if(*(m->menuVector[selected].enable_condition) && l) {
@@ -610,7 +638,7 @@ bool MouseDownCases(GlobalParams* m){
 		int softBeginY = m->drawMenuOffsetY + 14;
 		int softEndY = m->drawMenuOffsetY + 32;
 
-		if ((mPP.x > colorBeginX && mPP.x < colorEndX) && (mPP.y > colorBeginY && mPP.y < colorEndY)) { //color icon coordinates
+		if ((m->mpos.x > colorBeginX && m->mpos.x < colorEndX) && (m->mpos.y > colorBeginY && m->mpos.y < colorEndY)) { //color icon coordinates
 			// open color picker
 			bool success = true;// alpha to 0 weird windows bug
 			uint32_t c = change_alpha(PickColorFromDialog(m, InvertCC(change_alpha(m->a_drawColor,0),true), &success), 255);
@@ -622,7 +650,7 @@ bool MouseDownCases(GlobalParams* m){
 			RedrawSurface(m);
 			return 0;
 		}
-		if ((mPP.x > softBeginX && mPP.x < softEndX) && (mPP.y > softBeginY && mPP.y < softEndY)) { // soft had
+		if ((m->mpos.x > softBeginX && m->mpos.x < softEndX) && (m->mpos.y > softBeginY && m->mpos.y < softEndY)) { // soft had
 			// open soft hard
 			m->a_softmode = !m->a_softmode;
 			// nonreplace image
@@ -632,12 +660,14 @@ bool MouseDownCases(GlobalParams* m){
 
 		if(IsInSlider(m->brush_size_slider)) {
 			m->brush_size_slider.md = true;
+			return 0;
 		}
 		if(IsInSlider(m->brush_opacity_slider)) {
 			m->brush_opacity_slider.md = true;
+			return 0;
 		}
 
-		if (IsInImage(mPP, m)) {
+		if (IsInImage(m->mrawpos, m)) {
 			TurnOnDraw(m);
 			createUndoStep(m, true);
 			return 0;
@@ -645,29 +675,29 @@ bool MouseDownCases(GlobalParams* m){
 	}
 
 	// [Mouse Down] dmguide 
-	if (m->drawmode && (mPP.x > (m->dmguide_x) && mPP.x <= (m->dmguide_x+m->dmguide_sx))) {
-		if((mPP.y > (m->dmguide_y) && mPP.y <= (m->dmguide_y+43))) {
+	if (m->drawmode && (m->mpos.x > (m->dmguide_x) && m->mpos.x <= (m->dmguide_x+m->dmguide_sx))) {
+		if((m->mpos.y > (m->dmguide_y) && m->mpos.y <= (m->dmguide_y+43))) {
 			// pen
 			m->drawtype = 1;
 			// nonreplace image
 			RedrawSurface(m);
 			return 0;
 		}
-		if((mPP.y > (m->dmguide_y+43) && mPP.y <= (m->dmguide_y+84))) {
+		if((m->mpos.y > (m->dmguide_y+43) && m->mpos.y <= (m->dmguide_y+84))) {
 			// erase
 			m->drawtype = 0;
 			// nonreplace image
 			RedrawSurface(m);
 			return 0;
 		}
-		if((mPP.y > (m->dmguide_y+84) && mPP.y <= (m->dmguide_y+125))) {
+		if((m->mpos.y > (m->dmguide_y+84) && m->mpos.y <= (m->dmguide_y+125))) {
 			// transparent
 			m->drawtype = 3;
 			// nonreplace image
 			RedrawSurface(m);
 			return 0;
 		}
-		if((mPP.y > (m->dmguide_y+125) && mPP.y <= (m->dmguide_y+168))) {
+		if((m->mpos.y > (m->dmguide_y+125) && m->mpos.y <= (m->dmguide_y+168))) {
 			// eyedropper
 			m->eyedroppermode = true;
 			// nonreplace image
@@ -677,7 +707,7 @@ bool MouseDownCases(GlobalParams* m){
 	}
 
 	// [Mouse Down] fullscreen icon
-	if ((mPP.x > m->width - 36 && mPP.x < m->width - 13) && (mPP.y > 12 && mPP.y < 33)) { //fullscreen icon location check coordinates (ALWAYS KEEP)
+	if ((m->mpos.x > m->width - 36 && m->mpos.x < m->width - 13) && (m->mpos.y > 12 && m->mpos.y < 33)) { //fullscreen icon location check coordinates (ALWAYS KEEP)
 		if (m->width > 535) { // to check to make sure window isn't too small
 			ToggleFullscreen(m); // TODO: please make a seperate icon for the exiting fullscreen
 		}
@@ -685,7 +715,7 @@ bool MouseDownCases(GlobalParams* m){
 		return 0;
 	}
 	
-	uint32_t id = getXbuttonID(m, mPP);
+	uint32_t id = getXbuttonID(m);
 	
 	// [Mouse Down] cased based toolbar buttons
 	if(!menugateway || id != 8) {
@@ -695,10 +725,9 @@ bool MouseDownCases(GlobalParams* m){
 	}
 	
 	// [Mouse Down] toolbar (nothing)
-	if (!(mPP.y > m->toolheight && extracases(mPP, m))) {
+	if (m->mpos.y <= m->toolheight || (!extracases(m->mpos, m))) {
 		return 0;
 	}
-
 	// [Mouse Down] move mouse down
 	m->movemousedown = true;
 	return 0;
@@ -746,7 +775,7 @@ POINT* sampleLine(GlobalParams* m, double x1, double y1, double x2, double y2, i
 	int qualsamples = numSamples;
 	if (numSamples > 2) { qualsamples--; };
 
-	POINT* samples = (POINT*)malloc(sizeof(POINT) * (qualsamples + 1)); // Include starting point
+	POINT* samples = (POINT*)vismalloc(sizeof(POINT) * (qualsamples + 1), "Drawing Line Sampling Algorithm"); // Include starting point
 
 	float dx = (x2 - x1) / numSamples;
 	float dy = (y2 - y1) / numSamples;
@@ -765,8 +794,7 @@ POINT* sampleLine(GlobalParams* m, double x1, double y1, double x2, double y2, i
 
 
 
-clock_t start, end;
-double delta_time;
+static clock_t start, end;
 void placeDraw(GlobalParams* m, POINT* pos) {
     float actdrawsize = m->drawSize;
 
@@ -777,12 +805,10 @@ void placeDraw(GlobalParams* m, POINT* pos) {
     start = clock();
 
     const float target_dt = 0.016f;
-    float dt_diff = target_dt - m->ms_time;
+    float dt_diff = target_dt - (m->ms_time+m->dt_time);
     float adjust = powf(2.0f, dt_diff * 10.0f);
 
     m->a_resolution = std::clamp(m->a_resolution * adjust, 1.0f, 25.0f);
-
-    ScreenToClient(m->hwnd, pos);
 
     int k = m->lastK;
     int v = m->lastV;
@@ -899,16 +925,16 @@ void placeDraw(GlobalParams* m, POINT* pos) {
     m->lastV = v1;
     m->shouldSaveShutdown = true;
 
+	RedrawSurface(m, true);
+
     end = clock();
     m->ms_time = (double)(end - start) / CLOCKS_PER_SEC;
-
-	RedrawSurface(m, true);
 }
 
 
 bool firsttime = true;
-
-void MouseMoveCases(POINT pos, POINT globalpos, LPSTR* cursor, HINSTANCE* cursorinstance, GlobalParams* m) {
+bool fullscreenhover = false;
+void MouseMoveCases(LPSTR* cursor, HINSTANCE* cursorinstance, GlobalParams* m) {
 	// i would probably min this
 	if (m->isInCropMode) {
 		*cursor = IDC_ARROW;
@@ -917,41 +943,30 @@ void MouseMoveCases(POINT pos, POINT globalpos, LPSTR* cursor, HINSTANCE* cursor
 
 		uint32_t range = 20;
 
-		if (pos.x < (distLeft + range) && pos.x >(distLeft - range) && pos.y < (distTop + range) && pos.y >(distTop - range)) {
+		int mpx = m->mrawpos.x;
+		int mpy = m->mrawpos.y;
+
+
+		if (mpx < (distLeft + range) && mpx >(distLeft - range) && mpy < (distTop + range) && mpy >(distTop - range)) {
 			*cursor = IDC_SIZENWSE;
-			m->CropHandleSelectTL = true;
-			m->CropHandleSelectTR = false;
-			m->CropHandleSelectBL = false;
-			m->CropHandleSelectBR = false;
-		} else if (pos.x < (distRight + range) && pos.x >(distRight - range) && pos.y < (distTop + range) && pos.y >(distTop - range)) {
+			m->CropHandleSelectTL = true; m->CropHandleSelectTR = false; m->CropHandleSelectBL = false; m->CropHandleSelectBR = false;
+		} else if (mpx < (distRight + range) && mpx >(distRight - range) && mpy < (distTop + range) && mpy >(distTop - range)) {
 			*cursor = IDC_SIZENESW;
-			m->CropHandleSelectTL = false;
-			m->CropHandleSelectTR = true;
-			m->CropHandleSelectBL = false;
-			m->CropHandleSelectBR = false;
-		} else if (pos.x < (distLeft + range) && pos.x >(distLeft - range) && pos.y < (distBottom + range) && pos.y >(distBottom - range)) {
+			m->CropHandleSelectTL = false; m->CropHandleSelectTR = true; m->CropHandleSelectBL = false; m->CropHandleSelectBR = false;
+		} else if (mpx < (distLeft + range) && mpx >(distLeft - range) && mpy < (distBottom + range) && mpy >(distBottom - range)) {
 			*cursor = IDC_SIZENESW;
-			m->CropHandleSelectTL = false;
-			m->CropHandleSelectTR = false;
-			m->CropHandleSelectBL = true;
-			m->CropHandleSelectBR = false;
-		} else if (pos.x < (distRight + range) && pos.x >(distRight - range) && pos.y < (distBottom + range) && pos.y >(distBottom - range)) {
+			m->CropHandleSelectTL = false; m->CropHandleSelectTR = false; m->CropHandleSelectBL = true; m->CropHandleSelectBR = false;
+		} else if (mpx < (distRight + range) && mpx >(distRight - range) && mpy < (distBottom + range) && mpy >(distBottom - range)) {
 			*cursor = IDC_SIZENWSE;
-			m->CropHandleSelectTL = false;
-			m->CropHandleSelectTR = false;
-			m->CropHandleSelectBL = false;
-			m->CropHandleSelectBR = true;
+			m->CropHandleSelectTL = false; m->CropHandleSelectTR = false; m->CropHandleSelectBL = false; m->CropHandleSelectBR = true;
 		}
 		else {
-			m->CropHandleSelectTL = false;
-			m->CropHandleSelectTR = false;
-			m->CropHandleSelectBL = false;
-			m->CropHandleSelectBR = false;
+			m->CropHandleSelectTL = false; m->CropHandleSelectTR = false; m->CropHandleSelectBL = false; m->CropHandleSelectBR = false;
 		}
 
 		if (m->isMovingTL) {
 			float perX, perY;
-			GetCropPercentagesFromCursor(m, pos.x, pos.y, &perX, &perY);
+			GetCropPercentagesFromCursor(m, mpx, mpy, &perX, &perY);
 			m->leftP = perX;
 			m->topP = perY;
 			if (m->leftP > m->rightP) { m->leftP = m->rightP; }
@@ -960,7 +975,7 @@ void MouseMoveCases(POINT pos, POINT globalpos, LPSTR* cursor, HINSTANCE* cursor
 
 		if (m->isMovingTR) {
 			float perX, perY;
-			GetCropPercentagesFromCursor(m, pos.x, pos.y, &perX, &perY);
+			GetCropPercentagesFromCursor(m, mpx, mpy, &perX, &perY);
 			m->rightP = perX;
 			m->topP = perY;
 			if (m->rightP < m->leftP) { m->rightP = m->leftP; }
@@ -969,7 +984,7 @@ void MouseMoveCases(POINT pos, POINT globalpos, LPSTR* cursor, HINSTANCE* cursor
 
 		if (m->isMovingBL) {
 			float perX, perY;
-			GetCropPercentagesFromCursor(m, pos.x, pos.y, &perX, &perY);
+			GetCropPercentagesFromCursor(m, mpx, mpy, &perX, &perY);
 			m->leftP = perX;
 			m->bottomP = perY;
 			if (m->leftP > m->rightP) { m->leftP = m->rightP; }
@@ -978,7 +993,7 @@ void MouseMoveCases(POINT pos, POINT globalpos, LPSTR* cursor, HINSTANCE* cursor
 
 		if (m->isMovingBR) {
 			float perX, perY;
-			GetCropPercentagesFromCursor(m, pos.x, pos.y, &perX, &perY);
+			GetCropPercentagesFromCursor(m, mpx, mpy, &perX, &perY);
 			m->rightP = perX;
 			m->bottomP = perY;
 			if (m->rightP < m->leftP) { m->rightP = m->leftP; }
@@ -986,7 +1001,7 @@ void MouseMoveCases(POINT pos, POINT globalpos, LPSTR* cursor, HINSTANCE* cursor
 		}
 		// nonreplace image
 		RedrawSurface(m);
-		return;
+
 	} else if (m->eyedroppermode) {
 		*cursorinstance = GetModuleHandle(NULL);
 		*cursor = MAKEINTRESOURCE(IDC_CURSOR2);
@@ -995,17 +1010,17 @@ void MouseMoveCases(POINT pos, POINT globalpos, LPSTR* cursor, HINSTANCE* cursor
 		*cursor = IDC_SIZEALL;
 		// Moving around the image using left mouse button
 		
-		m->iLocX = m->lockimgoffx - (m->LockmPos.x - globalpos.x);
-		m->iLocY = m->lockimgoffy - (m->LockmPos.y - globalpos.y);
+		m->iLocX = m->lockimgoffx - (m->LockmPos.x - m->gmpos.x);
+		m->iLocY = m->lockimgoffy - (m->LockmPos.y - m->gmpos.y);
 		
 		// nonreplace image
 		RedrawSurface(m);
-		return;
+
 	}
 	else if (m->brush_size_slider.md) {
 		*cursor = IDC_SIZEWE;
 
-		float findMid = (float)(pos.x - (m->brush_size_slider.x+(*m->brush_size_slider.parentX))) / (float)((m->brush_size_slider.endX)-(m->brush_size_slider.x));
+		float findMid = (float)(m->mpos.x - (m->brush_size_slider.x+(*m->brush_size_slider.parentX))) / (float)((m->brush_size_slider.endX)-(m->brush_size_slider.x));
 
 		if (findMid > 0.0f) {
 			float eff = sqrt(m->imgheight-1);
@@ -1021,7 +1036,7 @@ void MouseMoveCases(POINT pos, POINT globalpos, LPSTR* cursor, HINSTANCE* cursor
 	}
 	else if (m->brush_opacity_slider.md) {
 		*cursor = IDC_SIZEWE;
-		float findMid = (float)(pos.x - (m->brush_opacity_slider.x+(*m->brush_opacity_slider.parentX))) / (float)((m->brush_opacity_slider.endX)-(m->brush_opacity_slider.x));
+		float findMid = (float)(m->mpos.x - (m->brush_opacity_slider.x+(*m->brush_opacity_slider.parentX))) / (float)((m->brush_opacity_slider.endX)-(m->brush_opacity_slider.x));
 
 		if (findMid >= 0.0f && findMid <= 1.0f) {
 			m->a_opacity = findMid;
@@ -1035,40 +1050,86 @@ void MouseMoveCases(POINT pos, POINT globalpos, LPSTR* cursor, HINSTANCE* cursor
 
 		// nonreplace image
 		RedrawSurface(m);
-	} else if (m->isMenuState && IfInMenu(pos, m)) {
 		
-		int selected = (pos.y-(m->actmenuY+2))/m->mH;
-		if (selected >= 0 && selected < m->menuVector.size() && *(m->menuVector[selected].enable_condition) ) {
-			*cursor = IDC_HAND;
+	} else if (m->isMenuState && IfInMenu(m->mpos, m)) {
+		
+		int last = m->menuselected;
+		m->menuselected = (m->mpos.y-(m->actmenuY+2))/m->mH;
+		if (m->menuselected >= 0 && m->menuselected < m->menuVector.size() && *(m->menuVector[m->menuselected].enable_condition) ) {
+			*cursor = IDC_ARROW;
 		}
 
 		// nonreplace image
-		RedrawSurface(m);
-		return;
+		if(m->menuselected != last) {
+			RedrawSurface(m);
+		}
+
 	}
 	else if (m->drawmousedown) {
-		placeDraw(m, &globalpos);
-		return;
+		placeDraw(m, &m->mrawpos);
+
 	}
-	else if (pos.y <= m->toolheight) {
+	else if ((m->mpos.x > m->width - 36 && m->mpos.x < m->width - 13) && (m->mpos.y > 12 && m->mpos.y < 33)) {
+		// fullscreen icon
+		if(!fullscreenhover) {
+			RedrawSurface(m);
+			fullscreenhover = true;
+		}
+	} else if ((m->mpos.x > (m->dmguide_x) && m->mpos.x <= (m->dmguide_x+m->dmguide_sx)) && (m->mpos.y > (m->dmguide_y    ) && m->mpos.y <= (m->dmguide_y+168))) {
+		// dm guide
+		int last = m->dmguidebutton;
+		if((m->mpos.y > (m->dmguide_y    ) && m->mpos.y <= (m->dmguide_y+43 ))) m->dmguidebutton = 0; // pen
+		if((m->mpos.y > (m->dmguide_y+43 ) && m->mpos.y <= (m->dmguide_y+84 ))) m->dmguidebutton = 1; // erase
+		if((m->mpos.y > (m->dmguide_y+84 ) && m->mpos.y <= (m->dmguide_y+125))) m->dmguidebutton = 2; // transparent
+		if((m->mpos.y > (m->dmguide_y+125) && m->mpos.y <= (m->dmguide_y+168))) m->dmguidebutton = 3; // eyedropper
+
+		if(last != m->dmguidebutton) {
+			RedrawSurface(m);
+		}
+	}
+	else if (m->mpos.y <= m->toolheight) {
 		int last = m->selectedbutton;
-		m->selectedbutton = getXbuttonID(m, pos);
+		m->selectedbutton = getXbuttonID(m);
 		
 		if (m->selectedbutton >= 0 && m->selectedbutton < m->toolbartable.size()) {
-			*cursor = IDC_HAND;
+			*cursor = IDC_ARROW;
 		}
 
 		// nonreplace image
-		RedrawSurface(m);
-		return;
+		if(m->selectedbutton != last || m->mpos.y<3) { // pos.y < 3 for the hover when fullscreening
+			RedrawSurface(m);
+		}
 	} else {
-		// no longer selected, off toolbar
+
+	}
+
+	if(!(m->mpos.y <= m->toolheight)){
 		if(m->selectedbutton >= 0) {
 			m->selectedbutton = -1;
 			// nonreplace image
 			RedrawSurface(m);
 		}
 	}
+
+	if (!(m->isMenuState && IfInMenu(m->mpos, m))) {
+		if(m->menuselected >= 0) {
+			// off menu, redraw
+			m->menuselected = -1;
+			RedrawSurface(m);
+		}
+	}
+
+	if (!((m->mpos.x > m->width - 36 && m->mpos.x < m->width - 13) && (m->mpos.y > 12 && m->mpos.y < 33))) {
+		if(fullscreenhover) {fullscreenhover = false; RedrawSurface(m);}
+	}
+
+	if (!((m->mpos.x > (m->dmguide_x) && m->mpos.x <= (m->dmguide_x+m->dmguide_sx)) && (m->mpos.y > (m->dmguide_y    ) && m->mpos.y <= (m->dmguide_y+168)))) {
+		if(m->dmguidebutton >= 0) {
+			m->dmguidebutton = -1;
+			RedrawSurface(m);
+		}
+	}
+
 }
 
 
@@ -1098,15 +1159,13 @@ void MouseMove(GlobalParams* m, bool isCalledWhenMouseAcuallyMoved){
 	if((!(GetAsyncKeyState(VK_MBUTTON) & 0x8000)) && m->Middledown)
 		MiddleUp(m);
 
-	POINT pos = { 0 };
-	GetCursorPos(&pos);
-	ScreenToClient(m->hwnd, &pos);
+	// mpos : pos
+	UpdateMousePos(m);
 
-	POINT globalpos = { 0 };
-	GetCursorPos(&globalpos);
+	// gmpos : globalpos
 	
-	bool isInMenu = IfInMenu(pos, m) && m->isMenuState;
-	bool isInImage = IsInImage(pos, m);
+	bool isInMenu = IfInMenu(m->mpos, m) && m->isMenuState;
+	bool isInImage = IsInImage(m->mrawpos, m);
 
 	if (m->drawmode && isInImage && !isInMenu && !m->Middledown) {
 		cursorinstance = GetModuleHandle(NULL);
@@ -1115,7 +1174,7 @@ void MouseMove(GlobalParams* m, bool isCalledWhenMouseAcuallyMoved){
 		if (!m->drawmousedown) RedrawSurface(m);
 	}
 
-	MouseMoveCases(pos, globalpos, &cursor, &cursorinstance, m);
+	MouseMoveCases(&cursor, &cursorinstance, m);
 
 	if(lastcursor != cursor) {
     	realcursor = LoadCursor(cursorinstance, cursor);
@@ -1242,27 +1301,17 @@ void PushUndo(GlobalParams* m, uint32_t* thisImage, uint32_t* thisOImage) {
 void createUndoStep(GlobalParams* m, bool async) {
 	if (!async) {
 		if (m->ProcessOfMakingUndoStep > 0) {
-			m->loading = true;
+			TurnOnLoad(m);
 			showMessageWhileProcessing(m);
 		}
 	}
 
-	uint32_t* thisImage = (uint32_t*)malloc(m->imgwidth * m->imgheight * 4);
-	if (!thisImage) {
-		MessageBox(m->hwnd, "The Undo Step Failed", "Undo Step Fail", MB_OK | MB_ICONERROR);
-		exit(0);
-	}
-
-	uint32_t* thisOImage = (uint32_t*)malloc(m->imgwidth * m->imgheight * 4);
-	if (!thisOImage) {
-		MessageBox(m->hwnd, "The Undo Step Failed", "Undo Step Fail", MB_OK | MB_ICONERROR);
-		exit(0);
-	}
+	uint32_t* thisImage = (uint32_t*)vismalloc(m->imgwidth * m->imgheight * 4, "Create Undo Step Image 1");
+	uint32_t* thisOImage = (uint32_t*)vismalloc(m->imgwidth * m->imgheight * 4, "Create Undo Step Image 2");
 
 	memcpy(thisImage, (uint32_t*)m->imgdata, m->imgwidth * m->imgheight * 4);
 	memcpy(thisOImage, (uint32_t*)m->imgoriginaldata, m->imgwidth * m->imgheight * 4);
 
-	//PushUndo(m, thisImage, thisOImage);
 	if (async) {
 		std::thread t{ PushUndo, m, thisImage, thisOImage };
 		t.detach();
@@ -1271,7 +1320,7 @@ void createUndoStep(GlobalParams* m, bool async) {
 		PushUndo(m, thisImage, thisOImage);
 	}
 
-	m->loading = false;
+	TurnOffLoad(m);
 }
 
 
@@ -1280,31 +1329,37 @@ void UndoBus(GlobalParams* m) {
 	if (m->drawmousedown) {
 		return;
 	}
-	if (m->ProcessOfMakingUndoStep > 0) {
-		m->loading = true;
-		showMessageWhileProcessing(m);
-	}
 
 	if (classUndo) { createUndoStep(m, false); m->undoStep--; }
+	
+	if (m->ProcessOfMakingUndoStep > 0) {
+		TurnOnLoad(m);
+		showMessageWhileProcessing(m);
+		TurnOffLoad(m);
+	}
+	
     if (m->undoStep > 0) {
+		TurnOnLoad(m);
         m->undoStep--;
         UndoDataStruct selection = m->undoData[m->undoStep];
 		FreeData(m->imgdata);
 		FreeData(m->imgoriginaldata);
-		m->imgdata = malloc(selection.width * selection.height * 4);
-		m->imgoriginaldata = malloc(selection.width * selection.height * 4);
+
+		m->imgdata = vismalloc(selection.width * selection.height * 4, "Replace Image for Undo");
+		m->imgoriginaldata = vismalloc(selection.width * selection.height * 4, "Replace Original Image for Undo");
+
 		m->imgwidth = selection.width;
 		m->imgheight = selection.height;
 		uint32_t* d1 = hello(m, selection.imageID);
 		uint32_t* d2 = hello(m, selection.imageIDoriginal);
 		if (!d1) {
 			MessageBox(m->hwnd, "Annotated undo data package failed to load", "Oops", MB_OK | MB_ICONERROR);
-			m->loading = false;
+			TurnOffLoad(m);
 			return;
 		}
 		if (!d2) {
 			MessageBox(m->hwnd, "RAW undo data package failed to load", "Oops", MB_OK | MB_ICONERROR);
-			m->loading = false;
+			TurnOffLoad(m);
 			return;
 		}
 
@@ -1312,11 +1367,9 @@ void UndoBus(GlobalParams* m) {
 		memcpy(m->imgoriginaldata, d2, selection.width * selection.height * 4);
 		FreeData(d1);
 		FreeData(d2);
+		TurnOffLoad(m);
     }
 	classUndo = false;
-	m->loading = false;
-
-	RedrawSurface(m, true);
 }
 
 void RedoBus(GlobalParams* m) {
@@ -1324,42 +1377,42 @@ void RedoBus(GlobalParams* m) {
 		return;
 	}
 	if (m->ProcessOfMakingUndoStep > 0) {
-		m->loading = true;
+		TurnOnLoad(m);
 		showMessageWhileProcessing(m);
+		TurnOffLoad(m);
 	}
 
 	int s = m->undoStep;
 	int step = m->undoData.size() - 1;
 	if (s < step) {
+		TurnOnLoad(m);
 		m->undoStep++;
 		UndoDataStruct selection = m->undoData[m->undoStep];
 		FreeData(m->imgdata);
 		FreeData(m->imgoriginaldata);
-		m->imgdata = malloc(selection.width * selection.height * 4);
-		m->imgoriginaldata = malloc(selection.width * selection.height * 4);
+		m->imgdata = vismalloc(selection.width * selection.height * 4, "Replace Image for Redo");
+		m->imgoriginaldata = vismalloc(selection.width * selection.height * 4, "Replace Original Image for Redo");
 		m->imgwidth = selection.width;
 		m->imgheight = selection.height;
 		uint32_t* d1 = hello(m, selection.imageID);
 		uint32_t* d2 = hello(m, selection.imageIDoriginal);
 		if (!d1) {
 			MessageBox(m->hwnd, "Annotated undo data package failed to load", "Oops", MB_OK | MB_ICONERROR);
-			m->loading = false;
+			TurnOffLoad(m);
 			return;
 		}
 		if (!d2) {
 			MessageBox(m->hwnd, "RAW undo data package failed to load", "Oops", MB_OK | MB_ICONERROR);
-			m->loading = false;
+			TurnOffLoad(m);
 			return;
 		}
 		memcpy(m->imgdata, d1, selection.width * selection.height * 4);
 		memcpy(m->imgoriginaldata, d2, selection.width * selection.height * 4);
 		FreeData(d1);
 		FreeData(d2);
+		TurnOffLoad(m);
 	}
 	classUndo = false;
-	m->loading = false;
-
-	RedrawSurface(m, true);
 }
 
 void ToggleFullscreen(GlobalParams* m) { 
@@ -1610,16 +1663,16 @@ void RightDownCases(GlobalParams* m){
 
 	m->lastK = -1;
 	m->lastV = -1;
-	POINT mPP;
-	GetCursorPos(&mPP);
-	ScreenToClient(m->hwnd, &mPP);
 
-	if (IfInMenu(mPP, m) && m->isMenuState) { // check if the mouse is over a menu
+	// mpos: mPP
+	UpdateMousePos(m);
+
+	if (IfInMenu(m->mpos, m) && m->isMenuState) { // check if the mouse is over a menu
 		return;
 	}
 
 	if (m->drawmode) {
-		if (IsInImage(mPP, m)) {// NOW, im putting it in the right click menu up thing to not rendeeer menu ACTUALLLY its right down below
+		if (IsInImage(m->mrawpos, m)) {// NOW, im putting it in the right click menu up thing to not rendeeer menu ACTUALLLY its right down below
 			// removed the draw type thing because now it is handled in realtime
 			TurnOnDraw(m);
 			createUndoStep(m, true);
@@ -1627,7 +1680,7 @@ void RightDownCases(GlobalParams* m){
 		}
 	}
 
-	if(!(mPP.y > m->toolheight && extracases(mPP, m))) {
+	if((m->mpos.y <= m->toolheight || !extracases(m->mpos, m))) {
 		return;
 	}
 
@@ -1641,7 +1694,7 @@ void RightDownCases(GlobalParams* m){
 						ShowResizeDialog(m);
 					}
 					return true;
-				},0,0, &m->item_enabled, true
+				},1,1, &m->item_enabled, true
 			},
 
 			{"Toggle Smoothing{s}",
@@ -1652,7 +1705,7 @@ void RightDownCases(GlobalParams* m){
 					// nonreplace image
 					RedrawSurface(m);
 					return true;
-				},13,0, &m->isimage_menucondition, true
+				},14,1, &m->isimage_menucondition, true
 			},
 
 			{"Undo (CTRL+Z)",
@@ -1660,7 +1713,7 @@ void RightDownCases(GlobalParams* m){
 					m->isMenuState = false;
 					UndoBus(m);
 					return true;
-				},26,0, &m->undo_menucondition, true
+				},27,1, &m->undo_menucondition, true
 			},
 
 			{"Redo (CTRL+Y){s}",
@@ -1668,7 +1721,7 @@ void RightDownCases(GlobalParams* m){
 					m->isMenuState = false;
 					RedoBus(m);
 					return true;
-				},39,0, &m->redo_menucondition, true
+				},40,1, &m->redo_menucondition, true
 			},
 
 			
@@ -1677,16 +1730,17 @@ void RightDownCases(GlobalParams* m){
 			[m]() -> bool {
 
 				createUndoStep(m, true);
+				TurnOnLoad(m);
 				
 				memcpy(m->imgoriginaldata, m->imgdata, m->imgwidth*m->imgheight*4);
 				Beep(2000, 50);
 
 				m->shouldSaveShutdown = true;
 
-				RedrawSurface(m, true);
+				TurnOffLoad(m);
 
 				return true;
-			},91,13, &m->isimage_menucondition, true
+			},92,14, &m->isimage_menucondition, true
 			},
 
 			{"Resize Image [CTRL+R]{s}",
@@ -1697,7 +1751,7 @@ void RightDownCases(GlobalParams* m){
 					ShowResizeDialog(m);
 					//ResizeImageToSize(m);
 					return true;
-				},52,0, &m->isimage_menucondition, true
+				},53,1, &m->isimage_menucondition, true
 			},
 			
  
@@ -1720,7 +1774,7 @@ void RightDownCases(GlobalParams* m){
 						Beep(2000, 100);
 					}
 					return true;
-				},26,13, &m->item_enabled, false // double tap bug
+				},27,14, &m->item_enabled, false // double tap bug
 			},	
 
 		};
@@ -1730,8 +1784,8 @@ void RightDownCases(GlobalParams* m){
 		} else {
 			m->menuVector[6].atlasX = 26;
 		}
-		m->menuX = mPP.x;
-		m->menuY = mPP.y;
+		m->menuX = m->mpos.x;
+		m->menuY = m->mpos.y;
 		m->isMenuState = true;
 		// nonreplace image
 		RedrawSurface(m);
@@ -1784,6 +1838,8 @@ void MiddleDown(GlobalParams* m) {
 }
 
 void RightUpCases(GlobalParams* m) {
+	UpdateMousePos(m);
+
 	if (m->isInCropMode) {
 		ConfirmCrop(m);
 		return;
@@ -1798,17 +1854,17 @@ void RightUpCases(GlobalParams* m) {
 	}
 
 	bool isdraw = m->drawmousedown;
-	POINT pos;
-	GetCursorPos(&pos);
-	ScreenToClient(m->hwnd, &pos);
+
+	// mpos: pos
+
 	if (isdraw) {
 		return;
 	}
-	if (pos.y < m->toolheight) {
+	if (m->mpos.y < m->toolheight) {
 		return;
 	}
 	if (m->drawmode) {
-		if (IsInImage(pos, m)) {
+		if (IsInImage(m->mrawpos, m)) {
 			return;
 		}
 	}
@@ -1833,13 +1889,12 @@ void MiddleUp(GlobalParams* m) {
 }
 
 void MouseWheel(GlobalParams* m, WPARAM wparam, LPARAM lparam) {
+	UpdateMousePos(m);
 
 	if (m->imgwidth < 1) return;
 	float zDelta = (float)GET_WHEEL_DELTA_WPARAM(wparam) / WHEEL_DELTA;
 
-	POINT mPP;
-	GetCursorPos(&mPP);
-	ScreenToClient(m->hwnd, &mPP);
+	// mpos: mPP
 
 	if (m->drawmode) {
 

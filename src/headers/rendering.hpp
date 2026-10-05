@@ -1,7 +1,0 @@
-#pragma once
-#include "ops.hpp"
-#include "globalvar.hpp"
-#include "opengl.hpp"
-
-FT_Face LoadFont(GlobalParams* m, std::string fontA);
-void SwitchFont(FT_Face& font);

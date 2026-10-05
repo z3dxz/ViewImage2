@@ -29,16 +29,19 @@ FetchContent_MakeAvailable(lunasvg)
 
 file(GLOB_RECURSE SRC_FILES src/*.cpp src/*.c "res/View Image.rc")
 
-find_library(COMCTL32_LIB comctl32)
-find_library(COMCTL32_LIB comctl32)
-find_library(UXTHEME_LIB uxtheme)
 find_library(SHLWAPI_LIB shlwapi)
-find_library(WINMM winmm)
 find_package(OpenGL REQUIRED)
 
 configure_file(res/OCRAEXT.ttf OCRAEXT.ttf COPYONLY)
 configure_file(res/segoeui.ttf segoeui.ttf COPYONLY)
 configure_file(res/verdana.ttf verdana.ttf COPYONLY)
+
+if(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
+    add_compile_options(-ffunction-sections -fdata-sections)
+    add_link_options(-Wl,--gc-sections)
+    add_link_options(-Wl,--as-needed)
+    add_link_options(-s)
+endif()
 
 find_package(Freetype REQUIRED)
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -54,5 +57,5 @@ target_compile_definitions(viewimage PRIVATE BUILD_TYPE="$<CONFIG>" BUILD_SYSTEM
 set_target_properties(viewimage PROPERTIES OUTPUT_NAME "ViewImage")
 
 # Link the library to the target
-target_link_libraries(viewimage PRIVATE ${COMCTL32_LIB} ${UXTHEME_LIB} ${SHLWAPI_LIB} ${WINMM} Freetype::Freetype OpenGL::GL)
+target_link_libraries(viewimage PRIVATE ${SHLWAPI_LIB} Freetype::Freetype OpenGL::GL)
 target_link_libraries(viewimage PRIVATE lunasvg)

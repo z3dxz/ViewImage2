@@ -1,6 +1,7 @@
 #include <windows.h>
 #include <stdint.h>
 #include <stdio.h>
+#include "../headers/ops.hpp"
 
 void* decodeico(const char* filepath, int* imgwidth, int* imgheight) {
     HICON hIcon = (HICON)LoadImage(NULL, filepath, IMAGE_ICON, 0, 0, LR_LOADFROMFILE);
@@ -43,7 +44,7 @@ void* decodeico(const char* filepath, int* imgwidth, int* imgheight) {
     DrawIconEx(hMemDC, 0, 0, hIcon, bm.bmWidth, bm.bmHeight, 0, NULL, DI_NORMAL);
 
     int size = bm.bmWidth * bm.bmHeight * 4;
-    void* resultBuffer = malloc(size);
+    void* resultBuffer = vismalloc(size, "SFBB Output Buffer");
     if (resultBuffer) {
         memcpy(resultBuffer, pBits, size);
     }

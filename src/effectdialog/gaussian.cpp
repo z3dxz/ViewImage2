@@ -30,8 +30,10 @@ static void ApplyEffectToBuffer(float amount) {
 
 static void ConfirmEffect() {
     createUndoStep(m, true);
+    TurnOnLoad(m);
     memcpy(m->imgdata, m->imagepreview, m->imgwidth * m->imgheight * 4);
     m->shouldSaveShutdown = true;
+    TurnOffLoad(m);
 }
 
 LRESULT CALLBACK SliderProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -49,7 +51,7 @@ static LRESULT CALLBACK DialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lp
             free(m->imagepreview);
         }
 
-        m->imagepreview = malloc(m->imgwidth * m->imgheight * 4);
+        m->imagepreview = vismalloc(m->imgwidth * m->imgheight * 4, "Gaussian Blur Image Preview Buffer");
         memcpy(m->imagepreview, m->imgdata, m->imgwidth * m->imgheight * 4);
         m->isImagePreview = true;
 
@@ -78,6 +80,7 @@ static LRESULT CALLBACK DialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lp
                 ConfirmEffect();
 
                 m->isImagePreview = false;
+                RedrawSurface(m, true);
                 if (m->imagepreview) {
                     FreeData(m->imagepreview);
                 }
@@ -86,6 +89,7 @@ static LRESULT CALLBACK DialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lp
             }
             case IDCANCEL: {
                 m->isImagePreview = false;
+                RedrawSurface(m, true);
                 if (m->imagepreview) {
                     FreeData(m->imagepreview);
                 }
@@ -96,6 +100,7 @@ static LRESULT CALLBACK DialogProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lp
         break;
     case WM_CLOSE: {
         m->isImagePreview = false;
+        RedrawSurface(m, true);
         if (m->imagepreview) {
             FreeData(m->imagepreview);
         }

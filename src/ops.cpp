@@ -96,8 +96,7 @@ bool isFile(const char* str, const char* suffix) {
 	return true;
 }
 
-unsigned char* LoadImageFromResource(int resourceId, int& width, int& height, int& channels)
-{
+unsigned char* LoadImageFromResource(int resourceId, int* width, int* height, int* channels) {
 	HMODULE hModule = GetModuleHandle(nullptr);
 
 	HRSRC hResource = FindResource(hModule, MAKEINTRESOURCE(resourceId), "PNG");
@@ -105,7 +104,7 @@ unsigned char* LoadImageFromResource(int resourceId, int& width, int& height, in
 	const void* resourceData = LockResource(hResourceData);
 	const size_t resourceSize = SizeofResource(hModule, hResource);
 
-	unsigned char* imageData = stbi_load_from_memory(reinterpret_cast<const stbi_uc*>(resourceData), resourceSize, &width, &height, &channels, 4);
+	unsigned char* imageData = stbi_load_from_memory(reinterpret_cast<const stbi_uc*>(resourceData), resourceSize, width, height, channels, 4);
 	
 	if (!imageData) std::cerr << "Failed to load image from resource " << resourceId << ": " << stbi_failure_reason() << std::endl;
 
@@ -114,11 +113,64 @@ unsigned char* LoadImageFromResource(int resourceId, int& width, int& height, in
 	return imageData;
 }
 
+int NextPOT(int n) {
+    int p = 1;
+    while (p < n) p *= 2;
+    return p;
+}
+
+GLAtlasTxt LoadOpenGLImageFromResource(int resourceId) {
+    int w, h, c;
+    unsigned char* img = LoadImageFromResource(resourceId, &w, &h, &c);
+    if (!img) {
+        std::cerr << "Failed to load resource\n";
+        return {0, 0, false};
+    }
+    
+    if (c != 4) {
+        std::cerr << "Only 4-channel textures are supported\n";
+        free(img); 
+        return {0, 0, false};
+    }
+
+    int new_w = NextPOT(w);
+    int new_h = NextPOT(h);
+
+    unsigned char* new_img = img;
+    if (new_w != w || new_h != h) {
+        new_img = new unsigned char[new_w * new_h * 4]();
+        for (int y = 0; y < h; ++y) {
+            memcpy(new_img + (y * new_w * 4), img + (y * w * 4), w * 4);
+        }
+    }
+
+    GLAtlasTxt atl_ele;
+    
+    glGenTextures(1, &atl_ele.id);
+    glBindTexture(GL_TEXTURE_2D, atl_ele.id);
+    
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, new_w, new_h, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, new_w, new_h, GL_RGBA, GL_UNSIGNED_BYTE, new_img);
+    
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    
+    if (new_img != img) {
+        delete[] new_img;
+    }
+    
+    free(img);
+
+    atl_ele.valid = true;
+    atl_ele.w = new_w;
+    atl_ele.h = new_h;
+    return atl_ele;
+}
 
 void PrintImageToPrinter(uint32_t* image, int width, int height, HDC printerDC) {
 	if (!image || !printerDC) return;
 	
-	uint32_t* temp = (uint32_t*)malloc(width * height * 4);
+	uint32_t* temp = (uint32_t*)vismalloc(width * height * 4, "New Printer Image");
 	for (int i = 0; i < width * height; i++) {
 		*(temp+i) = (*(image+i));
 	}
@@ -174,7 +226,7 @@ void Print(GlobalParams* m) {
 
 void ConfirmCropBuffer(GlobalParams* m, void** buffer, int newW, int newH) {
 
-	void* MyNewCropLifestyle = malloc(newW * newH * 4);
+	void* MyNewCropLifestyle = vismalloc(newW * newH * 4, "Cropped Memory Image");
 
 	for (int y = 0; y < newH; y++) {
 		for (int x = 0; x < newW; x++) {
@@ -185,7 +237,7 @@ void ConfirmCropBuffer(GlobalParams* m, void** buffer, int newW, int newH) {
 	}
 
 	FreeData(*buffer);
-	*buffer = malloc(newW * newH * 4);
+	*buffer = vismalloc(newW * newH * 4, "New Cropped Buffer");
 	memcpy(*buffer, MyNewCropLifestyle, newW * newH * 4);
 
 	FreeData(MyNewCropLifestyle);
@@ -205,6 +257,7 @@ void ConfirmCrop(GlobalParams* m) {
 	}
 
 	createUndoStep(m, false);
+	TurnOnLoad(m);
 
 	ConfirmCropBuffer(m, &m->imgdata, newW, newH);
 	ConfirmCropBuffer(m, &m->imgoriginaldata, newW, newH);
@@ -216,17 +269,16 @@ void ConfirmCrop(GlobalParams* m) {
 	
 	autozoom(m);
 	m->isInCropMode = false;
-
-	RedrawSurface(m, true);
+	TurnOffLoad(m);
 }
 
 
 void performResize(GlobalParams* m, void** memory, int owidth, int oheight, int nwidth, int nheight) {
-	void* tempOldBuffer = malloc(owidth * oheight* 4);
+	void* tempOldBuffer = vismalloc(owidth * oheight* 4, "Resize buffer");
 	memcpy(tempOldBuffer, *memory, owidth * oheight * 4);
 
 	FreeData(*memory);
-	*memory = malloc(nwidth * nheight * 4);
+	*memory = vismalloc(nwidth * nheight * 4, "Resized memory buffer");
 
 	stbir_resize_uint8_linear((unsigned char*)tempOldBuffer, owidth, oheight, 0, (unsigned char*)*memory, nwidth, nheight, 0, STBIR_RGBA);
 
@@ -239,21 +291,23 @@ void ResizeImageToSize(GlobalParams* m, int nwidth, int nheight) {
 
 	createUndoStep(m, false);
 
+	TurnOnLoad(m);
+
 	performResize(m, &m->imgdata, m->imgwidth, m->imgheight, nwidth, nheight);
 	performResize(m, &m->imgoriginaldata, m->imgwidth, m->imgheight, nwidth, nheight);
 	m->imgwidth = nwidth;
 	m->imgheight = nheight;
 	autozoom(m);
 
-	RedrawSurface(m, true);
+	TurnOffLoad(m);
 }
 
 void rotatememory(GlobalParams* m, int owidth, int oheight, int nwidth, int nheight, void** memory) {
-	void* tempOldBuffer = malloc(owidth * oheight * 4);
+	void* tempOldBuffer = vismalloc(owidth * oheight * 4, "Rotate old buffer");
 	memcpy(tempOldBuffer, *memory, owidth * oheight * 4);
 
 	FreeData(*memory);
-	*memory = malloc(nwidth * nheight * 4);
+	*memory = vismalloc(nwidth * nheight * 4, "New rotate buffer");
 
 	// do
 	for (size_t y = 0; y < nheight; y++) {
@@ -266,8 +320,8 @@ void rotatememory(GlobalParams* m, int owidth, int oheight, int nwidth, int nhei
 }
 
 void rotateImage90Degrees(GlobalParams* m) {
-
 	createUndoStep(m, false);
+	TurnOnLoad(m);
 	int oldw = m->imgwidth;
 	int oldh = m->imgheight;
 	int neww = m->imgheight;
@@ -278,8 +332,8 @@ void rotateImage90Degrees(GlobalParams* m) {
 	m->imgheight = newh;
 	m->shouldSaveShutdown = true;
 	autozoom(m);
-	
-	RedrawSurface(m, true);
+
+	TurnOffLoad(m);
 }
 
 int GetIndividualButtonPush(GlobalParams* m, int index) {
@@ -306,11 +360,11 @@ int GetLocationFromButton(GlobalParams* m, int index) {
 }
 
 
-int getXbuttonID(GlobalParams* m, POINT mPos) {
+int getXbuttonID(GlobalParams* m) {
 	// GetLocationFromButton, RenderToolbarButtons, getXbuttonID
 	// Make sure they are all synced
 
-	if (mPos.y > m->toolheight || mPos.y < 2 || mPos.x < 2) {
+	if (m->mpos.y > m->toolheight || m->mpos.y < 2 || m->mpos.x < 2) {
 		return -1;
 	}
 
@@ -318,8 +372,8 @@ int getXbuttonID(GlobalParams* m, POINT mPos) {
 
 	for (size_t i = 0; i < m->toolbartable.size(); i++) {
 
-		if (mPos.x >= p) {
-			if (mPos.x <= (p+m->iconSize+4)) {
+		if (m->mpos.x >= p) {
+			if (m->mpos.x <= (p+m->iconSize+4)) {
 				return i;
 			}
 		}
@@ -371,7 +425,7 @@ float roundzoom(float z) {
 void no_offset(GlobalParams* m) {
 	m->iLocX = 0;
 	if (!m->fullscreen) {
-		m->iLocY = m->toolheight / 2;
+		m->iLocY = (m->toolheight*m->uiscale) / 2;
 	}
 	else {
 		m->iLocY = 0;
@@ -385,34 +439,31 @@ void autozoom(GlobalParams* m) {
 	}
 
 	int toolheight0 = 0;
-	if (!m->fullscreen) { toolheight0 = m->toolheight; }
+	if (!m->fullscreen) { toolheight0 = m->toolheight * m->uiscale; }
 
 	no_offset(m);
 
-	float precentX = (float)m->width / (float)m->imgwidth;
-	float precentY = (float)(m->height - toolheight0) / (float)m->imgheight;
+	float precentX = (float)m->rlwidth / (float)m->imgwidth;
+	float precentY = (float)(m->rlheight - toolheight0) / (float)m->imgheight;
 
 	float e = fmin(precentX, precentY);
 	
 	float fzoom = e;
 
 	if (m->imgheight < 50) { fzoom = e / 2; }
-	// round to the nearest power of 1.25 (for easy zooming back to 100)
 	m->mscaler = fzoom;
-	//if (mscaler > 1.0f && imgheight > 5) mscaler = 1.0f;
-
-	// nonreplace image
 	RedrawSurface(m);
 }
 
 
 void NewZoom(GlobalParams* m, float v, int mouse, bool shouldRoundZoom) {
+	UpdateMousePos(m);
 
-	POINT p;
-	GetCursorPos(&p);
-	ScreenToClient(m->hwnd, &p);
-	p.x -= m->width / 2;
-	p.y -= m->height / 2;
+	// mpos: p
+	POINT p = m->mrawpos;
+
+	p.x -= m->rlwidth / 2;
+	p.y -= m->rlheight / 2;
 
 	if (mouse == 2) {
 		p.x = 0;
@@ -421,8 +472,8 @@ void NewZoom(GlobalParams* m, float v, int mouse, bool shouldRoundZoom) {
 
 	int distance_x = m->iLocX - p.x;
 	int distance_y = m->iLocY - p.y;
-	int new_width = m->width * v;
-	int new_height = m->height * v;
+	int new_width = m->rlwidth * v;
+	int new_height = m->rlheight * v;
 	if (mouse) {
 		m->iLocX = p.x + distance_x * v;
 		m->iLocY = p.y + distance_y * v;
@@ -485,11 +536,8 @@ void init_gamma_table(float gamma) {
 }
 
 bool AutoAdjustLevels(GlobalParams* m, uint32_t* buffer, double sigma) {
-	m->loading = true;
-	// nonreplace imge
-	RedrawSurface(m);
 	// temporary blurred image buffer
-	uint32_t* tempd = (uint32_t*)malloc(m->imgwidth*m->imgheight*4);
+	uint32_t* tempd = (uint32_t*)vismalloc(m->imgwidth*m->imgheight*4, "Adjustment Buffer");
 
 	// gaussian B previously
 	gaussian_blur_real((uint32_t*)buffer, tempd, m->imgwidth, m->imgheight, sigma, m->imgwidth, m->imgheight, 0, 0);
@@ -549,6 +597,7 @@ bool AutoAdjustLevels(GlobalParams* m, uint32_t* buffer, double sigma) {
 	// modify
 	m->shouldSaveShutdown = true;
 	createUndoStep(m, true);
+	TurnOnLoad(m);
 
 	for (int y = 0; y < height; y++) {
 		for (int x = 0; x < width; x++) {
@@ -573,9 +622,7 @@ bool AutoAdjustLevels(GlobalParams* m, uint32_t* buffer, double sigma) {
 
 	Beep(4000, 40);
 
-	m->loading = false;
-
-	RedrawSurface(m, true);
+	TurnOffLoad(m);
 	return true;
 }
 
@@ -650,7 +697,7 @@ void boxBlurRegion(uint32_t* src, uint32_t* dst, int width, int height, uint32_t
 
     size_t chanSize = (size_t)workW * workH;
 
-    uint64_t* intA = (uint64_t*)malloc(chanSize * sizeof(uint64_t) * 4);
+    uint64_t* intA = (uint64_t*)vismalloc(chanSize * sizeof(uint64_t) * 4, "Box blur region buffer");
     if (!intA) return;
     uint64_t *intR = intA + chanSize, *intG = intR + chanSize, *intB = intG + chanSize;
 
@@ -752,6 +799,8 @@ uint32_t change_alpha(uint32_t color, uint8_t new_alpha) {
 	return (color & 0xFFFFFF) | (static_cast<uint32_t>(new_alpha) << 24);
 }
 
+// everything to bottom is fonts
+
 FT_Library ft;
 FT_Face* currentFace;
 
@@ -760,9 +809,8 @@ std::string GetWindowsFontsFolder() {
 	char fontPath[MAX_PATH];
 	DWORD size = MAX_PATH;
 
-	// Open the registry key where the fonts directory path is stored
+	// Open the registry key
 	if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, "Software\\Microsoft\\Windows NT\\CurrentVersion\\Fonts", 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
-		// Query the "FontDir" value
 		if (RegQueryValueEx(hKey, "FontDir", nullptr, nullptr, (LPBYTE)fontPath, &size) == ERROR_SUCCESS) {
 			RegCloseKey(hKey);
 			return std::string(fontPath);
@@ -770,7 +818,7 @@ std::string GetWindowsFontsFolder() {
 		RegCloseKey(hKey);
 	}
 
-	// Fallback: Use the standard Windows directory + "Fonts" if registry lookup fails
+	// Fallback
 	if (GetWindowsDirectory(fontPath, MAX_PATH)) {
 		PathAppend(fontPath, "Fonts");
 		return std::string(fontPath);
@@ -826,11 +874,11 @@ FT_Face LoadFont(GlobalParams* m, std::string fontA) {
 	return nullptr;
 }
 
-void SwitchFont(FT_Face& font) {
+void SwitchSoftwareFont(FT_Face& font) {
 	currentFace = &font;
 }
 
-int opsPlaceStringGreyscale(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, void* mem, int bufwidth, int bufheight, void* fromBuffer) {
+int opsPlaceStringGreyscaleSoftware(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, void* mem, int bufwidth, int bufheight, void* fromBuffer) {
 	
 	locY = bufheight - locY-size; // compensate for negative Y
 
@@ -880,7 +928,7 @@ int opsPlaceStringGreyscale(GlobalParams* m, int size, const char* inputstr, uin
 
 
 
-int opsPlaceStringLCD(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, void* mem, int bufwidth, int bufheight, void* fromBuffer) {
+int opsPlaceStringLCDSoftware(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, void* mem, int bufwidth, int bufheight, void* fromBuffer) {
 	
 	locY = bufheight - locY - size; // compensate for negative Y
 
@@ -949,58 +997,12 @@ int opsPlaceStringLCD(GlobalParams* m, int size, const char* inputstr, uint32_t 
 	return true;
 }
 
-int opsPlaceStringBuffer(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, void* mem, int bufwidth, int bufheight, void* fromBuffer) {
+int opsPlaceStringBufferSoftware(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, void* mem, int bufwidth, int bufheight, void* fromBuffer) {
 	bool state = true;
 	if (m->lcd) {
-		state = state && opsPlaceStringLCD(m, size, inputstr, locX, locY, color, mem, bufwidth, bufheight, fromBuffer);
+		state = state && opsPlaceStringLCDSoftware(m, size, inputstr, locX, locY, color, mem, bufwidth, bufheight, fromBuffer);
 	} else {
-		state = state && opsPlaceStringGreyscale(m, size, inputstr, locX, locY, color, mem, bufwidth, bufheight, fromBuffer);
+		state = state && opsPlaceStringGreyscaleSoftware(m, size, inputstr, locX, locY, color, mem, bufwidth, bufheight, fromBuffer);
 	}
-
 	return state;
-}
-
-int opsPlaceStringShadowObject(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, void* mem, double sigma, int passes) {
-	sigma*=5.0;
-	int clearance = 20;
-	unsigned int approx_textwidth = std::string(inputstr).length()*size;
-
-	unsigned int tempbuffer_width = approx_textwidth+clearance*2;
-	unsigned int tempbuffer_height = size+clearance*2;
-
-
-	size_t memcount = tempbuffer_width*tempbuffer_height;
-	size_t memsize = memcount*4;
-
-	uint32_t* temp_buffer = (uint32_t*)malloc(memsize);
-	memset(temp_buffer, 0xFF, memsize);
-
-	int e = opsPlaceStringGreyscale(m, size, inputstr, clearance, clearance, 0x000000, temp_buffer, tempbuffer_width, tempbuffer_height, temp_buffer);
-
-	// blur
-	// gaussian B previously
-	gaussian_blur_real(temp_buffer, temp_buffer, tempbuffer_width, tempbuffer_height, sigma, tempbuffer_width, tempbuffer_height, 0, 0);
-
-	for(int i=0; i<passes; i++) {
-		for(int y=0; y<tempbuffer_height; y++) {
-			for(int x=0; x<tempbuffer_width; x++) {
-				// render temp
-				int64_t putX_signed = (int64_t)locX+x-clearance;
-				int64_t putY_signed = (int64_t)locY+y-clearance;
-				uint32_t putX = (uint32_t)putX_signed;
-				uint32_t putY = (uint32_t)putY_signed;
-				
-				if(putX_signed >= 0 && putX < m->width && putY_signed >= 0 && putY < m->height) {
-					uint32_t* scrbuf = GetMemoryLocation(mem, putX, putY, m->width, m->height);
-					int from = (*GetMemoryLocation(temp_buffer, x, y, tempbuffer_width, tempbuffer_height) >> 8) & 0xFF;
-					int factor = 255-from;
-					*scrbuf = lerp_u32(*scrbuf, color, factor);
-				}
-			}
-		}
-	}
-
-	free(temp_buffer);
-
-	return e;
 }

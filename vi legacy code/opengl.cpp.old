@@ -3,9 +3,8 @@
 #include <cmath>
 #include <windows.h>
 #include <gl/gl.h>
-#include "../headers/ops.hpp"
-#include "render_ui.hpp"
-#define REDRAW_PADDING 4
+#include "../../headers/ops.hpp"
+#include "../../headers/guirender.hpp"
 
 unsigned int imgdatatxt = 0;
 unsigned int checkertxt = 0;
@@ -30,9 +29,8 @@ void SetupPixelFormat(GlobalParams* m) {
     pfd.nVersion = 1;
     pfd.dwFlags = PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER | PFD_DRAW_TO_WINDOW;
     pfd.iPixelType = PFD_TYPE_RGBA;
-    pfd.cColorBits = 24;
-    pfd.cDepthBits = 24;
-    if(m->aeromode) {pfd.cAlphaBits = 8;};
+    pfd.cColorBits = 32;
+    pfd.cDepthBits = 32;
     pfd.iLayerType = PFD_MAIN_PLANE;
     int pixelFormat = ChoosePixelFormat(m->hdc, &pfd);
     if (pixelFormat == 0) {
@@ -59,57 +57,26 @@ void MakeCheckerboard() {
 }
 
 void DrawCheckerboard(GlobalParams* m) {
-    UpdateMousePos(m);
     if (!checkertxt) return;
-
     glEnable(GL_TEXTURE_2D);
     glBindTexture(GL_TEXTURE_2D, checkertxt);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glColor3f(1.0f, 1.0f, 1.0f);
-
-    float chk_size = 9.0f * m->uiscale;
-
-    float tile2X = ((float)m->rlwidth / 2.0f / chk_size);
-    float tile2Y = ((float)m->rlheight / 2.0f / chk_size);
-
-    GLfloat vertices[] = {
-        0.0f, 0.0f,
-        (GLfloat)m->rlwidth, 0.0f,
-        (GLfloat)m->rlwidth, (GLfloat)m->rlheight,
-        0.0f, (GLfloat)m->rlheight
-    };
-
-    GLfloat texCoords[] = {
-        0.0f, 0.0f,
-        tile2X, 0.0f,
-        tile2X, tile2Y,
-        0.0f, tile2Y
-    };
-
-    // mpos: p
-
-    if(m->aeromode && CanRenderToolbarMacro) {
-        texCoords[1] = m->toolheight/2.0f/9.0f;
-        texCoords[3] = m->toolheight/2.0f/9.0f;
-        vertices[1] = m->toolheight;
-        vertices[3] = m->toolheight;
-    }
-
-    glEnableClientState(GL_VERTEX_ARRAY);
-    glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-    glVertexPointer(2, GL_FLOAT, 0, vertices);
-    glTexCoordPointer(2, GL_FLOAT, 0, texCoords);
-
-    glDrawArrays(GL_QUADS, 0, 4);
-
-    glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-    glDisableClientState(GL_VERTEX_ARRAY);
-
+    glBegin(GL_QUADS);
+    float tile2X = ((float)m->width / 2.0f / 9.0f);
+    float tile2Y = ((float)m->height / 2.0f / 9.0f);
+    glTexCoord2f(0.0f, 0.0f); glVertex2f(0, 0);
+    glTexCoord2f(tile2X, 0.0f); glVertex2f(m->width, 0);
+    glTexCoord2f(tile2X, tile2Y); glVertex2f(m->width, m->height);
+    glTexCoord2f(0.0f, tile2Y); glVertex2f(0, m->height);
+    glEnd();
     glDisable(GL_TEXTURE_2D);
 }
 
+
 void InitializeOpenGL(GlobalParams* m) {
+
     SetupPixelFormat(m);
     hglrc = wglCreateContext(m->hdc);
     if (!hglrc) {
@@ -120,11 +87,7 @@ void InitializeOpenGL(GlobalParams* m) {
         MessageBoxA(NULL, "wglMakeCurrent Failed", "OpenGL Fatal Error", MB_OK | MB_ICONERROR);
         return;
     }
-    int texSize;
-    glGetIntegerv(GL_MAX_TEXTURE_SIZE, &texSize);
-    printf("Max texture size: %d\n", texSize);
-
-    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+    glClearColor(0.0f, 0.5f, 0.5f, 1.0f);
     MakeCheckerboard();
 }
 
@@ -157,10 +120,10 @@ bool followsPattern(int number) {
 
 void DrawImage(GlobalParams* m) {
     if (!imgdatatxt || !m->imgdata) return;
-    const float offX = roundf(((float)m->rlwidth - m->imgwidth * m->mscaler) / 2.0f + m->iLocX);
-    const float offY = roundf(((float)m->rlheight - m->imgheight * m->mscaler) / 2.0f + m->iLocY);
-    const float distX = offX + roundf((float)m->imgwidth * m->mscaler);
-    const float distY = offY + roundf((float)m->imgheight * m->mscaler);
+    const int offX = (int)roundf(((float)m->width - m->imgwidth * m->mscaler) / 2.0f + m->iLocX);
+    const int offY = (int)roundf(((float)m->height - m->imgheight * m->mscaler) / 2.0f + m->iLocY);
+    const int distX = offX + (int)roundf((float)m->imgwidth * m->mscaler);
+    const int distY = offY + (int)roundf((float)m->imgheight * m->mscaler);
     float maxImgU = (float)m->imgwidth / (float)potImgW;
     float maxImgV = (float)m->imgheight / (float)potImgH;
 
@@ -168,103 +131,73 @@ void DrawImage(GlobalParams* m) {
     glEnable(GL_TEXTURE_2D);
     glBindTexture(GL_TEXTURE_2D, imgdatatxt);
     GLint filter = (m->smoothing) ? GL_LINEAR : GL_NEAREST;
-    if (followsPattern((int)((m->mscaler) * 100))) {
+    if (followsPattern((int)(m->mscaler * 100))) {
         filter = GL_NEAREST;
     }
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
 
-    GLfloat vertices[] = {
-        offX,  offY,
-        offX,  distY,
-        distX, distY,
-        distX, offY
-    };
+    glBegin(GL_QUADS);
 
-    GLfloat texCoords[] = {
-        0.0f,    0.0f,
-        0.0f,    maxImgV,
-        maxImgU, maxImgV,
-        maxImgU, 0.0f
-    };
-
-    glEnableClientState(GL_VERTEX_ARRAY);
-    glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-    glVertexPointer(2, GL_FLOAT, 0, vertices);
-    glTexCoordPointer(2, GL_FLOAT, 0, texCoords);
-
-    glDrawArrays(GL_QUADS, 0, 4);
-
-    glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-    glDisableClientState(GL_VERTEX_ARRAY);
-
+    glTexCoord2f(0.0f, 0.0f); glVertex2f(offX, offY);
+    glTexCoord2f(0.0f, maxImgV);   glVertex2f(offX, distY);
+    glTexCoord2f(maxImgU, maxImgV); glVertex2f(distX, distY);
+    glTexCoord2f(maxImgU, 0.0f); glVertex2f(distX, offY);
+    glEnd();
     glDisable(GL_TEXTURE_2D);
 }
 
-int redraw_timer = REDRAW_PADDING;
+int redraw_timer = 10;
 bool need_redraw_image = false;
 
 void RedrawScene(GlobalParams* m);
 
+
 void PerformRedraw(GlobalParams* m){
     if(redraw_timer>0) {
         redraw_timer--;
+
         RedrawScene(m);
     }
+
 }
 
-void RedrawSurface(GlobalParams* m, bool image_update) {
-    redraw_timer = REDRAW_PADDING;
-    if(image_update) {
+void RedrawSurface(GlobalParams* m, bool updateimage) {
+    redraw_timer = 10;
+    if(updateimage) {
         need_redraw_image = true;
     }
 }
 
-void RedrawForce(GlobalParams* m, bool image_update) {
-    need_redraw_image = true;
-    RedrawSurface(m);
-    PerformRedraw(m);
-}
-
-#ifndef GL_FUNC_ADD
-#define GL_FUNC_ADD 0x8006
-#endif
-
-static clock_t start, end;
 void RedrawScene(GlobalParams* m) {
-    start = clock();
-    glPushAttrib(GL_CURRENT_BIT | GL_ENABLE_BIT | GL_TEXTURE_BIT | GL_TRANSFORM_BIT);
-
+    glPushAttrib(GL_CURRENT_BIT | GL_ENABLE_BIT | GL_TEXTURE_BIT);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-    if(m->aeromode) {
-        if(m->glBlendFuncSeparate) {
-            glEnable(GL_BLEND);
-            m->glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-        }
-    }
-
-    glViewport(0, 0, m->rlwidth, m->rlheight);
-
+    glViewport(0, 0, m->width, m->height);
     glMatrixMode(GL_PROJECTION);
     glPushMatrix();
     glLoadIdentity();
-    glOrtho(0.0, m->rlwidth, m->rlheight, 0.0, -1.0, 1.0);
-
+    glOrtho(0.0, m->width, m->height, 0.0, -1.0, 1.0);
     glMatrixMode(GL_MODELVIEW);
     glPushMatrix();
     glLoadIdentity();
-
-    glTranslatef(0.375f, 0.375f, 0.0f);
-
+    
     uint32_t* renderbuffer = (uint32_t*)m->imgdata;
     if (m->isImagePreview) renderbuffer = (uint32_t*)m->imagepreview;
+    if (renderbuffer && m->imgdata) {
+        if (lastImgW != m->imgwidth || lastImgH != m->imgheight || !imgdatatxt) {
+            NewImgDataTxt(m);
+        }
+        lastImgW = m->imgwidth;
+        lastImgH = m->imgheight;
+    }
 
     if (need_redraw_image) {
         UpdateImage(m, renderbuffer);
+        need_redraw_image = false;
     }
     
+
     DrawCheckerboard(m);
     DrawImage(m);
     DrawGUI(m);
@@ -275,14 +208,8 @@ void RedrawScene(GlobalParams* m) {
     glMatrixMode(GL_PROJECTION);
     glPopMatrix();
     glPopAttrib();
-    end = clock();
-    if(need_redraw_image) {
-        m->dt_time = (double)(end - start) / CLOCKS_PER_SEC;
-    }
-    need_redraw_image = false;
+    
 }
-
-
 
 void CleanupOpenGL(GlobalParams* m) {
     if (imgdatatxt) glDeleteTextures(1, &imgdatatxt);

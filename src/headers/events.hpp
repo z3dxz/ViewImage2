@@ -1,15 +1,21 @@
 #pragma once
 #include "globalvar.hpp"
 #include "ops.hpp"
-#include "rendering.hpp"
+#include "../rendering/rendering.hpp"
 #include "imgload.hpp"
 #include "leftrightlogic.hpp"
 #include <string>
 #include "../effectdialog/headers/resizedialog.hpp"
+#include "../rendering/renderops.hpp"
 
 #include "../effectdialog/headers/brightnesscontrast.h"
 #include "../effectdialog/headers/gaussian.h"
 #include "../effectdialog/headers/drawtext.h"
+
+void TurnOnLoad(GlobalParams* m);
+void TurnOffLoad(GlobalParams* m);
+
+void UpdateMousePos(GlobalParams* m);
 
 uint32_t PickColorFromDialog(GlobalParams* m, uint32_t def, bool* success);
 

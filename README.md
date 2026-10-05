@@ -1,6 +1,6 @@
 # [ViewImage](https://www.cosine64.com/info_pages/vi_info.html)
 
-ViewImage or "View Image" is a powerful, yet lightweight image viewer designed and targeted for Windows XP, Vista, 7, 8, 8.1, 10, or 11
+ViewImage or "View Image" is a powerful, yet lightweight image viewer designed and targeted for Windows XP/Vista/7/8/8.1/10//11
 
 <img width="1016" height="601" alt="demo" src="https://github.com/user-attachments/assets/0c9f1466-7a5a-4fb2-aeb9-81460a63ac77" />
 
@@ -25,8 +25,15 @@ ViewImage or "View Image" is a powerful, yet lightweight image viewer designed a
   - Uses stb_image formats: JPEG, PNG, TGA, BMP, PSD (composited only), static GIF, HDR (only sRGB), PIC, and PNM
   - Specialty supports include SVG, SFBB, M45, and IRBO
  
-# System Requirements
+# System Requirements for current release
+* Windows XP SP3 / Vista / 7 / 8 / 8.1 / 10 / 11
+* Requires a fairly modern processor
+* Wine works awful
+
+# System Requirements for upcoming release
 * Windows XP RTM-SP3 / Vista / 7 / 8 / 8.1 / 10 / 11
+* Requires 3D Acceleration (OpenGL 1.1)
+* At least a Intel Pentium 4 or equivalent processor with SSE2
 * Works well on wine
 
 # Why
