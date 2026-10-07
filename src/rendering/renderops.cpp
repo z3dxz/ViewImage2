@@ -222,11 +222,8 @@ void dDrawRectangle(GlobalParams* m, int xloc, int yloc, int width, int height, 
     glDisableClientState(GL_VERTEX_ARRAY);
 }
 
-void dDrawRoundedRectangle(GlobalParams* m, int xloc, int yloc, int width, int height, uint32_t color, float opacity) {
-    xloc *= m->uiscale;
-    yloc *= m->uiscale;
-    width *= m->uiscale;
-    height *= m->uiscale;
+void dDrawRoundedRectangleObject(GlobalParams* m, int xloc, int yloc, int width, int height, uint32_t color, float opacity) {
+    
 
     if (width <= 0 || height <= 0) return;
 
@@ -257,6 +254,26 @@ void dDrawRoundedRectangle(GlobalParams* m, int xloc, int yloc, int width, int h
     glLineWidth(m->uiscale);
     glDrawArrays(GL_LINE_LOOP, 0, 8);
     glDisableClientState(GL_VERTEX_ARRAY);
+
+}
+
+void dDrawRoundedRectangle(GlobalParams* m, int xloc, int yloc, int width, int height, uint32_t color, float opacity) {
+    xloc *= m->uiscale;
+    yloc *= m->uiscale;
+    width *= m->uiscale;
+    height *= m->uiscale;
+
+    dDrawRoundedRectangleObject(m, xloc, yloc, width, height, color, opacity);
+}
+
+void dDrawDoubleBorder(GlobalParams* m, int xloc, int yloc, int width, int height, uint32_t color, float opacity, float hl_opacity) {
+    xloc *= m->uiscale;
+    yloc *= m->uiscale;
+    width *= m->uiscale;
+    height *= m->uiscale;
+
+    dDrawRoundedRectangleObject(m, xloc+1, yloc+1, width-2, height-2, 0xFFFFFFFF, hl_opacity);
+    dDrawRoundedRectangleObject(m, xloc, yloc, width, height, color, opacity);
 }
 
 void dDrawRoundedFilledRectangle(GlobalParams* m, int xloc, int yloc, int width, int height, uint32_t color, float opacity) {

@@ -44,8 +44,7 @@ void RenderFullscreenIcon(GlobalParams* m, bool aeromode){
 	if(nearf) {
 		// what happens when you hover over the screen button
 		//-- The outline
-		dDrawRoundedRectangle(m, m->width-36, 12, 24, 23, 0xFFFFFFFF, 0.2f);
-		dDrawRoundedRectangle(m, m->width-37, 11, 26, 25, 0xFF000000, 1.0f);
+		dDrawDoubleBorder(m, m->width-37, 11, 26, 25, 0xFF000000, 1.0f);
 
 		//-- Fullscreen icon tooltip
 		SwitchFont(m->SegoeUI);
@@ -84,7 +83,7 @@ void RenderToolbarContainer(GlobalParams* m) {
 
 	// The three border lines
 	drawLine(m, 0, 0, m->width, true, 0xFF333333, 1.0f);
-	drawLine(m, 0, m->toolheight-2, m->width, true, 0xFFFFFFFF, 0.2f);
+	drawLine(m, 0, m->toolheight-2, m->width, true, 0xFFFFFFFF, 0.3f);
 	drawLine(m, 0, m->toolheight-1, m->width, true, 0xFF000000, 1.0f);
 }
 
@@ -122,8 +121,7 @@ void RenderToolbarButtons(GlobalParams* m, bool aeromode){
 	//-- The border when selecting annotate
 	if (m->drawmode) {
 		// 7 means draw
-		dDrawRoundedRectangle(m, GetLocationFromButton(m, 7), 4, m->iconSize+4, m->toolheight - 8, 0xFFFFFFFF, 0.2f);
-		dDrawRoundedRectangle(m, GetLocationFromButton(m, 7)-1, 3, m->iconSize+4 + 2, m->toolheight - 6, 0xFF000000, 1.0f);
+		dDrawDoubleBorder(m, GetLocationFromButton(m, 7)-1, 3, m->iconSize+4 + 2, m->toolheight - 6, 0xFF000000, 1.0f);
 	}
 	
 	RenderToolbarIcons(m, 0xC0FFFFFF, 0xC0FFE0E0);
@@ -132,11 +130,10 @@ void RenderToolbarButtons(GlobalParams* m, bool aeromode){
 		int in = m->selectedbutton;
 
 		// hover fill
-		dDrawRoundedFilledRectangle(m, GetLocationFromButton(m, in), 4, m->iconSize+4, m->toolheight - 8, 0xFFFF8080, 0.3f);
+		dDrawRoundedFilledRectangle(m, GetLocationFromButton(m, in)-1, 3, m->iconSize+4+2, m->toolheight - 6, 0xFFFF8080, 0.3f);
 		
 		// hover border
-		dDrawRoundedRectangle(m, GetLocationFromButton(m, in), 4, m->iconSize+4, m->toolheight - 8, 0xFFFFFFFF, 0.3f);
-		dDrawRoundedRectangle(m, GetLocationFromButton(m, in)-1, 3, m->iconSize+4 +2, m->toolheight - 6, 0xFF000000, 1.0f);
+		dDrawDoubleBorder(m, GetLocationFromButton(m, in)-1, 3, m->iconSize+4 +2, m->toolheight - 6, 0xFF000000, 1.0f);
 	}
 }
 
@@ -204,9 +201,8 @@ void RenderToolbarTooltips(GlobalParams* m) {
 		// actual tooltips
 		gaussian_blur(m, (txt.length() * 8) + 12, 20, 4.0f, loc-1, m->toolheight+4);
 
-		dDrawFilledRectangle(m, loc-1, m->toolheight + 4, (txt.length() * 8) + 12, 20, 0xFF000000, 0.4f);
-		dDrawRoundedRectangle(m, loc - 1, m->toolheight + 4, (txt.length() * 8) + 12, 20, 0xFFFFFFFF, 0.3f);
-		dDrawRoundedRectangle(m, loc - 2, m->toolheight + 3, (txt.length() * 8) + 14, 22, 0xFF000000, 0.8f);
+		dDrawRoundedFilledRectangle(m, loc-2, m->toolheight + 3, (txt.length() * 8) + 14, 22, 0xFF000000, 0.4f);
+		dDrawDoubleBorder(m, loc - 2, m->toolheight + 3, (txt.length() * 8) + 14, 22, 0xFF000000,1.0f);
 
 		SwitchFont(m->OCRAExt);
 		PlaceStringShadow(m, 14, txt.c_str(), loc + 3, m->toolheight + 4, 0xFFFFFFFF);
@@ -250,8 +246,7 @@ void DrawMenu(GlobalParams* m) { // render menu draw menu
 
 	gaussian_blur(m, miX-2, miY-2, 4.0f, posX+1, posY+1);
 	dDrawRoundedFilledRectangle(m, posX, posY, miX, miY, 0xFF000000, 0.65f);
-	dDrawRoundedRectangle(m, posX+1, posY+1, miX-2, miY-2, 0xFFFFFFFF, 0.2f);
-	dDrawRoundedRectangle(m, posX, posY, miX, miY, 0xFF000000, 1.0f);
+	dDrawDoubleBorder(m, posX, posY, miX, miY, 0xFF000000, 1.0f);
 
 	// mpos: mp
 
@@ -263,9 +258,8 @@ void DrawMenu(GlobalParams* m) { // render menu draw menu
 		int hoverSizeY = mH - 3;
 
 		// This is for hovering over your favorite menu button
-		dDrawRoundedFilledRectangle(m, hoverLocX, hoverLocY, hoverSizeX, hoverSizeY, 0xFFFF8080, 0.3f);   // FILL
-		dDrawRoundedRectangle(m, hoverLocX, hoverLocY, hoverSizeX, hoverSizeY, 0xFFFFFFFF, 0.3f);         // white
-		dDrawRoundedRectangle(m, hoverLocX - 1, hoverLocY - 1, hoverSizeX + 2, hoverSizeY + 2, 0xFF000000, 1.0f); // black BORDER!
+		dDrawRoundedFilledRectangle(m, hoverLocX-1, hoverLocY-1, hoverSizeX+2, hoverSizeY+2, 0xFFFF8080, 0.3f);   // FILL
+		dDrawDoubleBorder(m, hoverLocX - 1, hoverLocY - 1, hoverSizeX + 2, hoverSizeY + 2, 0xFF000000, 1.0f);
 	}
 	
 	SwitchFont(m->Verdana);
@@ -312,15 +306,10 @@ void RenderSlider(GlobalParams* m, Slider slider, POINT mPP, float position) {
 	int offsetY = (*slider.parentY)+slider.y;
 	int sizex = slider.endX - slider.x;
 	int sizey = slider.endY - slider.y;
-
-	// draw slider
-	uint32_t colorh = ((int)(highlightOpacity*255.0f) >> 24) | (255 << 16) | (255 << 8) | 255;
 	
-	dDrawRoundedRectangle(m, offsetX+1, offsetY+sizey/2-2, sizex, 5, colorh, highlightOpacity); // actual slider
-	dDrawRoundedRectangle(m, offsetX+ 0, offsetY+sizey/2-3, sizex+2, 7, 0xE6000000, 0.9f); // outline slider
+	dDrawDoubleBorder(m, offsetX+ 0, offsetY+sizey/2-3, sizex+2, 7, 0xE6000000, 0.9f, highlightOpacity); // slider
 	int pos = ((sizex) * position) + offsetX-2;
-	dDrawRoundedRectangle(m, pos+1, offsetY+1, 4, sizey-2, colorh, highlightOpacity); // actual  "knob"
-	dDrawRoundedRectangle(m, pos, offsetY, 6, sizey, 0xE6000000, 0.9f); // outline "knob"
+	dDrawDoubleBorder(m, pos, offsetY, 6, sizey, 0xE6000000, 0.9f); // knob
 }
 
 void DrawBottomFakeToolbar(GlobalParams* m) {
@@ -355,12 +344,14 @@ void DrawDrawModeMenu(GlobalParams* m){
 		DrawBottomFakeToolbar(m);
 	}
 	
-	// draw outline
-	dDrawRoundedRectangle(m, m->drawMenuOffsetX, m->drawMenuOffsetY+1, sizeCx, 40, 0x80000000, 0.5f);
-	dDrawRoundedRectangle(m, m->drawMenuOffsetX+1, m->drawMenuOffsetY+2, sizeCx-2, 38, 0x4DFFFFFF, 0.3f);
-
 	// draw main
-	dDrawFilledRectangle(m, m->drawMenuOffsetX+1, m->drawMenuOffsetY+2, sizeCx-2, 38, 0x800B0B0B, 0.5f);
+	dDrawRoundedFilledRectangle(m, m->drawMenuOffsetX, m->drawMenuOffsetY+1, sizeCx, 40, 0x800B0B0B, 0.5f);
+
+	// draw outline
+	dDrawDoubleBorder(m, m->drawMenuOffsetX, m->drawMenuOffsetY+1, sizeCx, 40, 0x80000000, 0.5f);
+
+
+	dDrawRoundedRectangle(m, m->drawMenuOffsetX+3, m->drawMenuOffsetY+4, sizeCx-6, 34, 0xFFFF0000, 0.2f);
 
 	// draw seperator
 	dDrawFilledRectangle(m, m->drawMenuOffsetX+75, m->drawMenuOffsetY + 15, 1, 17, 0x4DFFFFFF, 0.3f);
@@ -402,13 +393,11 @@ void DrawDrawModeMenu(GlobalParams* m){
 	PlaceString(m, 14, str2, m->drawMenuOffsetX + 414, m->drawMenuOffsetY + 13, textc);
 
 	// draw color square
-	dDrawFilledRectangle(m, m->drawMenuOffsetX + 51, m->drawMenuOffsetY + 14, 18, 18, m->a_drawColor, true); // actual color
-	dDrawRectangle(m, m->drawMenuOffsetX + 51, m->drawMenuOffsetY + 14, 18, 18, 0x4DFFFFFF, 0.3f); // outline (white)
-	dDrawRoundedRectangle(m, m->drawMenuOffsetX +50, m->drawMenuOffsetY + 13, 20, 20, 0xE6000000, 0.9f); // outline (black)
+	dDrawRoundedFilledRectangle(m, m->drawMenuOffsetX + 50, m->drawMenuOffsetY + 13, 20, 20, m->a_drawColor, true); // actual color
+	dDrawDoubleBorder(m, m->drawMenuOffsetX +50, m->drawMenuOffsetY + 13, 20, 20, 0xE6000000, 0.9f);
 	
 	// draw hard/soft area h/s
-	dDrawRoundedRectangle(m, m->drawMenuOffsetX + 461, m->drawMenuOffsetY + 14, 18, 18, 0x80FFFFFF, .5f); // outline (white)
-	dDrawRoundedRectangle(m, m->drawMenuOffsetX + 460, m->drawMenuOffsetY + 13, 20, 20, 0xE6000000, 0.9f); // outline (black)
+	dDrawDoubleBorder(m, m->drawMenuOffsetX + 460, m->drawMenuOffsetY + 13, 20, 20, 0xE6000000, 0.9f);
 
 	std::string let = "H";
 	if (m->a_softmode) {
@@ -493,9 +482,8 @@ void RenderDrawModeGuide(GlobalParams* m){
 
 	gaussian_blur(m, sx-2, sy-2, 4.0f, x+1, y+1);
 	
-	dDrawFilledRectangle(m, x + 1, y + 1, sx-2, sy-2, 0xFF000000, 0.4f);
-	dDrawRoundedRectangle(m, x + 1, y + 1, sx-2, sy-2, 0xFFFFFFFF, 0.3f);
-	dDrawRoundedRectangle(m, x, y, sx, sy, 0xFF000000, 0.8f);
+	dDrawRoundedFilledRectangle(m, x, y, sx, sy, 0xFF000000, 0.4f);
+	dDrawDoubleBorder(m, x, y, sx, sy, 0xFF000000, 0.8f);
 
 	int ilocx = 5;
 	int ilocy = 47;
@@ -536,9 +524,8 @@ void RenderDrawModeGuide(GlobalParams* m){
 		std::string txt = txts[m->dmguidebutton];
 		gaussian_blur(m, (txt.length() * 8) + 12, 20, 4.0f, loc-1, m->toolheight+4+yloc);
 		
-		dDrawFilledRectangle(m, loc-1, m->toolheight + 4+yloc, (txt.length() * 8) + 12, 20, 0xFF000000, 0.4f);
-		dDrawRoundedRectangle(m, loc - 1, m->toolheight + 4+yloc, (txt.length() * 8) + 12, 20, 0xFFFFFFFF, 0.3f);
-		dDrawRoundedRectangle(m, loc - 2, m->toolheight + 3+yloc, (txt.length() * 8) + 14, 22, 0xFF000000, 0.8f);
+		dDrawRoundedFilledRectangle(m, loc-2, m->toolheight + 3+yloc, (txt.length() * 8) + 14, 20, 0xFF000000, 0.4f);
+		dDrawDoubleBorder(m, loc - 2, m->toolheight + 3+yloc, (txt.length() * 8) + 14, 22, 0xFF000000, 0.8f);
 
 		SwitchFont(m->OCRAExt);
 		PlaceStringShadow(m, 14, txt.c_str(), loc + 3, m->toolheight + 4+yloc, 0xFFFFFFFF);

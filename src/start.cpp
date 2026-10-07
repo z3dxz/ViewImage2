@@ -79,7 +79,7 @@ bool SupportsAero() {
 }
 
 void QueryAeroMode(bool initial){
-	bool want_aero_mode = false;
+	bool want_aero_mode = 0;
 	// get aero info
 	if(!initial) {
 		gp.aeromode = false;
@@ -111,6 +111,7 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 	std::cout << "UI Scale: " << uis << "\n";
 	gp.uiscale = uis;
 	if(gp.ui_s_test) {
+		// dpi test override
 		gp.uiscale = 1.25f;
 	}
 
@@ -215,7 +216,11 @@ LRESULT CALLBACK CheckEssential(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 				InvalidateRect(hwnd, NULL, TRUE);
 			}
 			break;
-		}\
+		}
+		case WM_MOUSEWHEEL: {
+			MouseWheel(&gp, wparam, lparam);
+			break;
+		}
 		case WM_CLOSE: {
 			if (doIFSave(&gp)) {
 				gp.loading = true;
@@ -374,7 +379,6 @@ LRESULT CALLBACK WndProcNormal(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam
 		break;
 	}
 	case WM_MOUSEWHEEL: {
-		MouseWheel(&gp, wparam, lparam);
 		break;
 	}
 	

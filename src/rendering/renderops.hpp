@@ -39,3 +39,5 @@ void dDrawRoundedFilledRectangle(GlobalParams* m, int xloc, int yloc, int width,
 
 void dDrawRectangle(GlobalParams* m, int xloc, int yloc, int width, int height, uint32_t color, float opacity);
 void dDrawRoundedRectangle(GlobalParams* m, int xloc, int yloc, int width, int height, uint32_t color, float opacity);
+
+void dDrawDoubleBorder(GlobalParams* m, int xloc, int yloc, int width, int height, uint32_t color, float opacity, float hl_opacity = 0.3f);

@@ -14,6 +14,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <random>
+#include "headers/ops.hpp"
 void ToggleFullscreen(GlobalParams* m);
 
 std::mutex mtx;
@@ -660,10 +661,12 @@ bool MouseDownCases(GlobalParams* m){
 
 		if(IsInSlider(m->brush_size_slider)) {
 			m->brush_size_slider.md = true;
+			RedrawSurface(m);
 			return 0;
 		}
 		if(IsInSlider(m->brush_opacity_slider)) {
 			m->brush_opacity_slider.md = true;
+			RedrawSurface(m);
 			return 0;
 		}
 
@@ -934,7 +937,19 @@ void placeDraw(GlobalParams* m, POINT* pos) {
 
 bool firsttime = true;
 bool fullscreenhover = false;
+
+int in_state = false;
 void MouseMoveCases(LPSTR* cursor, HINSTANCE* cursorinstance, GlobalParams* m) {
+
+	if((IsInSlider(m->brush_size_slider) || IsInSlider(m->brush_opacity_slider)) && !in_state){
+		in_state = true;
+		RedrawSurface(m);
+	} else if ((!IsInSlider(m->brush_size_slider) && !IsInSlider(m->brush_opacity_slider)) && in_state) {
+		in_state = false;
+		RedrawSurface(m);
+	}
+
+
 	// i would probably min this
 	if (m->isInCropMode) {
 		*cursor = IDC_ARROW;
@@ -1645,6 +1660,16 @@ void MouseUp(GlobalParams* m) {
 	m->isMovingTR = false;
 	m->isMovingBL = false;
 	m->isMovingBR = false;
+
+	if (m->drawmode)
+	{
+		if(IsInSlider(m->brush_size_slider)) {
+			RedrawSurface(m);
+		}
+		if(IsInSlider(m->brush_opacity_slider)) {
+			RedrawSurface(m);
+		}
+	}
 
 	m->isSize = false;
 	TurnOffDraw(m);
