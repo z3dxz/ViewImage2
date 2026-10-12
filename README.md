@@ -1,9 +1,10 @@
 # [ViewImage](https://www.cosine64.com/info_pages/vi_info.html)
 
 ViewImage or "View Image" is a powerful, yet lightweight image viewer designed and targeted for Windows
-Compatible with Windows XP, Windows Vista, Windows 7, Windows 8, Windows 8.1, Windows 10, and Windows 11
 
 <img width="1016" height="601" alt="demo" src="https://github.com/user-attachments/assets/0c9f1466-7a5a-4fb2-aeb9-81460a63ac77" />
+
+Compatible with Windows XP, Windows Vista, Windows 7, Windows 8, Windows 8.1, Windows 10, and Windows 11
 
 # Notes
 * Visit [the website](https://www.cosine64.com/info_pages/vi_info.html) for releases
