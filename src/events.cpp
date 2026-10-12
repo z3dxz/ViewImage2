@@ -107,7 +107,7 @@ bool Initialization(GlobalParams* m, int argc, LPWSTR* argv) {
 	   {248, "Image Operations", true},
 	   {279, "DELETE image", false},
 	   {310, "Print", false},
-	   {341, "Copy Image", true},
+	   {341, "Copy Image (CTRL+C)", true},
 	   {372, "Information", false},
 	};
 
@@ -770,34 +770,31 @@ void TurnOffDraw(GlobalParams* m) {
 }
 
 POINT* sampleLine(GlobalParams* m, double x1, double y1, double x2, double y2, int* outSamples) {
-	float sizex = abs(x2 - x1);
-	float sizey = abs(y2 - y1);
-	float dist = sqrt(pow(sizex, 2) + pow(sizey, 2));
-	int numSamples = dist / (m->drawSize/ m->a_resolution);
+    double dx = x2 - x1;
+    double dy = y2 - y1;
+    double dist = sqrt(dx * dx + dy * dy);
 
-	int qualsamples = numSamples;
-	if (numSamples > 2) { qualsamples--; };
+    double spacing = std::max(1.0, (double)m->drawSize / std::max(1.0f, m->a_resolution));
 
-	POINT* samples = (POINT*)vismalloc(sizeof(POINT) * (qualsamples + 1), "Drawing Line Sampling Algorithm"); // Include starting point
+    int numIntervals = std::max(1,(int)ceil(dist / spacing));
 
-	float dx = (x2 - x1) / numSamples;
-	float dy = (y2 - y1) / numSamples;
+    int numSamples = numIntervals + 1;
 
-	samples[0].x = x1;
-	samples[0].y = y1;
+    POINT* samples = (POINT*)vismalloc(sizeof(POINT) * numSamples, "Drawing Line Sampling Algorithm");
 
-	for (int i = 1; i <= qualsamples; i++) {
-		samples[i].x = x1 + i * dx;
-		samples[i].y = y1 + i * dy;
-	}
+    for (int i = 0; i < numSamples; i++) {
+        double t = (double)i / numIntervals;
 
-	*outSamples = qualsamples + 1; // Include starting point
-	return samples;
+        samples[i].x = (LONG)round(x1 + dx * t);
+        samples[i].y = (LONG)round(y1 + dy * t);
+    }
+
+    *outSamples = numSamples;
+    return samples;
 }
 
-
-
 static clock_t start, end;
+
 void placeDraw(GlobalParams* m, POINT* pos) {
     float actdrawsize = m->drawSize;
 
@@ -808,7 +805,7 @@ void placeDraw(GlobalParams* m, POINT* pos) {
     start = clock();
 
     const float target_dt = 0.016f;
-    float dt_diff = target_dt - (m->ms_time+m->dt_time);
+    float dt_diff = target_dt - (m->ms_time + m->dt_time);
     float adjust = powf(2.0f, dt_diff * 10.0f);
 
     m->a_resolution = std::clamp(m->a_resolution * adjust, 1.0f, 25.0f);
@@ -837,12 +834,18 @@ void placeDraw(GlobalParams* m, POINT* pos) {
     int samples0 = 0;
     POINT* k2 = sampleLine(m, k1, v1, k, v, &samples0);
 
-    const int diameter = (int)actdrawsize;
-    const float radius = diameter * 0.5f;
-    const float realOpacity = powf(m->a_opacity, 4.0f);
+     int diameter = (int)actdrawsize;
+	float radius = diameter * 0.5f;
+    float realOpacity = powf(m->a_opacity, 4.0f);
 
-    const bool ctrl  = (GetKeyState(VK_CONTROL) & 0x8000);
-    const bool shift = (GetKeyState(VK_SHIFT)   & 0x8000);
+    bool ctrl  = (GetKeyState(VK_CONTROL) & 0x8000);
+    bool shift = (GetKeyState(VK_SHIFT) & 0x8000);
+
+    // Bounding box of the entire stroke.
+    int minX = std::min(k, k1);
+	int minY = std::min(v, v1);
+	int maxX = std::max(k, k1);
+	int maxY = std::max(v, v1);
 
     for (int i = 0; i < samples0; i++) {
 
@@ -865,13 +868,13 @@ void placeDraw(GlobalParams* m, POINT* pos) {
 
                 if (xloc >= m->imgwidth || yloc >= m->imgheight) continue;
 
-                uint32_t* memoryPath =  GetMemoryLocation(m->imgdata, xloc, yloc, m->imgwidth, m->imgheight);
+                uint32_t* memoryPath = GetMemoryLocation(m->imgdata, xloc, yloc, m->imgwidth, m->imgheight);
 
                 uint32_t* memoryPathOriginal = GetMemoryLocation(m->imgoriginaldata, xloc, yloc, m->imgwidth, m->imgheight);
 
                 uint32_t actualDrawColor = m->a_drawColor;
 
-				// color selection
+                // Color selection.
                 if (ctrl || m->Rightdown || m->drawtype == 0) {
                     actualDrawColor = *memoryPathOriginal;
                 }
@@ -880,7 +883,7 @@ void placeDraw(GlobalParams* m, POINT* pos) {
                     actualDrawColor = 0x00000000;
                 }
 
-				// softness // falloff // anti-aliasing
+                // Softness, falloff, and anti-aliasing.
                 float transparency = 0.0f;
 
                 if (m->a_softmode) {
@@ -897,7 +900,7 @@ void placeDraw(GlobalParams* m, POINT* pos) {
 
                 float radiusAlpha = (1.0f - transparency) * realOpacity;
 
-				// write pixel
+                // Write pixel.
                 if (actdrawsize > 1.01f) {
 
                     if (m->a_opacity > 0.99f && radiusAlpha > 0.995f) {
@@ -915,7 +918,9 @@ void placeDraw(GlobalParams* m, POINT* pos) {
                     if (m->a_opacity > 0.99f) {
                         *memoryPath = actualDrawColor;
                     } else {
-                        *memoryPath = lerp_gc(*memoryPath, actualDrawColor, realOpacity);
+                        *memoryPath = lerp_gc(
+                            *memoryPath, actualDrawColor, realOpacity
+                        );
                     }
                 }
             }
@@ -928,10 +933,31 @@ void placeDraw(GlobalParams* m, POINT* pos) {
     m->lastV = v1;
     m->shouldSaveShutdown = true;
 
-	RedrawSurface(m, true);
-
     end = clock();
     m->ms_time = (double)(end - start) / CLOCKS_PER_SEC;
+
+	// Update only part of image
+    ImageUpdateRgn updateRgn{};
+	updateRgn.valid = true;
+	updateRgn.all = true;
+
+	if (samples0 > 0) {
+		int padding = (int)ceilf(radius) + 2;
+
+		int left   = std::max(0, minX - padding);
+		int top    = std::max(0, minY - padding);
+		int right  = std::min((int)m->imgwidth,  maxX + padding + 1);
+		int bottom = std::min((int)m->imgheight, maxY + padding + 1);
+		
+		updateRgn.x = left;
+		updateRgn.y = top;
+		updateRgn.width = std::max(0, right - left);
+		updateRgn.height = std::max(0, bottom - top);
+		updateRgn.all = false;
+	}
+	
+	// Temporary, replace with redrawsurface when implimenting queueing
+	RedrawForce(m, true, updateRgn);
 }
 
 
