@@ -109,7 +109,7 @@ struct GlobalParams {
 
 	// settings
 	const int iconSize = 30; // the real width is 31 because 1 px divider in memory
-	int toolheight = 43;
+	int toolheight = 44;
 	int starttoolbarloc = 3;
 	// current state
 
@@ -149,7 +149,7 @@ struct GlobalParams {
 
 	bool isSize;
 
-	int lastK; // wasd magic
+	int lastK; // wasd magic and draw
 	int lastV;
 		
 	// Slider
@@ -198,6 +198,7 @@ struct GlobalParams {
 
 	bool debugmode = false;
 	bool draw_updates_debug = false;
+	int debug_integer;
 
 	bool tint = false;
 
@@ -267,10 +268,13 @@ struct GlobalParams {
 	PFNGLBLENDFUNCSEPARATEPROC glBlendFuncSeparate = NULL; // opengl 1.4 blending for aero mode
 
 	float uiscale = 1.0f;
-	bool ui_s_test = false;
+	bool ui_s_test = true;
+	float uiscale_test_am = 1.375f;
 	POINT mpos;
 	POINT mrawpos;
 	POINT gmpos;
+
+
 
 };	
 

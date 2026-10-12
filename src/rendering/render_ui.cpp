@@ -34,55 +34,26 @@ void RenderFullscreenIcon(GlobalParams* m, bool aeromode){
 	UpdateMousePos(m);
 	if(m->width <= 535) return;
 
-	// mpos: mp
-	
-	bool nearf = false;
-	if ((m->mpos.x > m->width - 36 && m->mpos.x < m->width - 13) && (m->mpos.y > 12 && m->mpos.y < 33)) { //fullscreen icon location check coordinates (ALWAYS KEEP)
-		nearf = true;
-	}
-
-	if(nearf) {
-		// what happens when you hover over the screen button
-		//-- The outline
-		dDrawDoubleBorder(m, m->width-37, 11, 26, 25, 0xFF000000, 1.0f);
-
-		//-- Fullscreen icon tooltip
-		SwitchFont(m->SegoeUI);
-		if (m->fullscreen) {
-			PlaceStringShadow(m, 13, "Exit Fullscreen (F11)", m->width - 120, 48, 0xFFFFFFFF);
-		}
-		else {
-			PlaceStringShadow(m, 13, "Fullscreen (F11)", m->width - 100, 48, 0xFFFFFFFF);
-		}
-	}
-
-	// outline for aero
-	if(aeromode) {
-		dDrawRoundedRectangle(m, m->width-31, 17, 14, 13, 0x80000000, 0.5f);
-		dDrawRoundedRectangle(m, m->width-29, 21, 10, 7, 0x80000000, 0.5f);
-	}
-
 	// actually draw the fullscreen icon
-	float t = 0.5f;
-	if (nearf) {
-		t = 1.0f;
-	}
-	PlaceFromAtlas(m, m->fullscreenIconData, 0, 0, m->width-30, 18, 12, 11, 0xFFFFFFFF, t);
+	PlaceFromAtlas(m, m->fullscreenIconData, 0, 0, m->width-30, 18, 12, 11, 0xFFFFFFFF, 0.6f);
 	
 }
 
 void RenderToolbarContainer(GlobalParams* m) {
 
 	// First the blur
-	if (m->CoordTop <= m->toolheight) {
+	if (m->CoordTop <= (m->toolheight*m->uiscale)) {
 		blur_toolbar(m);
+		dDrawFilledRectangle(m, 0, 1, m->width, m->toolheight-1, 0xFF0C0C0C, 0.65f);
+	} else {
+		dDrawFilledRectangle(m, 0, 1, m->width, m->toolheight-1, 0xFF100F0F, 1.0f);
 	}
 	
 	// the background
-	dDrawFilledRectangle(m, 0, 1, m->width, m->toolheight-1, 0xFF0C0C0C, 0.65f);
 
 	// The three border lines
 	drawLine(m, 0, 0, m->width, true, 0xFF333333, 1.0f);
+	drawLine(m, 0, m->toolheight-4, m->width, true, 0xFFFF0000, 0.2f);
 	drawLine(m, 0, m->toolheight-2, m->width, true, 0xFFFFFFFF, 0.3f);
 	drawLine(m, 0, m->toolheight-1, m->width, true, 0xFF000000, 1.0f);
 }
@@ -134,6 +105,8 @@ void RenderToolbarButtons(GlobalParams* m, bool aeromode){
 		
 		// hover border
 		dDrawDoubleBorder(m, GetLocationFromButton(m, in)-1, 3, m->iconSize+4 +2, m->toolheight - 6, 0xFF000000, 1.0f);
+		
+		dDrawRoundedRectangle(m, GetLocationFromButton(m, in)+2, 6, m->iconSize, m->toolheight - 12, 0xFFFF0000, 0.2f);
 	}
 }
 
@@ -184,29 +157,38 @@ void RenderToolbar(GlobalParams* m, bool aeromode) {
 
 void RenderToolbarTooltips(GlobalParams* m) {
 	// tooltips
-	if (m->selectedbutton < 0 || m->selectedbutton >= m->toolbartable.size() || m->isMenuState) {
+	
+	// fullscreen icon coordinates
+	bool nearf = ((m->mpos.x > m->width - 36 && m->mpos.x < m->width - 13) && (m->mpos.y > 12 && m->mpos.y < 33));
+
+	bool exclude = (m->selectedbutton < 0 || m->selectedbutton >= m->toolbartable.size() || m->isMenuState);
+	if (exclude && !nearf) {
 		return;
 	}
 
 	int in = m->selectedbutton;
+	int loc;
 	std::string txt = "Error";
-	if (m->selectedbutton < m->toolbartable.size()) {
-		txt = m->toolbartable[m->selectedbutton].name;
+	
+
+	if(nearf) {
+		dDrawRoundedFilledRectangle(m, m->width-37, 11, 26, 25, 0xFFFF8080, 0.3f);
+		dDrawDoubleBorder(m, m->width-37, 11, 26, 25, 0xFF000000, 1.0f);
+		dDrawRoundedRectangle(m, m->width-34, 14, 20, 19, 0xFFFF0000, 0.2f);
+		loc = m->width-150;
+		txt = "Fullscreen (F11)";
+		if(m->fullscreen) {
+			txt = "Exit Fullscreen (F11)";
+			loc = m->width - 190;
+		}
+	} else {
+		loc = 1 + (GetLocationFromButton(m, in));
+		if (m->selectedbutton < m->toolbartable.size()) {
+			txt = m->toolbartable[m->selectedbutton].name;
+		}
 	}
 
-	int loc = 1 + (GetLocationFromButton(m, in));
-
-	// draw guide
-	if(in != 7 || !m->drawmode) {
-		// actual tooltips
-		gaussian_blur(m, (txt.length() * 8) + 12, 20, 4.0f, loc-1, m->toolheight+4);
-
-		dDrawRoundedFilledRectangle(m, loc-2, m->toolheight + 3, (txt.length() * 8) + 14, 22, 0xFF000000, 0.4f);
-		dDrawDoubleBorder(m, loc - 2, m->toolheight + 3, (txt.length() * 8) + 14, 22, 0xFF000000,1.0f);
-
-		SwitchFont(m->OCRAExt);
-		PlaceStringShadow(m, 14, txt.c_str(), loc + 3, m->toolheight + 4, 0xFFFFFFFF);
-	} else {
+	if(in == 7 && m->drawmode) {
 		int off = -20;
 		uint32_t shiftx = loc+2;
 		SwitchFont(m->Verdana);
@@ -220,7 +202,18 @@ void RenderToolbarTooltips(GlobalParams* m) {
 		PlaceString(m, 10, "Erase       Ctrl", shiftx, m->toolheight + 63+off, dcolor);
 		PlaceString(m, 10, "Transparent Ctrl+Shift", shiftx, m->toolheight + 73+off, dcolor);
 		PlaceString(m, 10, "Eyedropper  Shift+Z", shiftx, m->toolheight + 83+off, dcolor);
+		return;
 	}
+
+	// actual tooltips
+	gaussian_blur(m, (txt.length() * 8) + 12, 20, 4.0f, loc-1, m->toolheight+4);
+
+	dDrawRoundedFilledRectangle(m, loc-2, m->toolheight + 3, (txt.length() * 8) + 14, 22, 0xFF000000, 0.5f);
+	dDrawDoubleBorder(m, loc - 2, m->toolheight + 3, (txt.length() * 8) + 14, 22, 0xFF000000,1.0f);
+
+	SwitchFont(m->OCRAExt);
+	PlaceStringShadow(m, 14, txt.c_str(), loc + 3, m->toolheight + 4, 0xFFFFFFFF);
+
 }
 
 void DrawMenuIcon(GlobalParams* m, int locationX, int locationY, int atlasX, int atlasY, int opacity2) {
@@ -247,6 +240,7 @@ void DrawMenu(GlobalParams* m) { // render menu draw menu
 	gaussian_blur(m, miX-2, miY-2, 4.0f, posX+1, posY+1);
 	dDrawRoundedFilledRectangle(m, posX, posY, miX, miY, 0xFF000000, 0.65f);
 	dDrawDoubleBorder(m, posX, posY, miX, miY, 0xFF000000, 1.0f);
+	dDrawRoundedRectangle(m, posX+3, posY+3, miX-6, miY-6, 0xFFFF0000, 0.2f);
 
 	// mpos: mp
 
@@ -260,6 +254,7 @@ void DrawMenu(GlobalParams* m) { // render menu draw menu
 		// This is for hovering over your favorite menu button
 		dDrawRoundedFilledRectangle(m, hoverLocX-1, hoverLocY-1, hoverSizeX+2, hoverSizeY+2, 0xFFFF8080, 0.3f);   // FILL
 		dDrawDoubleBorder(m, hoverLocX - 1, hoverLocY - 1, hoverSizeX + 2, hoverSizeY + 2, 0xFF000000, 1.0f);
+		dDrawRoundedRectangle(m, hoverLocX+2, hoverLocY+2, hoverSizeX-4, hoverSizeY-4, 0xFFFF0000, 0.2f);
 	}
 	
 	SwitchFont(m->Verdana);
@@ -308,8 +303,13 @@ void RenderSlider(GlobalParams* m, Slider slider, POINT mPP, float position) {
 	int sizey = slider.endY - slider.y;
 	
 	dDrawDoubleBorder(m, offsetX+ 0, offsetY+sizey/2-3, sizex+2, 7, 0xE6000000, 0.9f, highlightOpacity); // slider
+	
+	dDrawRoundedRectangle(m, offsetX+2, offsetY+sizey/2-1, sizex-2, 3, 0xFF000000, 0.5f);
+
+	drawLine(m, offsetX+4, offsetY+sizey/2, sizex-6, true, 0xFFFFFFFF, 0.15f);
+
 	int pos = ((sizex) * position) + offsetX-2;
-	dDrawDoubleBorder(m, pos, offsetY, 6, sizey, 0xE6000000, 0.9f); // knob
+	dDrawDoubleBorder(m, pos, offsetY, 6, sizey, 0xFF000000, 1.0f, 0.5f); // knob
 }
 
 void DrawBottomFakeToolbar(GlobalParams* m) {
@@ -494,18 +494,18 @@ void RenderDrawModeGuide(GlobalParams* m){
 
 	if ((GetKeyState(VK_CONTROL) & 0xFF8000 && GetKeyState(VK_SHIFT) & 0xFF8000) || m->drawtype == 3) {
 		// transparent
-		dDrawRoundedRectangle(m, ilocx+2, ilocy+84, 37, 37, 0xFFFFFFFF, 0.4f);
+		dDrawDoubleBorder(m, ilocx+2, ilocy+84, 37, 37, 0xFF000000, 0.8f);
 	}
 	else if (GetKeyState(VK_CONTROL) & 0xFF8000 || m->Rightdown || (m->drawtype == 0)) {
 		// erase
-		dDrawRoundedRectangle(m, ilocx+2, ilocy+43, 37, 37, 0xFFFFFFFF, 0.4f);
+		dDrawDoubleBorder(m, ilocx+2, ilocy+43, 37, 37, 0xFF000000, 0.8f);
 	} else {
 		// pen
-		dDrawRoundedRectangle(m, ilocx+2, ilocy+2, 37, 37, 0xFFFFFFFF, 0.4f);
+		dDrawDoubleBorder(m, ilocx+2, ilocy+2, 37, 37,0xFF000000, 0.8f);
 	}
 
 	if(m->eyedroppermode) {
-		dDrawRoundedRectangle(m, ilocx+2, ilocy+125, 37, 37, 0xFFFFFFFF, 0.4f);
+		dDrawDoubleBorder(m, ilocx+2, ilocy+125, 37, 37, 0xFF000000, 0.8f);
 	}
 
 	// mpos: mPp
@@ -514,7 +514,11 @@ void RenderDrawModeGuide(GlobalParams* m){
 	std::string txts[] = {"Draw", "Erase", "Transparent", "Eyedropper"};
 
 	if(m->dmguidebutton >= 0) {
-		dDrawRoundedRectangle(m, ilocx+2, ilocy+offsets[m->dmguidebutton], 37, 37, 0xFFFFFFFF, 0.2f);
+
+		
+		dDrawRoundedFilledRectangle(m, ilocx+2, ilocy+offsets[m->dmguidebutton], 37, 37, 0xFFFF8080, 0.3f);
+		dDrawDoubleBorder(m, ilocx+2, ilocy+offsets[m->dmguidebutton], 37, 37, 0xFF000000, 1.0f);
+		dDrawRoundedRectangle(m, ilocx+5, ilocy+offsets[m->dmguidebutton]+3, 31, 31, 0xFFFF0000, 0.2f);
 
 		// tooltip
 
@@ -620,6 +624,9 @@ void DrawGUI(GlobalParams* m) {
 		char debug[256];
 		sprintf(debug, "WASDX: %f: MSDT: %f: RES: %f: Undo Queue: %d:Undo Step: %d: LD: %d | RD: %d | ", m->wasdX, m->ms_time+m->dt_time, m->a_resolution, m->ProcessOfMakingUndoStep, m->undoStep, m->Leftdown, m->Rightdown);
 		PlaceString(m, 16, debug, 12, m->toolheight + 8, 0xFF808080);
+
+		uint32_t color = (m->debug_integer%4 > 2) ? 0xFFFFFF00 : ((m->debug_integer%4 > 1) ? (0xFF0000FF) : ( (m->debug_integer%4 > 0) ? 0xFF00FF00 : 0xFFFF0000 ));
+		dDrawFilledRectangle(m, 50, 150, 100, 100, color, 0.5f);
 	}
 
 	if(m->draw_updates_debug) {

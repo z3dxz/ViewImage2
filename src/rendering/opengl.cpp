@@ -46,10 +46,10 @@ void SetupPixelFormat(GlobalParams* m) {
 
 void MakeCheckerboard() {
     uint32_t* checker = new uint32_t[4];
-    checker[0] = 0xFF181818;
-    checker[3] = 0xFF181818;
-    checker[1] = 0xFF121212;
-    checker[2] = 0xFF121212;
+    uint32_t ch1 = 0xFF1A1A1A;
+    uint32_t ch2 = 0xFF131313;
+    checker[0] = ch1; checker[3] = ch1;
+    checker[1] = ch2; checker[2] = ch2;
     if (checkertxt) glDeleteTextures(1, &checkertxt);
     glGenTextures(1, &checkertxt);
     glBindTexture(GL_TEXTURE_2D, checkertxt);
@@ -139,15 +139,40 @@ void NewImgDataTxt(GlobalParams* m) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
 }
 
-void UpdateImage(GlobalParams* m, uint32_t* renderbuffer) {
+void UpdateImage(GlobalParams* m, uint32_t* renderbuffer, ImageUpdateRgn* mregion) {
+    if (!mregion->valid) return;
     if (!renderbuffer || !m->imgdata) return;
+
     if (lastImgW != m->imgwidth || lastImgH != m->imgheight || !imgdatatxt) {
         NewImgDataTxt(m);
         lastImgW = m->imgwidth;
         lastImgH = m->imgheight;
     }
+
     glBindTexture(GL_TEXTURE_2D, imgdatatxt);
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, m->imgwidth, m->imgheight, GL_BGRA_EXT, GL_UNSIGNED_BYTE, renderbuffer);
+
+    int xof = 0;
+    int yof = 0;
+    int xw = m->imgwidth;
+    int yh = m->imgheight;
+
+    if (!mregion->all) {
+        xof = mregion->x; yof = mregion->y;
+        xw = mregion->width; yh = mregion->height;
+    }
+
+    xof = std::clamp(xof, 0, (int)m->imgwidth);  yof = std::clamp(yof, 0, (int)m->imgheight);
+    xw = std::clamp(xw, 0, (int)m->imgwidth - xof); yh = std::clamp(yh, 0, (int)m->imgheight - yof);
+
+    if (xw <= 0 || yh <= 0) return;
+
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, (GLint)m->imgwidth);
+
+    uint32_t* pixels = renderbuffer + (size_t)yof * m->imgwidth + xof;
+
+    glTexSubImage2D(GL_TEXTURE_2D, 0, xof, yof, xw, yh, GL_BGRA_EXT, GL_UNSIGNED_BYTE, pixels);
+
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 }
 
 bool followsPattern(int number) {
@@ -202,7 +227,8 @@ void DrawImage(GlobalParams* m) {
 }
 
 int redraw_timer = REDRAW_PADDING;
-bool need_redraw_image = false;
+
+ImageUpdateRgn region = {false, false, 0,0,0,0};
 
 void RedrawScene(GlobalParams* m);
 
@@ -213,15 +239,25 @@ void PerformRedraw(GlobalParams* m){
     }
 }
 
-void RedrawSurface(GlobalParams* m, bool image_update) {
+void RedrawSurface(GlobalParams* m, bool image_update, ImageUpdateRgn rgn) {
     redraw_timer = REDRAW_PADDING;
-    if(image_update) {
-        need_redraw_image = true;
+    if(image_update && !rgn.valid) {
+        region.all = true;
+        region.valid = true;
+    }
+    if(image_update && rgn.valid) {
+        region = rgn;
     }
 }
 
-void RedrawForce(GlobalParams* m, bool image_update) {
-    need_redraw_image = true;
+void RedrawForce(GlobalParams* m, bool image_update, ImageUpdateRgn rgn) {
+    if(image_update && !rgn.valid) {
+        region.all = true;
+        region.valid = true;
+    }
+    if(image_update && rgn.valid) {
+        region = rgn;
+    }
     RedrawSurface(m);
     PerformRedraw(m);
 }
@@ -261,8 +297,8 @@ void RedrawScene(GlobalParams* m) {
     uint32_t* renderbuffer = (uint32_t*)m->imgdata;
     if (m->isImagePreview) renderbuffer = (uint32_t*)m->imagepreview;
 
-    if (need_redraw_image) {
-        UpdateImage(m, renderbuffer);
+    if (region.valid) {
+        UpdateImage(m, renderbuffer, &region);
     }
     
     DrawCheckerboard(m);
@@ -276,10 +312,7 @@ void RedrawScene(GlobalParams* m) {
     glPopMatrix();
     glPopAttrib();
     end = clock();
-    if(need_redraw_image) {
-        m->dt_time = (double)(end - start) / CLOCKS_PER_SEC;
-    }
-    need_redraw_image = false;
+    region.valid = false;
 }
 
 

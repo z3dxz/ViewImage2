@@ -46,34 +46,47 @@ static GLint g_BlurTexLoc       = -1;
 static GLint g_BlurTexelSizeLoc = -1;
 static GLint g_BlurSigmaLoc     = -1;
 static GLint g_BlurMaxUVLoc     = -1;
+static GLint g_BlurStrengthLoc  = -1;
+static GLint g_BlurDirLoc = -1;
 
 static GLuint CompileBlurShader() {
     const char* fsSource = R"(
-        uniform sampler2D u_texture;
-        uniform vec2 u_texelSize;
-        uniform float u_sigma;
-        uniform vec2 u_maxUV;
-        vec4 sampleTex(vec2 uv) {
-            if (uv.x < 0.0 || uv.x > u_maxUV.x || uv.y < 0.0 || uv.y > u_maxUV.y) {
-                return vec4(0.4, 0.4, 0.4, 1.0);
-            }
-            return texture2D(u_texture, uv);
+    uniform sampler2D u_texture;
+    uniform vec2 u_texelSize;
+    uniform float u_sigma;
+    uniform vec2 u_maxUV;
+    uniform vec2 u_dir;
+
+    vec4 sampleTex(vec2 uv) {
+        float outOfBounds = step(uv.x, 0.0) + step(u_maxUV.x, uv.x) + 
+                            step(uv.y, 0.0) + step(u_maxUV.y, uv.y);
+        
+        return mix(texture2D(u_texture, uv), vec4(0.4, 0.4, 0.4, 1.0), step(1.0, outOfBounds));
+    }
+
+    void main() {
+        vec2 uv = gl_TexCoord[0].st;
+        vec4 col = vec4(0.0);
+        float accum = 0.0;
+        
+        float twoSigmaSq = 2.0 * u_sigma * u_sigma;
+
+        int radius = int(clamp(ceil(u_sigma * 2.0), 2.0, 8.0));
+
+        for (int i = -8; i <= 8; i++) {
+            if (i < -radius || i > radius) continue;
+
+            float fI = float(i);
+            float weight = exp(-(fI * fI) / twoSigmaSq);
+            vec2 offset = u_dir * fI * u_texelSize;
+
+            col += sampleTex(uv + offset) * weight;
+            accum += weight;
         }
-        void main() {
-            vec2 uv = gl_TexCoord[0].st;
-            vec4 col = vec4(0.0);
-            float accum = 0.0;
-            for (int x = -4; x <= 4; x++) {
-                for (int y = -4; y <= 4; y++) {
-                    vec2 offset = vec2(float(x), float(y)) * u_texelSize;
-                    float weight = exp(-(float(x*x + y*y)) / (2.0 * u_sigma * u_sigma));
-                    col += sampleTex(uv + offset) * weight;
-                    accum += weight;
-                }
-            }
-            gl_FragColor = col / accum;
-        }
-    )";
+        
+        gl_FragColor = col / accum;
+    }
+)";
 
     GLuint fs = glCreateShader_ptr(GL_FRAGMENT_SHADER);
     glShaderSource_ptr(fs, 1, &fsSource, nullptr);
@@ -86,9 +99,7 @@ static GLuint CompileBlurShader() {
         return 0;
     }
 
-
     GLuint prog = glCreateProgram_ptr();
-    
     glAttachShader_ptr(prog, fs);
     glLinkProgram_ptr(prog);
     GLint linked = 0;
@@ -107,7 +118,6 @@ static void TryInitializeGL20() {
     if (g_BlurInitialized) return;
     g_BlurInitialized = true;
 
-    
     const GLubyte* versionString = glGetString(GL_VERSION);
     std::cout << "Supported OpenGL Version: " << versionString << "\n";
     int major = versionString[0] - '0'; 
@@ -117,7 +127,6 @@ static void TryInitializeGL20() {
         std::cout << "Blur not supported\n";
         return;
     }
-
 
     glCreateShader_ptr    = (PFNGLCREATESHADERPROC)wglGetProcAddress("glCreateShader");
     glShaderSource_ptr    = (PFNGLSHADERSOURCEPROC)wglGetProcAddress("glShaderSource");
@@ -147,23 +156,25 @@ static void TryInitializeGL20() {
             g_BlurTexelSizeLoc = glGetUniformLocation_ptr(g_BlurProgram, "u_texelSize");
             g_BlurSigmaLoc     = glGetUniformLocation_ptr(g_BlurProgram, "u_sigma");
             g_BlurMaxUVLoc     = glGetUniformLocation_ptr(g_BlurProgram, "u_maxUV");
-                g_GL20Supported = true;
+            g_BlurStrengthLoc  = glGetUniformLocation_ptr(g_BlurProgram, "u_blurStrength");
+            g_BlurDirLoc       = glGetUniformLocation_ptr(g_BlurProgram, "u_dir");
+            g_GL20Supported = true;
         }
     }
 }
+
+static GLuint g_BlurTextureID = 0;
 
 void gaussian_blur_render(GlobalParams* m, int lW, int lH, double sigma, uint32_t offX, uint32_t offY) {
     TryInitializeGL20();
     if (!g_GL20Supported || lW <= 0 || lH <= 0) return;
 
-    float scale = m->uiscale;
     lW *= m->uiscale;
     lH *= m->uiscale;
     offX *= m->uiscale;
     offY *= m->uiscale;
 
-
-    int pixelX = (int)(offX );
+    int pixelX = (int)(offX);
     int pixelY = (int)((m->rlheight - ((int)offY + lH)));
     int pixelW = (int)(lW);
     int pixelH = (int)(lH);
@@ -177,28 +188,21 @@ void gaussian_blur_render(GlobalParams* m, int lW, int lH, double sigma, uint32_
     float maxV = (float)pixelH / (float)texH;
 
     if (sigma <= 0.1) sigma = 0.1;
+    sigma = (sigma *.5f) * m->uiscale;
 
     glPushAttrib(GL_ENABLE_BIT | GL_TEXTURE_BIT);
 
-    GLuint texture;
-    glGenTextures(1, &texture);
-    glBindTexture(GL_TEXTURE_2D, texture);
+    if (g_BlurTextureID == 0) {
+        glGenTextures(1, &g_BlurTextureID);
+    }
+    glBindTexture(GL_TEXTURE_2D, g_BlurTextureID);
+    
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, texW, texH, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-
-    glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, pixelX, pixelY, pixelW, pixelH);
-
-    glEnable(GL_TEXTURE_2D);
-    glDisable(GL_BLEND);
-
-    glUseProgram_ptr(g_BlurProgram);
-    glUniform1i_ptr(g_BlurTexLoc, 0);
-    glUniform1f_ptr(g_BlurSigmaLoc, (float)sigma);
-    glUniform2f_ptr(g_BlurTexelSizeLoc, 1.0f / (float)texW, 1.0f / (float)texH);
-    glUniform2f_ptr(g_BlurMaxUVLoc, maxU, maxV);
 
     GLfloat screenVertices[] = {
         (GLfloat)offX,        (GLfloat)offY,
@@ -218,14 +222,30 @@ void gaussian_blur_render(GlobalParams* m, int lW, int lH, double sigma, uint32_
     glEnableClientState(GL_TEXTURE_COORD_ARRAY);
     glVertexPointer(2, GL_FLOAT, 0, screenVertices);
     glTexCoordPointer(2, GL_FLOAT, 0, screenTexCoords);
-    
+
+    glEnable(GL_TEXTURE_2D);
+    glDisable(GL_BLEND);
+
+    // --- PASS 1: HORIZONTAL BLUR ---
+    glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, pixelX, pixelY, pixelW, pixelH);
+    glUseProgram_ptr(g_BlurProgram);
+
+    glUniform1i_ptr(g_BlurTexLoc, 0);
+    glUniform1f_ptr(g_BlurSigmaLoc, (float)sigma);
+    glUniform2f_ptr(g_BlurTexelSizeLoc, 1.0f / (float)texW, 1.0f / (float)texH);
+    glUniform2f_ptr(g_BlurMaxUVLoc, maxU, maxV);
+    glUniform2f_ptr(g_BlurDirLoc, 1.0f, 0.0f); 
     glDrawArrays(GL_QUADS, 0, 4);
 
+    // --- PASS 2: VERTICAL BLUR ---
+    glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, pixelX, pixelY, pixelW, pixelH);
+    glUniform2f_ptr(g_BlurDirLoc, 0.0f, 1.0f); 
+    glDrawArrays(GL_QUADS, 0, 4);
     glUseProgram_ptr(0);
+
+
     glDisableClientState(GL_TEXTURE_COORD_ARRAY);
     glDisableClientState(GL_VERTEX_ARRAY);
     
     glPopAttrib();
-
-    glDeleteTextures(1, &texture);
 }

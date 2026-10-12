@@ -364,7 +364,7 @@ int getXbuttonID(GlobalParams* m) {
 	// GetLocationFromButton, RenderToolbarButtons, getXbuttonID
 	// Make sure they are all synced
 
-	if (m->mpos.y > m->toolheight || m->mpos.y < 2 || m->mpos.x < 2) {
+	if (m->mpos.y > (m->toolheight) || m->mpos.y < 2 || m->mpos.x < 2) {
 		return -1;
 	}
 

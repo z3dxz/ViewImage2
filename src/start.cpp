@@ -112,7 +112,7 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 	gp.uiscale = uis;
 	if(gp.ui_s_test) {
 		// dpi test override
-		gp.uiscale = 1.25f;
+		gp.uiscale = gp.uiscale_test_am;
 	}
 
 	QueryAeroMode(true);
