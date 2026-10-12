@@ -1,5 +1,5 @@
 #include "headers/resizedialog.hpp"
-#include "../../res/resource.h"
+#include "../../reswin/resource.h"
 #include <Uxtheme.h>
 //#include <dwmapi.h>
 

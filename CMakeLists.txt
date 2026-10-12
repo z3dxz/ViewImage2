@@ -5,14 +5,23 @@ add_compile_definitions(_SVG)
 cmake_minimum_required(VERSION 3.24)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-project(viewimage VERSION 2.6)
-
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
+project(viewimage VERSION 2.6)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+
 set(BUILD_SHARED_LIBS OFF)
 set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++ -static")
+
+file(GLOB_RECURSE SRC_FILES src/*.cpp src/*.c "reswin/View Image.rc")
+
+# ---------------------------------- Resources ------------------------------------
+file(GLOB_RECURSE ASSET_FILES "res/*")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+include(CMakeRC)
+
+cmrc_add_resource_library(program_assets NAMESPACE assets ${ASSET_FILES})
 
 # --------------------------- LunaSVG ---------------------------
 
@@ -27,14 +36,9 @@ FetchContent_MakeAvailable(lunasvg)
 
 #----------------------------------------------------------------
 
-file(GLOB_RECURSE SRC_FILES src/*.cpp src/*.c "res/View Image.rc")
 
 find_library(SHLWAPI_LIB shlwapi)
 find_package(OpenGL REQUIRED)
-
-configure_file(res/OCRAEXT.ttf OCRAEXT.ttf COPYONLY)
-configure_file(res/segoeui.ttf segoeui.ttf COPYONLY)
-configure_file(res/verdana.ttf verdana.ttf COPYONLY)
 
 if(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
     add_compile_options(-ffunction-sections -fdata-sections)
@@ -58,4 +62,4 @@ set_target_properties(viewimage PROPERTIES OUTPUT_NAME "ViewImage")
 
 # Link the library to the target
 target_link_libraries(viewimage PRIVATE ${SHLWAPI_LIB} Freetype::Freetype OpenGL::GL)
-target_link_libraries(viewimage PRIVATE lunasvg)
+target_link_libraries(viewimage PRIVATE lunasvg program_assets)

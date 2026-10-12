@@ -1,5 +1,5 @@
 #include "headers/gaussian.h"
-#include "../../res/resource.h"
+#include "../../reswin/resource.h"
 #include <Uxtheme.h>
 #include <windowsx.h>
 //#include <dwmapi.h>

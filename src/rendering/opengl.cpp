@@ -24,6 +24,54 @@ uint32_t NextPowerOfTwo(uint32_t n) {
     return n + 1;
 }
 
+GLAtlasTxt LoadOpenGLImage(void* memory, int size) {
+    int w, h, c;
+    unsigned char* img = stbi_load_from_memory((stbi_uc*)memory, size, &w, &h, &c, 0);
+    if (!img) {
+        std::cerr << "Failed to load OpenGL Texture\n";
+        return {0, 0, false};
+    }
+    
+    if (c != 4) {
+        std::cerr << "Only 4-channel textures are supported\n";
+        free(img); 
+        return {0, 0, false};
+    }
+
+    int new_w = NextPowerOfTwo(w);
+    int new_h = NextPowerOfTwo(h);
+
+    unsigned char* new_img = img;
+    if (new_w != w || new_h != h) {
+        new_img = new unsigned char[new_w * new_h * 4]();
+        for (int y = 0; y < h; ++y) {
+            memcpy(new_img + (y * new_w * 4), img + (y * w * 4), w * 4);
+        }
+    }
+
+    GLAtlasTxt atl_ele;
+    
+    glGenTextures(1, &atl_ele.id);
+    glBindTexture(GL_TEXTURE_2D, atl_ele.id);
+    
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, new_w, new_h, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, new_w, new_h, GL_RGBA, GL_UNSIGNED_BYTE, new_img);
+    
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    
+    if (new_img != img) {
+        delete[] new_img;
+    }
+    
+    free(img);
+
+    atl_ele.valid = true;
+    atl_ele.w = new_w;
+    atl_ele.h = new_h;
+    return atl_ele;
+}
+
 void SetupPixelFormat(GlobalParams* m) {
     PIXELFORMATDESCRIPTOR pfd = { 0 };
     pfd.nSize = sizeof(PIXELFORMATDESCRIPTOR);

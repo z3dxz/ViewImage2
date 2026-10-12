@@ -1,5 +1,5 @@
 #include "headers/fontdialog.h"
-#include "../../res/resource.h"
+#include "../../reswin/resource.h"
 #include <Uxtheme.h>
 //#include <dwmapi.h>
 

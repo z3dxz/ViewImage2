@@ -10,8 +10,6 @@
 #include <GL/gl.h>
 
 
-unsigned char* LoadImageFromResource(int resourceId, int* width, int* height, int* channels);
-GLAtlasTxt LoadOpenGLImageFromResource(int resourceId);
 
 inline void FreeDatac(void*& b) {
 	if (b) {
@@ -96,5 +94,7 @@ bool AutoAdjustLevels(GlobalParams* m, uint32_t* buffer, double sigma);
 std::string ExePath();
 void initfontfolder(GlobalParams* m);
 FT_Face LoadFont(GlobalParams* m, std::string fontA);
+
+FT_Face LoadFontMemory(GlobalParams* m, const void* start, long size);
 int opsPlaceStringBufferSoftware(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, void* mem, int bufwidth, int bufheight, void* fromBuffer);
 int opsPlaceStringShadowObjectSoftware(GlobalParams* m, int size, const char* inputstr, uint32_t locX, uint32_t locY, uint32_t color, void* mem, double sigma, int passes);

@@ -64,17 +64,6 @@ unlockicon1             ICON                    "unlockicon.ico"
 // PNG
 //
 
-FS_ICON                 PNG                     "fullscreen_icon.png"
-
-TOOLBAR_RES             PNG                     "iconbar_b.png"
-
-ICON_MAP                PNG                     "12iconmap.png"
-
-CROPICON                PNG                     "cropicon.png"
-
-MENUSHADOW              PNG                     "menu_shadow.png"
-
-DMGUIDEICON             PNG                     "dmguide.png"
 
 
 /////////////////////////////////////////////////////////////////////////////

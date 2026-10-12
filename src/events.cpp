@@ -1,5 +1,5 @@
 #include "headers/events.hpp" // e
-#include "../res/resource.h"
+#include "../reswin/resource.h"
 #include <Shlwapi.h>
 #include <vector>
 #include <fstream>
@@ -118,22 +118,31 @@ bool Initialization(GlobalParams* m, int argc, LPWSTR* argv) {
 	m->cd = std::string(buffer);
 
 	// load fonts here
+	
+	Resource resocra = GetResource("res/OCRAEXT.ttf");
+	Resource resverdana = GetResource("res/verdana.ttf");
+	Resource ressegoeui = GetResource("res/segoeui.ttf");
 
-	m->Verdana = LoadFont(m, "Verdana.ttf");
-	m->SegoeUI = LoadFont(m, "SegoeUI.ttf");
-	m->OCRAExt = LoadFont(m, "OCRAEXT.ttf");
+	m->OCRAExt = LoadFontMemory(m, resocra.data, resocra.size);
+	m->Verdana = LoadFontMemory(m, resverdana.data, resverdana.size);
+	m->SegoeUI = LoadFontMemory(m, ressegoeui.data, ressegoeui.size);
 
-	m->toolbarData = LoadOpenGLImageFromResource(TOOLBAR_RES);
+	Resource restoolbar = GetResource("res/iconbar_b.png");
+	Resource resfull = GetResource("res/fullscreen_icon.png");
+	Resource resmenu = GetResource("res/12iconmap.png");
+	Resource resdmguide = GetResource("res/dmguide.png");
+	Resource rescrophandle = GetResource("res/cropicon.png");
 
 	// sliders
 	m->brush_size_slider = {113, 14, 214, 31, &m->drawMenuOffsetX, &m->drawMenuOffsetY, false};
 	m->brush_opacity_slider = {318, 14, 405, 31, &m->drawMenuOffsetX, &m->drawMenuOffsetY, false};
 
-	// icons
-	m->menu_icon_atlas = LoadOpenGLImageFromResource(ICON_MAP);
-	m->fullscreenIconData = LoadOpenGLImageFromResource(FS_ICON);
-	m->dmguideIconData = LoadOpenGLImageFromResource(DMGUIDEICON);
-	m->cropImageData = LoadOpenGLImageFromResource(CROPICON);
+	// images
+	m->toolbarData = LoadOpenGLImage(restoolbar.data, restoolbar.size);
+	m->menu_icon_atlas = LoadOpenGLImage(resmenu.data, resmenu.size);
+	m->fullscreenIconData = LoadOpenGLImage(resfull.data, resfull.size);
+	m->dmguideIconData = LoadOpenGLImage(resdmguide.data, resdmguide.size);
+	m->cropImageData = LoadOpenGLImage(rescrophandle.data, rescrophandle.size); 
 
 	// TEMPORARY FILES STUFF
 

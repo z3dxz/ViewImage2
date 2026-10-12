@@ -1,5 +1,5 @@
 #include "headers/drawtext.h"
-#include "../../res/resource.h"
+#include "../../reswin/resource.h"
 #include <Uxtheme.h>
 #include <iostream>
 #include <string>

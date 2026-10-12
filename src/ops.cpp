@@ -8,7 +8,7 @@
 #include <execution>
 #include "headers/ops.hpp"
 #include "headers/imgload.hpp"
-#include "../res/resource.h"
+#include "../reswin/resource.h"
 #include "vendor/stb_image_resize2.h"
 #define max(a,b)            (((a) > (b)) ? (a) : (b))
 #define min(a,b)            (((a) < (b)) ? (a) : (b))
@@ -94,77 +94,6 @@ bool isFile(const char* str, const char* suffix) {
 		}
 	}
 	return true;
-}
-
-unsigned char* LoadImageFromResource(int resourceId, int* width, int* height, int* channels) {
-	HMODULE hModule = GetModuleHandle(nullptr);
-
-	HRSRC hResource = FindResource(hModule, MAKEINTRESOURCE(resourceId), "PNG");
-	HGLOBAL hResourceData = LoadResource(hModule, hResource);
-	const void* resourceData = LockResource(hResourceData);
-	const size_t resourceSize = SizeofResource(hModule, hResource);
-
-	unsigned char* imageData = stbi_load_from_memory(reinterpret_cast<const stbi_uc*>(resourceData), resourceSize, width, height, channels, 4);
-	
-	if (!imageData) std::cerr << "Failed to load image from resource " << resourceId << ": " << stbi_failure_reason() << std::endl;
-
-	FreeResource(hResourceData);
-
-	return imageData;
-}
-
-int NextPOT(int n) {
-    int p = 1;
-    while (p < n) p *= 2;
-    return p;
-}
-
-GLAtlasTxt LoadOpenGLImageFromResource(int resourceId) {
-    int w, h, c;
-    unsigned char* img = LoadImageFromResource(resourceId, &w, &h, &c);
-    if (!img) {
-        std::cerr << "Failed to load resource\n";
-        return {0, 0, false};
-    }
-    
-    if (c != 4) {
-        std::cerr << "Only 4-channel textures are supported\n";
-        free(img); 
-        return {0, 0, false};
-    }
-
-    int new_w = NextPOT(w);
-    int new_h = NextPOT(h);
-
-    unsigned char* new_img = img;
-    if (new_w != w || new_h != h) {
-        new_img = new unsigned char[new_w * new_h * 4]();
-        for (int y = 0; y < h; ++y) {
-            memcpy(new_img + (y * new_w * 4), img + (y * w * 4), w * 4);
-        }
-    }
-
-    GLAtlasTxt atl_ele;
-    
-    glGenTextures(1, &atl_ele.id);
-    glBindTexture(GL_TEXTURE_2D, atl_ele.id);
-    
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, new_w, new_h, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, new_w, new_h, GL_RGBA, GL_UNSIGNED_BYTE, new_img);
-    
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    
-    if (new_img != img) {
-        delete[] new_img;
-    }
-    
-    free(img);
-
-    atl_ele.valid = true;
-    atl_ele.w = new_w;
-    atl_ele.h = new_h;
-    return atl_ele;
 }
 
 void PrintImageToPrinter(uint32_t* image, int width, int height, HDC printerDC) {
@@ -872,6 +801,26 @@ FT_Face LoadFont(GlobalParams* m, std::string fontA) {
 	std::string er = "Failed to load font: " + fontA + "\nYou may need to install this on your system";
 	MessageBox(m->hwnd, er.c_str(), "Error Loading Font", MB_OK | MB_ICONERROR);
 	return nullptr;
+}
+
+FT_Face LoadFontMemory(GlobalParams* m, const void* start, long size) {
+    if (!alreadyInit) {
+        if (FT_Init_FreeType(&ft)) {
+            MessageBox(m->hwnd, "Failed to initialize FreeType library\n", "Error", MB_OK | MB_ICONERROR);
+            return nullptr;
+        }
+        FT_Library_SetLcdFilter(ft, FT_LCD_FILTER_MAX);
+        alreadyInit = true;
+    }
+
+    FT_Face k;
+
+    if (!(FT_New_Memory_Face(ft, static_cast<const FT_Byte*>(start), size, 0, &k))) {
+        return k;
+    }
+
+    MessageBox(m->hwnd, "Failed to load font from memory resource.", "Error Loading Font", MB_OK | MB_ICONERROR);
+    return nullptr;
 }
 
 void SwitchSoftwareFont(FT_Face& font) {

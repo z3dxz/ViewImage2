@@ -6,7 +6,7 @@
 #include <iostream>
 #include <thread>
 #include <string>
-#include "../res/resource.h"
+#include "../reswin/resource.h"
 #include <cstdint>
 #include "dpi.h"
 #include "headers/ops.hpp"
@@ -16,6 +16,8 @@
 #include "headers/imgload.hpp"
 #include "headers/events.hpp"
 #include "rendering/opengl.hpp"
+
+#include "resman.h"
 // draw vars
 
 GlobalParams gp;
@@ -155,6 +157,8 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 
 	gp.hdc = GetDC(gp.hwnd);
 
+    InitializeResourceManager();
+	
 	// Initialize OpenGL
 	InitializeOpenGL(&gp);
 
@@ -163,6 +167,9 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 	if (!Initialization(&gp, argc, argv)) {
 		return 0;
 	}
+
+	// Initialize resources
+	
 
 	SetTimer(gp.hwnd, 1, (int)(1/60)+1, NULL);
 

@@ -11,6 +11,7 @@
 #include "../effectdialog/headers/brightnesscontrast.h"
 #include "../effectdialog/headers/gaussian.h"
 #include "../effectdialog/headers/drawtext.h"
+#include "../resman.h"
 
 void TurnOnLoad(GlobalParams* m);
 void TurnOffLoad(GlobalParams* m);

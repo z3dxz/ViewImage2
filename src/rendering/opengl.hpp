@@ -14,6 +14,9 @@ void PerformRedraw(GlobalParams* m);
 
 void RedrawForce(GlobalParams* m, bool image_update = false, ImageUpdateRgn rgn = {0, 0, 0, 0, 0, 0});
 
+
+GLAtlasTxt LoadOpenGLImage(void* memory, int size);
+
 // Function prototypes
 void SetupPixelFormat(GlobalParams* m);
 void InitializeOpenGL(GlobalParams* m);
